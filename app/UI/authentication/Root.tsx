@@ -1,6 +1,7 @@
 import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { useColorScheme } from "react-native";
 import LoginScreen from "./LoginScreen"; // Giả sử đây là màn hình login của bạn
+import HomeScreen from "./HomeScreen";   // Đường dẫn tới HomeScreen
 import { useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Amplify } from '@aws-amplify/core';
@@ -30,6 +31,7 @@ export default function Root() {
       >
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
       </Stack.Navigator>
     </Provider>
