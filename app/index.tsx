@@ -6,20 +6,22 @@ const Index = ({ navigation }: any) => {
     <View style={styles.container}>
       {/* Biểu tượng tin nhắn */}
       <Image
-        source={{ uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png" }}
+        source={{
+          uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png",
+        }}
         style={styles.logo}
       />
       {/* Nút Login */}
       <TouchableOpacity
         style={[styles.button, styles.loginButton]}
-        onPress={() => navigation.navigate("auth",{screen:"login"})}
+        onPress={() => navigation.navigate("auth", { screen: "login" })}
       >
         <Text style={styles.loginText}>Log in</Text>
       </TouchableOpacity>
       {/* Nút Create Account */}
       <TouchableOpacity
         style={[styles.button, styles.createButton]}
-        onPress={() => navigation.navigate("auth",{screen:"register"})}
+        onPress={() => navigation.navigate("auth", { screen: "register" })}
       >
         <Text style={styles.createText}>Create new account</Text>
       </TouchableOpacity>
@@ -28,9 +30,6 @@ const Index = ({ navigation }: any) => {
 };
 
 export default Index;
-
-
-
 
 const styles = StyleSheet.create({
   container: {
