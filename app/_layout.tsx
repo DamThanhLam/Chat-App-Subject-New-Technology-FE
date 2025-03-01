@@ -6,6 +6,7 @@ import {useColorScheme} from '@/hooks/useColorScheme';
 import Index from './index';
 import Root from './UI/authentication/Root';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import ChatScreen from './UI/authentication/ChatScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -27,8 +28,9 @@ export default function RootLayout() {
     <NavigationThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
       <Stack.Navigator >
-        <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
-        <Stack.Screen name='auth' component={Root} options={{ headerShown: false }} />
+        <Stack.Screen name="chat" component={ChatScreen}  options={{ headerShown: false }} />
+        {/* <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
+        <Stack.Screen name='auth' component={Root} options={{ headerShown: false }} /> */}
       </Stack.Navigator>
     </NavigationThemeProvider>
   );
