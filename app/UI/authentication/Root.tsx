@@ -10,6 +10,7 @@ import RegisterScreen from "./RegisterScreen";
 import OTPVerificationScreen from "./OTPVerificationScreen";
 import { Provider } from "react-redux";
 import { store } from "@/app/redux/store";
+import FriendScreen from "./FriendScreen";
 
 Amplify.configure(awsConfig);
 
@@ -29,6 +30,7 @@ export default function Root() {
         }}
       >
         <Stack.Screen name="login" component={LoginScreen} />
+        <Stack.Screen name="friend" component={FriendScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
       </Stack.Navigator>
