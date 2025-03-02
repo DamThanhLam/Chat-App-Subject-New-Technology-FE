@@ -7,7 +7,7 @@ const Index = ({ navigation }: any) => {
       {/* Biểu tượng tin nhắn */}
       <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png" }}
-        style={styles.logo}
+        style={styles.logo} 
       />
       {/* Nút Login */}
       <TouchableOpacity

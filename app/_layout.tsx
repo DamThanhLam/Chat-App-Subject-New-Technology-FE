@@ -30,6 +30,6 @@ export default function RootLayout() {
       <Stack.Navigator >
         <Stack.Screen name="friend" component={FriendScreen}  options={{ headerShown: false }} />
       </Stack.Navigator>
-    </NavigationThemeProvider>
+    </NavigationThemeProvider> 
   );
 }
