@@ -20,7 +20,15 @@ export default function LoginScreen({ navigation }: any) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-
+{/* <TouchableOpacity style={styles.navItem}>
+          <Ionicons name="document-text-outline" size={24} color="gray" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Ionicons name="notifications-outline" size={24} color="gray" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Ionicons name="settings-outline" size={24} color="gray" />
+        </TouchableOpacity> */}
   const handleLogin = async () => {
     try {
       const user = await Auth.signIn(username, password);
@@ -33,7 +41,7 @@ export default function LoginScreen({ navigation }: any) {
         })
       );
       Alert.alert("Thành công", `Xin chào ${user.name}`);
-      navigation.navigate("Home"); // Điều hướng sang HomeScreen
+      navigation.navigate("home"); // Điều hướng sang HomeScreen
     } catch (error: any) {
       if (error.code === "UserNotConfirmedException") {
         navigation.navigate("otp-verification", { user: { username: username } });

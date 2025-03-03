@@ -11,6 +11,7 @@ import RegisterScreen from "./authentication/RegisterScreen";
 import OTPVerificationScreen from "./authentication/OTPVerificationScreen";
 import { Provider } from "react-redux";
 import { store } from "@/app/redux/store";
+import RootHome from './home/Root'
 
 Amplify.configure(awsConfig);
 
@@ -31,7 +32,7 @@ export default function Root() {
       >
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="home" component={RootHome} options={{ headerShown: false }} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
       </Stack.Navigator>
     </Provider>
