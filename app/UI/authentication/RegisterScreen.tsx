@@ -59,10 +59,10 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
     uppercase: false,
     symbol: false,
   });
+  const data = (route.params as { data: any })?.data;
 
   // Kiểm tra dữ liệu từ route (nếu có, ví dụ sau khi quay lại từ OTP)
   useEffect(() => {
-    const data = (route.params as { data: any })?.data;
     if (data) {
       setForm((prevForm) => ({
         ...prevForm,
@@ -128,7 +128,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
         });
         console.log(user)
         // Chuyển đến màn hình OTP để xác nhận
-        navigation.navigate('otp-verification', { user: user }); // Truyền trực tiếp data qua params
+        navigation.navigate('otp-verification', { user: user, data:form }); // Truyền trực tiếp data qua params
       } catch (error: any) {
         Alert.alert('Lỗi', error.message);
       }

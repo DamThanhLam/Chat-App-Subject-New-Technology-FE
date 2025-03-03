@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { CommonActions, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { Auth } from '@aws-amplify/auth';
 import { useDispatch } from 'react-redux';
@@ -13,6 +13,7 @@ const OTPVerificationScreen: React.FC = ({ navigation, route }: any) => {
   const [otp, setOtp] = useState("");
   const [resendTime, setResendTime] = useState(30); // Khởi tạo thời gian đếm ngược 30 giây
   const user = (route.params as { user: any })?.user;
+  const data = (route.params as { data: any })?.data;
   const dispatch = useDispatch();
   const previousRoute = navigation.getState().routes.at(-2)?.name;
   const otpRef = useRef<any>(null);
@@ -73,7 +74,13 @@ const OTPVerificationScreen: React.FC = ({ navigation, route }: any) => {
           return;
         }
         await Auth.confirmSignUp(user.username, code);
-        navigation.replace('auth',{screen:'login'});
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'auth', params: { screen: 'login' } }],
+          })
+        );
+        
         Alert.alert('Thành công', 'Xác nhận OTP thành công! Vui lòng đăng nhập.');
       } catch (error: any) {
         Alert.alert('Lỗi!', error.message || 'Xác nhận OTP thất bại.');
@@ -138,7 +145,7 @@ const OTPVerificationScreen: React.FC = ({ navigation, route }: any) => {
           styles.resendText,
           { color: theme.colors.primary, textDecorationLine: 'underline' },
         ]}
-        onPress={() => navigation.replace("register", { user })}
+        onPress={() => navigation.navigate("register", { user,data })}
       >
         Thay đổi {user.username}
       </Text>
