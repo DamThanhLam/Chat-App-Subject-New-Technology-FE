@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Platform,
   StatusBar,
   useColorScheme,
+  Dimensions,
+  Animated,
 } from "react-native";
 import io from "socket.io-client";
 import Button from "@/components/ui/Button";
@@ -30,6 +32,8 @@ interface Message {
   category: "send" | "receive";
 }
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const ChatScreen = ({ navigation }: any) => {
   const [userID1, setUserID1] = useState("");
   const [userID2, setUserID2] = useState("");
@@ -39,8 +43,38 @@ const ChatScreen = ({ navigation }: any) => {
   const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
-  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const colorScheme = useColorScheme();
+  const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
+
+  // Animation for sliding panel
+  const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
+  const openSettings = useCallback(() => {
+    if (settingsVisible || menuVisible || optionsVisible) {
+      console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
+      return;
+    }
+
+    console.log("openSettings called, settingsVisible:", settingsVisible);
+
+    slideAnim.setValue(SCREEN_WIDTH);
+
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setSettingsVisible(true)); // Cập nhật trạng thái sau khi animation chạy xong
+  }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
+
+  const closeSettings = useCallback(() => {
+    setSettingsVisible(false); // Đặt trạng thái về false trước
+    Animated.timing(slideAnim, {
+      toValue: SCREEN_WIDTH,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim]);
+
 
   const normalizeCategory = (category: string): "send" | "receive" => {
     return category === "send" || category === "receive" ? category : "receive";
@@ -108,7 +142,6 @@ const ChatScreen = ({ navigation }: any) => {
   const closeOptions = () => {
     setOptionsVisible(false);
   };
-
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -119,16 +152,35 @@ const ChatScreen = ({ navigation }: any) => {
           <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
             <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
+          <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
             <FontAwesome name="list" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
       ),
     });
-  }, [theme]);
+  }, [navigation, openSettings]);
+
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle,{color:theme.colors.text}]}>{anotherUser?.name || "Chat"}</Text>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
+            <FontAwesome name="phone" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
+            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
+            <FontAwesome name="list" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Chat Messages */}
       <FlatList
         data={conversation || []}
@@ -206,6 +258,66 @@ const ChatScreen = ({ navigation }: any) => {
         </View>
       </Modal>
 
+      {/* Settings Panel */}
+      <Modal visible={settingsVisible} transparent animationType="none">
+        <View style={styles.settingsModalBackground}>
+          <Animated.View
+            style={[
+              styles.settingsPanel,
+              {
+                transform: [{ translateX: slideAnim }],
+                backgroundColor: theme.colors.card,
+              },
+            ]}
+          >
+            <View style={styles.settingsHeader}>
+              <TouchableOpacity onPress={closeSettings}>
+                <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Tùy chọn</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
+              <Text style={[styles.userName, { color: theme.colors.text }]}>User Name</Text>
+            </View>
+            <View style={styles.settingsOptions}>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="pencil" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Đổi tên gợi nhớ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="image" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Ảnh, file, link</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="search" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tìm tin nhắn</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="bell" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tắt thông báo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tạo nhóm với User Name</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="users" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Thêm User Name vào nhóm</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="group" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xem nhóm chung</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.settingsItem]}>
+                <FontAwesome name="trash" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xóa lịch sử trò chuyện</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* Input Container */}
       <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
         <TouchableOpacity onPress={() => alert("Add Emoji")} style={styles.iconSpacing}>
@@ -226,7 +338,7 @@ const ChatScreen = ({ navigation }: any) => {
             <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
               <FontAwesome name="microphone" size={24} color={theme.colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => alert("Add Image")} style={styles.iconSpacing}>
+            <TouchableOpacity onPress={() => openSettings()} style={styles.iconSpacing}>
               <FontAwesome name="image" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </>
@@ -239,7 +351,7 @@ const ChatScreen = ({ navigation }: any) => {
       <Modal visible={optionsVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
           <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("File")}>
+            <TouchableOpacity style={styles.optionItem} onPress={() => { }}>
               <FontAwesome name="file" size={20} color={theme.colors.text} />
               <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
             </TouchableOpacity>
@@ -267,9 +379,27 @@ const ChatScreen = ({ navigation }: any) => {
 export default ChatScreen;
 
 const styles = StyleSheet.create({
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 15,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    paddingTop:StatusBar.currentHeight? StatusBar.currentHeight+5: 30
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign:'left',
+    flex:1,
+    paddingLeft:15
+  },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   headerIcons: {
     flexDirection: "row",
@@ -370,5 +500,55 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: "bold",
+  },
+  // Settings panel styles
+  settingsModalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  settingsPanel: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: SCREEN_WIDTH * 0.75, // 75% of screen width
+  },
+  settingsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  userInfo: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 10,
+  },
+  settingsOptions: {
+    flex: 1,
+  },
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    paddingHorizontal:20
+  },
+  settingsText: {
+    fontSize: 16,
+    marginLeft: 15,
+  },
+  deleteButton: {
+    marginTop: 20,
   },
 });

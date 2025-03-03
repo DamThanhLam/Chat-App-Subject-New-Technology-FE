@@ -38,7 +38,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
-        <Stack.Screen name='chat' component={ChatScreen}  />
+        <Stack.Screen name='chat' component={ChatScreen}  options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationThemeProvider>
   );
