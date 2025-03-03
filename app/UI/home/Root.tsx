@@ -10,6 +10,7 @@ import { store } from "@/app/redux/store";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./HomeScreen";
 import { Ionicons } from "@expo/vector-icons";
+import SettingsRoot from "./settings/Root";
 
 Amplify.configure(awsConfig);
 
@@ -27,16 +28,18 @@ export default function Root() {
                     headerTintColor: theme.colors.text,
                     headerTitleAlign: "left",
                     tabBarIcon: ({ color, size }) => {
-                        let iconName;
-                        if (route.name === "home") iconName = "home";
-                        else if (route.name === "settings") iconName = "settings";
-                        return <Ionicons name="home" size={size} color={color} />;
+                        const iconName =
+                            route.name === "home" ? "home" :
+                                route.name === "settings-root" ? "settings-outline" :
+                                    "help-circle" as const;
+                        return <Ionicons name={iconName} size={size} color={color} />;
                     },
                     tabBarActiveTintColor: theme.colors.primary,
                     tabBarInactiveTintColor: "gray",
                 })}
             >
-                <Stack.Screen name="home" component={HomeScreen} options={{headerShown:false}} />
+                <Stack.Screen name="home" component={HomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="settings-root" component={SettingsRoot} options={{ headerShown: false }} />
             </Stack.Navigator>
         </Provider>
     );

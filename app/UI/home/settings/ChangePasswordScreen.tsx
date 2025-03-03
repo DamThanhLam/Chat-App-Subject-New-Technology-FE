@@ -17,13 +17,7 @@ const ChangePasswordScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Change password</Text>
-      </View>
+      
 
       {/* Input Fields */}
       <Text style={styles.label}>Current password</Text>

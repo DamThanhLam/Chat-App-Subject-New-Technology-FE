@@ -7,17 +7,13 @@ import {
   StyleSheet,
   FlatList,
   Image,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../authentication/Root";
 
-type SettingsScreenProps = NativeStackScreenProps<
-  RootStackParamList,
-  "settings"
->;
-
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
+export default function SettingsScreen({ navigation }: any) {
   const [searchText, setSearchText] = useState("");
 
   const settingsOptions = [
@@ -42,44 +38,49 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search..."
-          value={searchText}
-          onChangeText={setSearchText}
-        />
-        <Ionicons
-          name="search"
-          size={20}
-          color="black"
-          style={styles.searchIcon}
+    <SafeAreaView style={styles.safeContainer}>
+      <View style={styles.container}>
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search..."
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+          <Ionicons
+            name="search"
+            size={20}
+            color="black"
+            style={styles.searchIcon}
+          />
+        </View>
+
+        <FlatList
+          data={filteredOptions}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.listContainer}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => navigation.navigate(item.screen)}
+            >
+              <Image source={{ uri: item.image }} style={styles.icon} />
+              <Text style={styles.cardText}>{item.name}</Text>
+            </TouchableOpacity>
+          )}
         />
       </View>
-
-      <FlatList
-        data={filteredOptions}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.listContainer}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() =>
-              navigation.navigate(item.screen as keyof RootStackParamList)
-            }
-          >
-            <Image source={{ uri: item.image }} style={styles.icon} />
-            <Text style={styles.cardText}>{item.name}</Text>
-          </TouchableOpacity>
-        )}
-      />
-    </View>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: "white",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: "white",
@@ -127,5 +128,3 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
-
-export default SettingsScreen;
