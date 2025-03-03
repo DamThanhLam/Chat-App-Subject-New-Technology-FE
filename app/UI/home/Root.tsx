@@ -12,7 +12,8 @@ import HomeScreen from "./HomeScreen";
 import { Ionicons } from "@expo/vector-icons";
 import SettingsRoot from "./settings/Root";
 import ChatScreen from "./chat/ChatScreen";
-
+import FriendScreen from "./FriendScreen";
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 Amplify.configure(awsConfig);
 
 const Stack = createBottomTabNavigator();
@@ -29,19 +30,22 @@ export default function Root() {
                     headerTintColor: theme.colors.text,
                     headerTitleAlign: "left",
                     tabBarIcon: ({ color, size }) => {
-                        const iconName =
-                            route.name === "home" ? "home" :
-                                route.name === "settings-root" ? "settings-outline" :
-                                    "help-circle" as const;
-                        return <Ionicons name={iconName} size={size} color={color} />;
+                        if (route.name === "home") {
+                            return <Ionicons name="home" size={size} color={color} />;
+                        } else if (route.name === "settings-root") {
+                            return <Ionicons name="settings-outline" size={size} color={color} />;
+                        }else if(route.name === "friends"){
+                            return <FontAwesome5 name="user-friends" size={size}  color={color} />
+                        }
                     },
                     tabBarActiveTintColor: theme.colors.primary,
                     tabBarInactiveTintColor: "gray",
                 })}
             >
                 <Stack.Screen name="home" component={HomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="friends" component={FriendScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="settings-root" component={SettingsRoot} options={{ headerShown: false }} />
-                
+
             </Stack.Navigator>
         </Provider>
     );

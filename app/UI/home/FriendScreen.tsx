@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -26,7 +28,7 @@ const FriendScreen = () => {
     { id: "3", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
   ];
 
-  const renderFriendItem = ({ item }) => (
+  const renderFriendItem = ({ item }:any) => (
     <View style={styles.friendItem}>
       {item.avatar ? (
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -47,7 +49,7 @@ const FriendScreen = () => {
     </View>
   );
 
-  const renderGroupItem = ({ item }) => (
+  const renderGroupItem = ({ item }:any) => (
     <View style={styles.chatItem}>
       <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
@@ -138,22 +140,7 @@ const FriendScreen = () => {
           contentContainerStyle={styles.chatList}
         />
       )}
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home" size={24} color="gray" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="people-outline" size={24} color="blue" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="notifications-outline" size={24} color="gray" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="settings-outline" size={24} color="gray" />
-        </TouchableOpacity>
-      </View>
+     
     </View>
   );
 };
@@ -164,6 +151,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+
   },
   searchContainer: {
     flexDirection: "row",

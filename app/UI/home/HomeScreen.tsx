@@ -9,6 +9,7 @@ import {
   Image,
   SafeAreaView,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -78,7 +79,8 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? 25 : 0, // Cho Android tránh phần notch
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+
   },
   searchContainer: {
     flexDirection: "row",
