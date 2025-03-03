@@ -45,7 +45,7 @@ export default function Root() {
       >
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
-        <Stack.Screen name="home" component={RootHome} options={{ headerShown: false }} />
+        <Stack.Screen name="home-root" component={RootHome} options={{ headerShown: false }} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
       </Stack.Navigator>
     </Provider>

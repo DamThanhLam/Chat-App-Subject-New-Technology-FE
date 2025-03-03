@@ -11,7 +11,6 @@ import {
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Auth } from "@aws-amplify/auth";
-import { Auth } from "@aws-amplify/auth";
 import { useDispatch } from "react-redux";
 import { setUser } from "@/app/redux/slices/UserSlice";
 
