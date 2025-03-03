@@ -14,14 +14,14 @@ const Index = ({ navigation }: any) => {
       {/* Nút Login */}
       <TouchableOpacity
         style={[styles.button, styles.loginButton]}
-        onPress={() => navigation.navigate("auth", { screen: "login" })}
+        onPress={() => navigation.navigate("app", { screen: "login" })}
       >
         <Text style={styles.loginText}>Log in</Text>
       </TouchableOpacity>
       {/* Nút Create Account */}
       <TouchableOpacity
         style={[styles.button, styles.createButton]}
-        onPress={() => navigation.navigate("auth", { screen: "register" })}
+        onPress={() => navigation.navigate("app", { screen: "register" })}
       >
         <Text style={styles.createText}>Create new account</Text>
       </TouchableOpacity>

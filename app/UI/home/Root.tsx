@@ -11,6 +11,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./HomeScreen";
 import { Ionicons } from "@expo/vector-icons";
 import SettingsRoot from "./settings/Root";
+import ChatScreen from "./chat/ChatScreen";
 
 Amplify.configure(awsConfig);
 
@@ -40,6 +41,7 @@ export default function Root() {
             >
                 <Stack.Screen name="home" component={HomeScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="settings-root" component={SettingsRoot} options={{ headerShown: false }} />
+                
             </Stack.Navigator>
         </Provider>
     );

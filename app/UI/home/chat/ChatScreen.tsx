@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,15 @@ import {
   Image,
   StyleSheet,
   Modal,
+  Platform,
+  StatusBar,
+  useColorScheme,
 } from "react-native";
 import io from "socket.io-client";
 import Button from "@/components/ui/Button";
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const SOCKET_SERVER = "http://10.0.2.2:8084";
 const socket = io(SOCKET_SERVER);
@@ -26,7 +30,7 @@ interface Message {
   category: "send" | "receive";
 }
 
-const ChatScreen = () => {
+const ChatScreen = ({ navigation }: any) => {
   const [userID1, setUserID1] = useState("");
   const [userID2, setUserID2] = useState("");
   const [anotherUser, setAnotherUser] = useState<{ _id: string; name: string; image: string } | null>(null);
@@ -35,6 +39,8 @@ const ChatScreen = () => {
   const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme == 'dark' ? DarkTheme : DefaultTheme;
 
   const normalizeCategory = (category: string): "send" | "receive" => {
     return category === "send" || category === "receive" ? category : "receive";
@@ -103,29 +109,28 @@ const ChatScreen = () => {
     setOptionsVisible(false);
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => alert("Back")}>
-          <FontAwesome name="arrow-left" size={24} color="#000" />
-        </TouchableOpacity>
-        <View style={styles.headerUserInfo}>
-          <Image source={{ uri: anotherUser?.image }} style={styles.headerAvatar} />
-          <Text style={styles.headerName}>{anotherUser?.name || "User Name"}</Text>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
-            <FontAwesome name="phone" size={24} color="#000" />
+          <TouchableOpacity onPress={() => alert("Call")} style={[styles.iconSpacing,]}>
+            <FontAwesome name="phone" size={24} color={theme.colors.primary}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
-            <FontAwesome name="video-camera" size={24} color="#000" />
+            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-            <FontAwesome name="list" size={24} color="#000" />
+            <FontAwesome name="list" size={24} color={theme.colors.primary}/>
           </TouchableOpacity>
         </View>
-      </View>
+      ),
+    });
+  }, []);
+
+  return (
+    <View style={styles.container}>
+
 
       {/* Chat Messages */}
       <FlatList
@@ -241,12 +246,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    // paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     padding: 10,
-    backgroundColor: "#d3d3d3d3", 
+    backgroundColor: "#d3d3d3d3",
     borderBottomWidth: 1,
     borderColor: "#ccc",
   },
@@ -265,14 +271,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginLeft: 0,
-    marginRight: 10, 
+    marginRight: 10,
   },
   headerIcons: {
     flexDirection: "row",
     alignItems: "center",
   },
   iconSpacing: {
-    marginHorizontal: 10, 
+    marginHorizontal: 10,
   },
   messageContainer: {
     flexDirection: "row",
@@ -313,7 +319,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 10,
-    backgroundColor: "#d3d3d3", 
+    backgroundColor: "#d3d3d3",
     borderTopWidth: 1,
     borderColor: "#ccc",
   },

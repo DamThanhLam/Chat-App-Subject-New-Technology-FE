@@ -46,9 +46,9 @@
     "expo-symbols": "~0.2.2",
     "expo-system-ui": "~4.0.8",
     "expo-web-browser": "~14.0.2",
-    "react": "18.3.1",
-    "lucide-react": "^0.476.0",
     "express": "^4.21.2",
+    "lucide-react": "^0.476.0",
+    "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
     "react-native-context-menu-view": "^1.17.0",
@@ -63,7 +63,8 @@
     "react-native-webview": "13.12.5",
     "react-redux": "^9.2.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "socket.io-parser": "^4.2.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

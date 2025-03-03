@@ -1,42 +1,46 @@
-import {
-  NavigationContainer,
-  DarkTheme,
-  DefaultTheme,
-} from "@react-navigation/native";
-import { useColorScheme } from "react-native";
-import LoginScreen from "./authentication/LoginScreen"; // Giả sử đây là màn hình login của bạn
-import HomeScreen from "./home/HomeScreen";   // Đường dẫn tới HomeScreen
-import { useState } from "react";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Amplify } from "@aws-amplify/core";
-import awsConfig from "@/app/configs/aws-config";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import RegisterScreen from "./authentication/RegisterScreen";
-import OTPVerificationScreen from "./authentication/OTPVerificationScreen";
-import { Provider } from "react-redux";
-import { store } from "@/app/redux/store";
-
-Amplify.configure(awsConfig);
+import * as React from 'react';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
+import 'react-native-reanimated';
+import {useColorScheme} from '@/hooks/useColorScheme';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Text, View } from 'react-native';
+import RootHome from './home/Root'
+import LoginScreen from './authentication/LoginScreen';
+import RegisterScreen from './authentication/RegisterScreen';
+import OTPVerificationScreen from './authentication/OTPVerificationScreen';
+import ChatScreen from './home/chat/ChatScreen';
 
 const Stack = createNativeStackNavigator();
 
-export default function Root() {
+// Ngăn splash screen tự động ẩn trước khi ứng dụng tải xong
+// SplashScreen.preventAutoHideAsync();
+export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const theme = colorScheme == "dark" ? DarkTheme : DefaultTheme;
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+
+  console.trace("Stack Trace của RootLayout.js");
+
+  // React.useEffect(() => {
+  //   async function hideSplashScreen() {
+  //     await SplashScreen.hideAsync();
+  //   }
+  //   hideSplashScreen();
+  // }, []);
 
   return (
-    <Provider store={store}>
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.primary }, // Màu xanh giống như hình
-          headerTintColor: theme.colors.text,
-          headerTitleAlign: "left",
-        }}
-      >
+    <NavigationThemeProvider
+      value={theme}
+    >
+      <StatusBar style="auto" />
+      <Stack.Navigator >
+        <Stack.Screen name="home-root" component={RootHome} options={{ headerShown: false }} />
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
+        <Stack.Screen name='chat' component={ChatScreen}  />
       </Stack.Navigator>
-    </Provider>
+    </NavigationThemeProvider>
   );
 }
+

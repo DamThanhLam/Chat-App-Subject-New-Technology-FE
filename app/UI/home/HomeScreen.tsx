@@ -23,7 +23,7 @@ const HomeScreen = ({ navigation }: any) => {
   ];
 
   const renderItem = ({ item }: any) => (
-    <View style={styles.chatItem}>
+    <TouchableOpacity style={styles.chatItem} onPress={()=>{navigation.navigate("app",{screen:'chat'})}}>
       <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
         style={styles.avatar}
@@ -40,7 +40,7 @@ const HomeScreen = ({ navigation }: any) => {
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (

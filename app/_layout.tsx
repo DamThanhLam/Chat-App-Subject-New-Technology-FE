@@ -2,12 +2,14 @@ import * as React from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import {useColorScheme} from '@/hooks/useColorScheme';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import Index from './index';
-import Root from './UI/Root';
+import AppRoot from './UI/Root';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, View } from 'react-native';
 import RootHome from './UI/home/Root'
+import { Provider } from 'react-redux';
+import { store } from './redux/store';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,14 +30,16 @@ export default function RootLayout() {
     <NavigationThemeProvider
       value={colorScheme === "light" ? DarkTheme : DefaultTheme}
     >
-      <StatusBar style="auto" />
-      <Stack.Navigator >
-        <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
-        <Stack.Screen name='auth' component={Root} options={{ headerShown: false }} />
-        <Stack.Screen name="home-root" component={RootHome} options={{ headerShown: false }} />
-        
-      </Stack.Navigator>
-    </NavigationThemeProvider>
+      <Provider store={store}>
+        <StatusBar style="auto" />
+        <Stack.Navigator >
+          <Stack.Screen name="index" component={Index} options={{ headerShown: false }} />
+          <Stack.Screen name='app' component={AppRoot} options={{ headerShown: false }} />
+        </Stack.Navigator>
+
+      </Provider>
+
+    </NavigationThemeProvider >
   );
 }
 
