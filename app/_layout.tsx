@@ -4,8 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import {useColorScheme} from '@/hooks/useColorScheme';
 import Index from './index';
-import Root from './UI/authentication/Root';
+import Root from './UI/Root';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Text, View } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
@@ -29,7 +30,9 @@ export default function RootLayout() {
       <Stack.Navigator >
         <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
         <Stack.Screen name='auth' component={Root} options={{ headerShown: false }} />
+        
       </Stack.Navigator>
     </NavigationThemeProvider>
   );
 }
+

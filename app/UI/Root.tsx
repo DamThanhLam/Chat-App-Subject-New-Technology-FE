@@ -1,14 +1,14 @@
 import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { useColorScheme } from "react-native";
-import LoginScreen from "./LoginScreen"; // Giả sử đây là màn hình login của bạn
-import HomeScreen from "./HomeScreen";   // Đường dẫn tới HomeScreen
+import LoginScreen from "./authentication/LoginScreen"; // Giả sử đây là màn hình login của bạn
+import HomeScreen from "./home/HomeScreen";   // Đường dẫn tới HomeScreen
 import { useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Amplify } from '@aws-amplify/core';
 import awsConfig from "@/app/configs/aws-config";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import RegisterScreen from "./RegisterScreen";
-import OTPVerificationScreen from "./OTPVerificationScreen";
+import RegisterScreen from "./authentication/RegisterScreen";
+import OTPVerificationScreen from "./authentication/OTPVerificationScreen";
 import { Provider } from "react-redux";
 import { store } from "@/app/redux/store";
 
