@@ -11,6 +11,7 @@ import {
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Auth } from "@aws-amplify/auth";
+import { Auth } from "@aws-amplify/auth";
 import { useDispatch } from "react-redux";
 import { setUser } from "@/app/redux/slices/UserSlice";
 
@@ -61,7 +62,22 @@ export default function LoginScreen({ navigation }: any) {
           value={username}
           onChangeText={setUsername}
         />
+        <TextInput
+          placeholder="Phone number/email"
+          style={[styles.input, { color: theme.colors.text }]}
+          placeholderTextColor={theme.colors.text}
+          value={username}
+          onChangeText={setUsername}
+        />
         <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="Password"
+            secureTextEntry
+            style={[styles.input, { flex: 1, color: theme.colors.text }]}
+            value={password}
+            onChangeText={setPassword}
+            placeholderTextColor={theme.colors.text}
+          />
           <TextInput
             placeholder="Password"
             secureTextEntry
@@ -76,6 +92,10 @@ export default function LoginScreen({ navigation }: any) {
         </View>
 
         {/* Next Button */}
+        <TouchableOpacity
+          style={[styles.nextButton, { backgroundColor: theme.colors.primary }]}
+          onPress={handleLogin}
+        >
         <TouchableOpacity
           style={[styles.nextButton, { backgroundColor: theme.colors.primary }]}
           onPress={handleLogin}

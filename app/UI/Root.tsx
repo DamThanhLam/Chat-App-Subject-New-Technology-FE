@@ -1,10 +1,14 @@
-import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DarkTheme,
+  DefaultTheme,
+} from "@react-navigation/native";
 import { useColorScheme } from "react-native";
 import LoginScreen from "./authentication/LoginScreen"; // Giả sử đây là màn hình login của bạn
 import HomeScreen from "./home/HomeScreen";   // Đường dẫn tới HomeScreen
 import { useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Amplify } from '@aws-amplify/core';
+import { Amplify } from "@aws-amplify/core";
 import awsConfig from "@/app/configs/aws-config";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RegisterScreen from "./authentication/RegisterScreen";
@@ -15,11 +19,20 @@ import RootHome from './home/Root'
 
 Amplify.configure(awsConfig);
 
-const Stack = createNativeStackNavigator();
+export type RootStackParamList = {
+  login: undefined;
+  register: undefined;
+  "otp-verification": undefined;
+  "change-password": undefined;
+  profile: undefined;
+  settings: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Root() {
-  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
-  const theme = colorScheme == 'dark' ? DarkTheme : DefaultTheme;
+  const colorScheme = useColorScheme();
+  const theme = colorScheme == "dark" ? DarkTheme : DefaultTheme;
 
   return (
     <Provider store={store}>

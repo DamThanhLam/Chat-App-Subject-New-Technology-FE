@@ -12,7 +12,6 @@ const Stack = createNativeStackNavigator();
 
 // Ngăn splash screen tự động ẩn trước khi ứng dụng tải xong
 // SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   console.trace("Stack Trace của RootLayout.js");
@@ -25,7 +24,9 @@ export default function RootLayout() {
   // }, []);
 
   return (
-    <NavigationThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
+    <NavigationThemeProvider
+      value={colorScheme === "light" ? DarkTheme : DefaultTheme}
+    >
       <StatusBar style="auto" />
       <Stack.Navigator >
         <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
