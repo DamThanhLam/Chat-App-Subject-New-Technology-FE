@@ -7,6 +7,7 @@ import Index from './index';
 import Root from './UI/Root';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, View } from 'react-native';
+import RootHome from './UI/home/Root'
 
 const Stack = createNativeStackNavigator();
 
@@ -31,6 +32,7 @@ export default function RootLayout() {
       <Stack.Navigator >
         <Stack.Screen name="index" component={Index}  options={{ headerShown: false }} />
         <Stack.Screen name='auth' component={Root} options={{ headerShown: false }} />
+        <Stack.Screen name="home-root" component={RootHome} options={{ headerShown: false }} />
         
       </Stack.Navigator>
     </NavigationThemeProvider>

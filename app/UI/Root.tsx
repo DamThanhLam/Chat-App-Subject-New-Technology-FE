@@ -15,20 +15,10 @@ import RegisterScreen from "./authentication/RegisterScreen";
 import OTPVerificationScreen from "./authentication/OTPVerificationScreen";
 import { Provider } from "react-redux";
 import { store } from "@/app/redux/store";
-import RootHome from './home/Root'
 
 Amplify.configure(awsConfig);
 
-export type RootStackParamList = {
-  login: undefined;
-  register: undefined;
-  "otp-verification": undefined;
-  "change-password": undefined;
-  profile: undefined;
-  settings: undefined;
-};
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator();
 
 export default function Root() {
   const colorScheme = useColorScheme();
@@ -45,7 +35,6 @@ export default function Root() {
       >
         <Stack.Screen name="login" component={LoginScreen} />
         <Stack.Screen name="register" component={RegisterScreen} />
-        <Stack.Screen name="home-root" component={RootHome} options={{ headerShown: false }} />
         <Stack.Screen name="otp-verification" component={OTPVerificationScreen} options={{ headerShown: false,gestureEnabled: false }} />
       </Stack.Navigator>
     </Provider>

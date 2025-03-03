@@ -34,14 +34,14 @@ export default function LoginScreen({ navigation }: any) {
       const user = await Auth.signIn(username, password);
       dispatch(
         setUser({
-          id: user.username,
-          name: user.name,
+          id: user.attributes.username,
+          name: user.attributes.name,
           email: null,
-          phoneNumber: user.phone_number,
+          phoneNumber: user.attributes.phone_number,
         })
       );
-      Alert.alert("Thành công", `Xin chào ${user.name}`);
-      navigation.navigate("home"); // Điều hướng sang HomeScreen
+      Alert.alert("Thành công", `Xin chào ${user.attributes.name}`);
+      navigation.navigate("home-root",{screen:"home"}); // Điều hướng sang HomeScreen
     } catch (error: any) {
       if (error.code === "UserNotConfirmedException") {
         navigation.navigate("otp-verification", { user: { username: username } });
@@ -53,14 +53,6 @@ export default function LoginScreen({ navigation }: any) {
   return (
     <NavigationThemeProvider value={theme}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Input Fields */}
-        <TextInput
-          placeholder="Phone number/email"
-          style={[styles.input, { color: theme.colors.text }]}
-          placeholderTextColor={theme.colors.text}
-          value={username}
-          onChangeText={setUsername}
-        />
         <TextInput
           placeholder="Phone number/email"
           style={[styles.input, { color: theme.colors.text }]}
@@ -77,24 +69,13 @@ export default function LoginScreen({ navigation }: any) {
             onChangeText={setPassword}
             placeholderTextColor={theme.colors.text}
           />
-          <TextInput
-            placeholder="Password"
-            secureTextEntry
-            style={[styles.input, { flex: 1, color: theme.colors.text }]}
-            value={password}
-            onChangeText={setPassword}
-            placeholderTextColor={theme.colors.text}
-          />
+         
           <TouchableOpacity>
             <Text style={styles.showText}>SHOW</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Next Button */}
-        <TouchableOpacity
-          style={[styles.nextButton, { backgroundColor: theme.colors.primary }]}
-          onPress={handleLogin}
-        >
+      
         <TouchableOpacity
           style={[styles.nextButton, { backgroundColor: theme.colors.primary }]}
           onPress={handleLogin}
