@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  SafeAreaView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -42,25 +44,27 @@ const HomeScreen = ({ navigation }: any) => {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          placeholder="Search..."
-          style={styles.searchInput}
-          value={search}
-          onChangeText={setSearch}
-        />
-        <Ionicons name="search" size={20} color="gray" />
-      </View>
+    <SafeAreaView style={styles.safeContainer}>
+      <View style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            placeholder="Search..."
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+          />
+          <Ionicons name="search" size={20} color="gray" />
+        </View>
 
-      {/* Chat List */}
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.chatList}
-      />
+        {/* Chat List */}
+        <FlatList
+          data={data}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.chatList}
+        />
+      </View>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -77,16 +81,20 @@ const HomeScreen = ({ navigation }: any) => {
           <Ionicons name="settings-outline" size={24} color="gray" />
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === "android" ? 25 : 0, // Cho Android tránh phần notch
   },
   searchContainer: {
     flexDirection: "row",
