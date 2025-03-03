@@ -1,9 +1,14 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const Index = ({ navigation }: any) => {
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Biểu tượng tin nhắn */}
       <Image
         source={{
@@ -13,14 +18,14 @@ const Index = ({ navigation }: any) => {
       />
       {/* Nút Login */}
       <TouchableOpacity
-        style={[styles.button, styles.loginButton]}
+        style={[styles.button, styles.loginButton, { backgroundColor: theme.colors.primary }]}
         onPress={() => navigation.navigate("app", { screen: "login" })}
       >
         <Text style={styles.loginText}>Log in</Text>
       </TouchableOpacity>
       {/* Nút Create Account */}
       <TouchableOpacity
-        style={[styles.button, styles.createButton]}
+        style={[styles.button, styles.createButton, { backgroundColor: theme.colors.border }]}
         onPress={() => navigation.navigate("app", { screen: "register" })}
       >
         <Text style={styles.createText}>Create new account</Text>
@@ -36,7 +41,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
   },
   logo: {
     width: 120,
@@ -51,7 +55,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   loginButton: {
-    backgroundColor: "blue",
+    // backgroundColor sẽ được đặt động qua inline style
   },
   loginText: {
     color: "white",
@@ -59,7 +63,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   createButton: {
-    backgroundColor: "gray",
+    // backgroundColor sẽ được đặt động qua inline style
   },
   createText: {
     color: "white",

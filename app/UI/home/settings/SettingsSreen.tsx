@@ -12,9 +12,13 @@ import {
   StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 export default function SettingsScreen({ navigation }: any) {
   const [searchText, setSearchText] = useState("");
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   const settingsOptions = [
     {
@@ -31,6 +35,7 @@ export default function SettingsScreen({ navigation }: any) {
       screen: "change-password",
       image: "https://cdn-icons-png.flaticon.com/512/565/565547.png",
     },
+  
   ];
 
   const filteredOptions = settingsOptions.filter((option) =>
@@ -38,19 +43,20 @@ export default function SettingsScreen({ navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      <View style={styles.container}>
-        <View style={styles.searchContainer}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.searchContainer, { borderColor: theme.colors.border }]}>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: theme.colors.text, }]}
             placeholder="Search..."
+            placeholderTextColor={theme.colors.text}
             value={searchText}
             onChangeText={setSearchText}
           />
           <Ionicons
             name="search"
             size={20}
-            color="black"
+            color={theme.colors.text}
             style={styles.searchIcon}
           />
         </View>
@@ -58,15 +64,16 @@ export default function SettingsScreen({ navigation }: any) {
         <FlatList
           data={filteredOptions}
           keyExtractor={(item) => item.id}
-          numColumns={2}
+          numColumns={1}
           contentContainerStyle={styles.listContainer}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.card}
+              style={[styles.card, { backgroundColor: theme.colors.card }]}
               onPress={() => navigation.navigate(item.screen)}
             >
-              <Image source={{ uri: item.image }} style={styles.icon} />
-              <Text style={styles.cardText}>{item.name}</Text>
+              {item.icon ? <Ionicons name={item.icon} size={24} color={theme.colors.text} /> : <Image source={{ uri: item.image }} style={[styles.icon,]} />}
+
+              <Text style={[styles.cardText, { color: theme.colors.text }]}>{item.name}</Text>
             </TouchableOpacity>
           )}
         />
@@ -78,12 +85,10 @@ export default function SettingsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: "white",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    backgroundColor: "white",
     padding: 10,
   },
   searchContainer: {
@@ -102,15 +107,17 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   listContainer: {
-    alignItems: "center",
+    // alignItems: "center",
   },
   card: {
-    width: 130,
-    height: 130,
-    backgroundColor: "white",
+    marginLeft:"5%",
+    width: "90%",
+    height: 50,
     borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    display:'flex',
+    flexDirection:'row',
+    alignItems:'center',
+    paddingLeft:10,
     margin: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -126,5 +133,6 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 14,
     fontWeight: "bold",
+    padding:10
   },
 });

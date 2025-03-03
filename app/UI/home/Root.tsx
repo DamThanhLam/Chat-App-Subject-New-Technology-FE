@@ -14,6 +14,7 @@ import SettingsRoot from "./settings/Root";
 import ChatScreen from "./chat/ChatScreen";
 import FriendScreen from "./FriendScreen";
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import FriendRequestsScreen from "../Notifications/FriendRequestsScreen";
 Amplify.configure(awsConfig);
 
 const Stack = createBottomTabNavigator();
@@ -34,8 +35,11 @@ export default function Root() {
                             return <Ionicons name="home" size={size} color={color} />;
                         } else if (route.name === "settings-root") {
                             return <Ionicons name="settings-outline" size={size} color={color} />;
-                        }else if(route.name === "friends"){
-                            return <FontAwesome5 name="user-friends" size={size}  color={color} />
+                        } else if (route.name === "friends") {
+                            return <FontAwesome5 name="user-friends" size={size} color={color} />
+                        } else if (route.name === "notification") {
+                            return <Ionicons name="notifications-outline" size={size} color={color} />
+
                         }
                     },
                     tabBarActiveTintColor: theme.colors.primary,
@@ -44,6 +48,7 @@ export default function Root() {
             >
                 <Stack.Screen name="home" component={HomeScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="friends" component={FriendScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="notification" component={FriendRequestsScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="settings-root" component={SettingsRoot} options={{ headerShown: false }} />
 
             </Stack.Navigator>

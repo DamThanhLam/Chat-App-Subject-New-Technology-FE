@@ -6,8 +6,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import Index from './index';
 import AppRoot from './UI/Root';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, View } from 'react-native';
-import RootHome from './UI/home/Root'
 import { Provider } from 'react-redux';
 import { store } from './redux/store';
 
@@ -31,11 +29,12 @@ export default function RootLayout() {
       value={colorScheme === "light" ? DarkTheme : DefaultTheme}
     >
       <Provider store={store}>
-        <StatusBar style="auto" />
-        <Stack.Navigator >
-          <Stack.Screen name="index" component={Index} options={{ headerShown: false }} />
-          <Stack.Screen name='app' component={AppRoot} options={{ headerShown: false }} />
-        </Stack.Navigator>
+          <StatusBar style="auto" />
+          <Stack.Navigator >
+            <Stack.Screen name="index" component={Index} options={{ headerShown: false }} />
+            <Stack.Screen name='app' component={AppRoot} options={{ headerShown: false }} />
+          </Stack.Navigator>
+
 
       </Provider>
 

@@ -8,40 +8,45 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons"; // Import icon thư viện
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const ChangePasswordScreen = () => {
   const navigation = useNavigation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   return (
-    <View style={styles.container}>
-      
-
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Input Fields */}
-      <Text style={styles.label}>Current password</Text>
+      <Text style={[styles.label, { color: theme.colors.text }]}>Current password</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
         placeholder="password...."
+        placeholderTextColor={theme.colors.text}
         secureTextEntry
         value={currentPassword}
         onChangeText={setCurrentPassword}
       />
 
-      <Text style={styles.label}>New password</Text>
+      <Text style={[styles.label, { color: theme.colors.text }]}>New password</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
         placeholder="new password...."
+        placeholderTextColor={theme.colors.text}
         secureTextEntry
         value={newPassword}
         onChangeText={setNewPassword}
       />
 
-      <Text style={styles.label}>Confirm password</Text>
+      <Text style={[styles.label, { color: theme.colors.text }]}>Confirm password</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
         placeholder="confirm password...."
+        placeholderTextColor={theme.colors.text}
         secureTextEntry
         value={confirmPassword}
         onChangeText={setConfirmPassword}
@@ -50,14 +55,14 @@ const ChangePasswordScreen = () => {
       {/* Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={styles.cancelButton}
+          style={[styles.cancelButton, { backgroundColor: "red" }]}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.changeButton}
+          style={[styles.changeButton, { backgroundColor: theme.colors.primary }]}
           onPress={() => alert("Password changed!")}
         >
           <Text style={styles.changeText}>Change</Text>
@@ -71,35 +76,17 @@ const ChangePasswordScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
     padding: 20,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3b82f6",
-    padding: 15,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  headerTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 10,
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
     marginTop: 15,
-    color: "#333",
   },
   input: {
     borderBottomWidth: 1,
-    borderBottomColor: "#999",
     paddingVertical: 8,
     fontSize: 16,
-    color: "#333",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -107,7 +94,6 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
   cancelButton: {
-    backgroundColor: "red",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
@@ -119,7 +105,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   changeButton: {
-    backgroundColor: "#3b82f6",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,

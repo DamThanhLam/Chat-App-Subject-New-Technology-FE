@@ -11,10 +11,14 @@ import {
   StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const FriendScreen = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("friends"); // "friends" or "groups"
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   const friendData = [
     { id: "1", name: "Báo", avatar: null, letter: "B" },
@@ -28,39 +32,41 @@ const FriendScreen = () => {
     { id: "3", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
   ];
 
-  const renderFriendItem = ({ item }:any) => (
-    <View style={styles.friendItem}>
+  const renderFriendItem = ({ item }: any) => (
+    <View style={[styles.friendItem, { borderBottomColor: theme.colors.border }]}>
       {item.avatar ? (
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
       ) : (
-        <View style={styles.friendAvatarLetter}>
-          <Text style={styles.avatarLetter}>{item.letter}</Text>
+        <View style={[styles.friendAvatarLetter, { backgroundColor: theme.colors.card }]}>
+          <Text style={[styles.avatarLetter, { color: theme.colors.text }]}>{item.letter}</Text>
         </View>
       )}
-      <Text style={styles.friendName}>{item.name}</Text>
+      <Text style={[styles.friendName, { color: theme.colors.text }]}>{item.name}</Text>
       <View style={styles.friendActions}>
         <TouchableOpacity>
-          <Ionicons name="call-outline" size={20} color="blue" />
+          <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity style={{ marginLeft: 10 }}>
-          <Ionicons name="chatbubble-outline" size={20} color="blue" />
+          <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  const renderGroupItem = ({ item }:any) => (
-    <View style={styles.chatItem}>
+  const renderGroupItem = ({ item }: any) => (
+    <View style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}>
       <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
         style={styles.avatar}
       />
       <View style={styles.chatDetails}>
-        <Text style={styles.chatName}>{item.name}</Text>
-        <Text style={styles.chatMessage}>{item.message}</Text>
+        <Text style={[styles.chatName, { color: theme.colors.text }]}>{item.name}</Text>
+        <Text style={[styles.chatMessage, { color: theme.colors.text, opacity: 0.7 }]}>
+          {item.message}
+        </Text>
       </View>
       <View style={styles.chatMeta}>
-        <Text style={styles.chatTime}>{item.time}</Text>
+        <Text style={[styles.chatTime, { color: theme.colors.text, opacity: 0.7 }]}>{item.time}</Text>
         {item.unread > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>{item.unread}</Text>
@@ -71,25 +77,28 @@ const FriendScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
         <TextInput
           placeholder="Search..."
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: theme.colors.text }]}
           value={search}
           onChangeText={setSearch}
+          placeholderTextColor={theme.colors.text}
         />
-        <Ionicons name="search" size={20} color="gray" />
+        <Ionicons name="search" size={20} color={theme.colors.text} />
       </View>
 
       {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
           style={[styles.tabItem, activeTab === "friends" && styles.activeTab]}
           onPress={() => setActiveTab("friends")}
         >
-          <Text style={activeTab === "friends" ? styles.activeTabText : styles.tabText}>
+          <Text
+            style={activeTab === "friends" ? styles.activeTabText : [styles.tabText, { color: theme.colors.text }]}
+          >
             Bạn bè
           </Text>
         </TouchableOpacity>
@@ -97,7 +106,9 @@ const FriendScreen = () => {
           style={[styles.tabItem, activeTab === "groups" && styles.activeTab]}
           onPress={() => setActiveTab("groups")}
         >
-          <Text style={activeTab === "groups" ? styles.activeTabText : styles.tabText}>
+          <Text
+            style={activeTab === "groups" ? styles.activeTabText : [styles.tabText, { color: theme.colors.text }]}
+          >
             Nhóm
           </Text>
         </TouchableOpacity>
@@ -107,19 +118,19 @@ const FriendScreen = () => {
       {activeTab === "friends" ? (
         <View style={styles.functionContainer}>
           <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="person-add-outline" size={24} color="blue" />
-            <Text style={styles.functionText}>Lời mời kết bạn (8)</Text>
+            <Ionicons name="person-add-outline" size={24} color={theme.colors.primary} />
+            <Text style={[styles.functionText, { color: theme.colors.text }]}>Lời mời kết bạn (8)</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="calendar-outline" size={24} color="blue" />
-            <Text style={styles.functionText}>Sinh nhật</Text>
+            <Ionicons name="calendar-outline" size={24} color={theme.colors.primary} />
+            <Text style={[styles.functionText, { color: theme.colors.text }]}>Sinh nhật</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.functionContainer}>
           <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="add-circle-outline" size={24} color="blue" />
-            <Text style={styles.functionText}>Tạo nhóm</Text>
+            <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
+            <Text style={[styles.functionText, { color: theme.colors.text }]}>Tạo nhóm</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -140,7 +151,6 @@ const FriendScreen = () => {
           contentContainerStyle={styles.chatList}
         />
       )}
-     
     </View>
   );
 };
@@ -150,14 +160,11 @@ export default FriendScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
     paddingHorizontal: 10,
     margin: 10,
     borderRadius: 8,
@@ -172,7 +179,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
   },
   tabItem: {
     flex: 1,
@@ -181,11 +187,11 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: "blue",
+    borderBottomColor: "blue", // Giữ màu xanh cho tab active
   },
   tabText: {
     fontSize: 16,
-    color: "gray",
+    opacity: 0.7,
   },
   activeTabText: {
     fontSize: 16,
@@ -212,20 +218,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
   },
   friendAvatarLetter: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#d1d1d1",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
   avatarLetter: {
     fontSize: 20,
-    color: "#fff",
     fontWeight: "bold",
   },
   friendName: {
@@ -243,7 +246,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
   },
   avatar: {
     width: 50,
@@ -260,17 +262,15 @@ const styles = StyleSheet.create({
   },
   chatMessage: {
     fontSize: 14,
-    color: "gray",
   },
   chatMeta: {
     alignItems: "flex-end",
   },
   chatTime: {
     fontSize: 12,
-    color: "gray",
   },
   unreadBadge: {
-    backgroundColor: "red",
+    backgroundColor: "red", // Giữ màu đỏ cho badge
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -280,16 +280,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 12,
     fontWeight: "bold",
-  },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    backgroundColor: "#fff",
-  }, 
-  navItem: {
-    alignItems: "center",
   },
 });

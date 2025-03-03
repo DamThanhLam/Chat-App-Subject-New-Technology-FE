@@ -12,6 +12,8 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const ProfileScreen = ({ navigation }: any) => {
   const [name, setName] = useState<string>("");
@@ -27,6 +29,9 @@ const ProfileScreen = ({ navigation }: any) => {
     phone: false,
     email: false,
   });
+
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   const toggleEdit = (field: keyof typeof editableFields) => {
     setEditableFields((prev) => ({ ...prev, [field]: !prev[field] }));
@@ -48,14 +53,12 @@ const ProfileScreen = ({ navigation }: any) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-         
-
           {/* Avatar */}
           <View style={styles.avatarContainer}>
             <Image
@@ -68,20 +71,57 @@ const ProfileScreen = ({ navigation }: any) => {
 
           {/* Thông tin cá nhân */}
           <View style={styles.infoContainer}>
-            <ProfileItem label="Full name" value={name} onChange={setName} isEditable={editableFields.name} onEdit={() => toggleEdit("name")} />
-            <ProfileItem label="Birth day" value={dob} onChange={setDob} isEditable={editableFields.dob} onEdit={() => toggleEdit("dob")} />
-            <ProfileItem label="Gender" value={gender} onChange={setGender} isEditable={editableFields.gender} onEdit={() => toggleEdit("gender")} />
-            <ProfileItem label="Phone number" value={phone} onChange={setPhone} isEditable={editableFields.phone} onEdit={() => toggleEdit("phone")} />
-            <ProfileItem label="Email" value={email} onChange={setEmail} isEditable={editableFields.email} onEdit={() => toggleEdit("email")} />
+            <ProfileItem
+              label="Full name"
+              value={name}
+              onChange={setName}
+              isEditable={editableFields.name}
+              onEdit={() => toggleEdit("name")}
+              theme={theme}
+            />
+            <ProfileItem
+              label="Birth day"
+              value={dob}
+              onChange={setDob}
+              isEditable={editableFields.dob}
+              onEdit={() => toggleEdit("dob")}
+              theme={theme}
+            />
+            <ProfileItem
+              label="Gender"
+              value={gender}
+              onChange={setGender}
+              isEditable={editableFields.gender}
+              onEdit={() => toggleEdit("gender")}
+              theme={theme}
+            />
+            <ProfileItem
+              label="Phone number"
+              value={phone}
+              onChange={setPhone}
+              isEditable={editableFields.phone}
+              onEdit={() => toggleEdit("phone")}
+              theme={theme}
+            />
+            <ProfileItem
+              label="Email"
+              value={email}
+              onChange={setEmail}
+              isEditable={editableFields.email}
+              onEdit={() => toggleEdit("email")}
+              theme={theme}
+            />
           </View>
 
           {/* Nút hành động */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.resetButton} onPress={resetData}>
+            <TouchableOpacity style={[styles.resetButton, { backgroundColor: "red" }]} onPress={resetData}>
               <Text style={styles.resetText}>Reset</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.saveButton}>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+            >
               <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
           </View>
@@ -91,13 +131,18 @@ const ProfileScreen = ({ navigation }: any) => {
   );
 };
 
-const ProfileItem = ({ label, value, onChange, isEditable, onEdit }: any) => {
+const ProfileItem = ({ label, value, onChange, isEditable, onEdit, theme }: any) => {
   return (
     <View style={styles.itemContainer}>
-      <Text style={styles.itemLabel}>{label} :</Text>
-      <TextInput style={styles.itemValue} value={value} onChangeText={onChange} editable={isEditable} />
+      <Text style={[styles.itemLabel, { color: theme.colors.text }]}>{label} :</Text>
+      <TextInput
+        style={[styles.itemValue, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
+        value={value}
+        onChangeText={onChange}
+        editable={isEditable}
+      />
       <TouchableOpacity onPress={onEdit}>
-        <Ionicons name="pencil" size={18} color="black" />
+        <Ionicons name="pencil" size={18} color={theme.colors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -106,24 +151,10 @@ const ProfileItem = ({ label, value, onChange, isEditable, onEdit }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
   },
   scrollContainer: {
     flexGrow: 1,
     paddingBottom: 30,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3b82f6",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-  },
-  headerTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 10,
   },
   avatarContainer: {
     alignItems: "center",
@@ -147,14 +178,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: "bold",
-    color: "#333",
   },
   itemValue: {
     flex: 4,
     fontSize: 14,
-    color: "#333",
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
     paddingBottom: 5,
   },
   buttonContainer: {
@@ -163,7 +191,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   resetButton: {
-    backgroundColor: "red",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
@@ -175,7 +202,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   saveButton: {
-    backgroundColor: "#3b82f6",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,

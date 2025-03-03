@@ -12,9 +12,13 @@ import {
   StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "react-native";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 const HomeScreen = ({ navigation }: any) => {
   const [search, setSearch] = useState("");
+  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   const data = [
     { id: "1", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
@@ -24,17 +28,26 @@ const HomeScreen = ({ navigation }: any) => {
   ];
 
   const renderItem = ({ item }: any) => (
-    <TouchableOpacity style={styles.chatItem} onPress={()=>{navigation.navigate("app",{screen:'chat'})}}>
+    <TouchableOpacity
+      style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
+      onPress={() => {
+        navigation.navigate("app", { screen: "chat" });
+      }}
+    >
       <Image
         source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
         style={styles.avatar}
       />
       <View style={styles.chatDetails}>
-        <Text style={styles.chatName}>{item.name}</Text>
-        <Text style={styles.chatMessage}>{item.message}</Text>
+        <Text style={[styles.chatName, { color: theme.colors.text }]}>{item.name}</Text>
+        <Text style={[styles.chatMessage, { color: theme.colors.text, opacity: 0.7 }]}>
+          {item.message}
+        </Text>
       </View>
       <View style={styles.chatMeta}>
-        <Text style={styles.chatTime}>{item.time}</Text>
+        <Text style={[styles.chatTime, { color: theme.colors.text, opacity: 0.7 }]}>
+          {item.time}
+        </Text>
         {item.unread > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>{item.unread}</Text>
@@ -45,17 +58,18 @@ const HomeScreen = ({ navigation }: any) => {
   );
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      <View style={styles.container}>
+    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
           <TextInput
             placeholder="Search..."
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: theme.colors.text }]}
             value={search}
             onChangeText={setSearch}
+            placeholderTextColor={theme.colors.text}
           />
-          <Ionicons name="search" size={20} color="gray" />
+          <Ionicons name="search" size={20} color={theme.colors.text} />
         </View>
 
         {/* Chat List */}
@@ -75,17 +89,14 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   container: {
     flex: 1,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
     paddingHorizontal: 10,
     margin: 10,
     borderRadius: 8,
@@ -104,7 +115,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
   },
   avatar: {
     width: 50,
@@ -121,17 +131,15 @@ const styles = StyleSheet.create({
   },
   chatMessage: {
     fontSize: 14,
-    color: "gray",
   },
   chatMeta: {
     alignItems: "flex-end",
   },
   chatTime: {
     fontSize: 12,
-    color: "gray",
   },
   unreadBadge: {
-    backgroundColor: "red",
+    backgroundColor: "red", // Giữ màu đỏ cho badge
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
