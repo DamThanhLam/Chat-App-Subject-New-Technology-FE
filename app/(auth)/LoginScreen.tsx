@@ -19,6 +19,7 @@ import { setUser } from "@/src/redux/slices/UserSlice";
 import { Redirect, useRouter } from "expo-router";
 import { useTheme, useFocusEffect } from "@react-navigation/native";
 import { RootState } from "@/src/redux/store";
+import socket, { connectSocket, initSocket } from "@/src/socket/socket";
 
 export default function LoginScreen() {
   const { colors } = useTheme();
@@ -79,6 +80,8 @@ export default function LoginScreen() {
       } else {
         Alert.alert("Thành công", `Xin chào ${user.attributes.name}`);
       }
+      await connectSocket()
+
       router.push("/home/HomeScreen");
     } catch (error: any) {
       if (error.code === "UserNotConfirmedException") {

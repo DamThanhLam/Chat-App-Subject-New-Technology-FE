@@ -21,9 +21,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
 
-const SOCKET_SERVER = "http://10.0.2.2:8084";
-const socket = io(SOCKET_SERVER);
-
 interface Message {
   id: string;
   id_user1: string;

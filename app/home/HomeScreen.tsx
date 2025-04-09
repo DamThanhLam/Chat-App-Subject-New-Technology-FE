@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router } from "expo-router";
+import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
+import { Auth } from "aws-amplify";
 
 const HomeScreen = ({ navigation }: any) => {
   const [search, setSearch] = useState("");
@@ -33,7 +35,7 @@ const HomeScreen = ({ navigation }: any) => {
     <TouchableOpacity
       style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
       onPress={() => {
-        router.push("/ChatScreen",{params:{friendId: item.id}});
+        router.push("/ChatScreen", { params: { friendId: item.id } });
       }}
     >
       <Image
@@ -58,6 +60,10 @@ const HomeScreen = ({ navigation }: any) => {
       </View>
     </TouchableOpacity>
   );
+
+  useEffect(() => {
+    connectSocket()
+  }, [])
 
   return (
     <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.colors.background }]}>
