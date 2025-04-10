@@ -65,7 +65,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       const user = await Auth.signIn(username, password);
-      console.log(user);
+      
       dispatch(
         setUser({
           id: user.attributes.sub,

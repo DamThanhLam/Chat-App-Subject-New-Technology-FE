@@ -20,6 +20,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
+import { connectSocket, getSocket } from "@/src/socket/socket";
 
 interface Message {
   id: string;
@@ -85,44 +86,19 @@ const ChatScreen = () => {
   };
 
   const sendMessage = () => {
-    if (!message || !userID2) return;
-
-    const newMessage: Message = {
-      id: Math.random().toString(),
-      id_user1: userID1,
-      id_user2: userID2,
-      message,
-      name: "You",
-      category: "send",
-    };
-
-    setConversation([...conversation, newMessage]);
-    socket.emit("send_message", newMessage);
+    getSocket().emit("private-message", {
+      receiverId: "b9ba65cc-2061-7031-229d-5f892034d870",
+      message: message,
+      messageType: "private",
+      contentType: "text"
+    });
     setMessage("");
   };
 
-  useEffect(() => {
-    socket.on("receive_message", (data: any) => {
-      const receivedMessage: Message = {
-        id: data.id,
-        id_user1: data.id_user1,
-        id_user2: data.id_user2,
-        message: data.message,
-        name: data.name,
-        category: normalizeCategory(data.category),
-      };
-      setConversation((prev) => [...prev, receivedMessage]);
-      const getUserID = async () => {
-        const id = await AsyncStorage.getItem("user_id");
-        setUserID1(id || "");
-      };
-      getUserID();
-    });
-
-    return () => {
-      socket.off("receive_message");
-    };
-  }, []);
+ useEffect(() => {
+    connectSocket()
+    
+  }, [])
 
   const handleLongPress = (message: { id: string; message: string }) => {
     setSelectedMessage(message);
@@ -149,7 +125,7 @@ const ChatScreen = () => {
         <TouchableOpacity onPress={() => router.back()}>
           <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle,{color:theme.colors.text}]}>{anotherUser?.name || "Chat"}</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{anotherUser?.name || "Chat"}</Text>
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
             <FontAwesome name="phone" size={24} color={theme.colors.primary} />
@@ -320,7 +296,7 @@ const ChatScreen = () => {
             <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
               <FontAwesome name="microphone" size={24} color={theme.colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => {}} style={styles.iconSpacing}>
+            <TouchableOpacity onPress={() => { }} style={styles.iconSpacing}>
               <FontAwesome name="image" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </>
@@ -371,14 +347,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    paddingTop:StatusBar.currentHeight? StatusBar.currentHeight+5: 30
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    textAlign:'left',
-    flex:1,
-    paddingLeft:15
+    textAlign: 'left',
+    flex: 1,
+    paddingLeft: 15
   },
   container: {
     flex: 1,
@@ -524,7 +500,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
-    paddingHorizontal:20
+    paddingHorizontal: 20
   },
   settingsText: {
     fontSize: 16,
