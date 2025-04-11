@@ -73,7 +73,7 @@ const ProfileScreen = () => {
 
     const fetchUser = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/user/${user.id}`, {
+        const res = await fetch(`http://localhost:3000/api/user`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -171,7 +171,7 @@ const ProfileScreen = () => {
         formData.append("image", blob, `avatar_${user.id}.jpg`);
 
         const uploadResp = await fetch(
-          `http://localhost:3000/api/user/${user.id}/avatar`,
+          `http://localhost:3000/api/user/avatar`,
           {
             method: "POST",
             headers: {
@@ -189,7 +189,7 @@ const ProfileScreen = () => {
       }
 
       // Gửi PUT cập nhật profile với avatar URL mới
-      const resp = await fetch(`http://localhost:3000/api/user/${user.id}`, {
+      const resp = await fetch(`http://localhost:3000/api/user`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
