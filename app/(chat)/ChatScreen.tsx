@@ -1,4 +1,10 @@
-import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -35,22 +41,36 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const ChatScreen = () => {
   const [userID1, setUserID1] = useState("");
   const [userID2, setUserID2] = useState("");
-  const [anotherUser, setAnotherUser] = useState<{ _id: string; name: string; image: string } | null>(null);
+  const [anotherUser, setAnotherUser] = useState<{
+    _id: string;
+    name: string;
+    image: string;
+  } | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const colorScheme = useColorScheme();
-  const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
+  const theme = useMemo(
+    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
+    [colorScheme]
+  );
   const { userId } = useLocalSearchParams();
 
   // Animation for sliding panel
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const openSettings = useCallback(() => {
     if (settingsVisible || menuVisible || optionsVisible) {
-      console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
+      console.log("Cannot open settings: another modal is visible", {
+        settingsVisible,
+        menuVisible,
+        optionsVisible,
+      });
       return;
     }
 
@@ -74,7 +94,6 @@ const ChatScreen = () => {
     }).start();
   }, [slideAnim]);
 
-
   const normalizeCategory = (category: string): "send" | "receive" => {
     return category === "send" || category === "receive" ? category : "receive";
   };
@@ -84,45 +103,45 @@ const ChatScreen = () => {
     setAnotherUser(user);
   };
 
-  const sendMessage = () => {
-    if (!message || !userID2) return;
+  // const sendMessage = () => {
+  //   if (!message || !userID2) return;
 
-    const newMessage: Message = {
-      id: Math.random().toString(),
-      id_user1: userID1,
-      id_user2: userID2,
-      message,
-      name: "You",
-      category: "send",
-    };
+  //   const newMessage: Message = {
+  //     id: Math.random().toString(),
+  //     id_user1: userID1,
+  //     id_user2: userID2,
+  //     message,
+  //     name: "You",
+  //     category: "send",
+  //   };
 
-    setConversation([...conversation, newMessage]);
-    socket.emit("send_message", newMessage);
-    setMessage("");
-  };
+  //   setConversation([...conversation, newMessage]);
+  //   socket.emit("send_message", newMessage);
+  //   setMessage("");
+  // };
 
-  useEffect(() => {
-    socket.on("receive_message", (data: any) => {
-      const receivedMessage: Message = {
-        id: data.id,
-        id_user1: data.id_user1,
-        id_user2: data.id_user2,
-        message: data.message,
-        name: data.name,
-        category: normalizeCategory(data.category),
-      };
-      setConversation((prev) => [...prev, receivedMessage]);
-      const getUserID = async () => {
-        const id = await AsyncStorage.getItem("user_id");
-        setUserID1(id || "");
-      };
-      getUserID();
-    });
+  // useEffect(() => {
+  //   socket.on("receive_message", (data: any) => {
+  //     const receivedMessage: Message = {
+  //       id: data.id,
+  //       id_user1: data.id_user1,
+  //       id_user2: data.id_user2,
+  //       message: data.message,
+  //       name: data.name,
+  //       category: normalizeCategory(data.category),
+  //     };
+  //     setConversation((prev) => [...prev, receivedMessage]);
+  //     const getUserID = async () => {
+  //       const id = await AsyncStorage.getItem("user_id");
+  //       setUserID1(id || "");
+  //     };
+  //     getUserID();
+  //   });
 
-    return () => {
-      socket.off("receive_message");
-    };
-  }, []);
+  //   return () => {
+  //     socket.off("receive_message");
+  //   };
+  // }, []);
 
   const handleLongPress = (message: { id: string; message: string }) => {
     setSelectedMessage(message);
@@ -142,20 +161,42 @@ const ChatScreen = () => {
     setOptionsVisible(false);
   };
 
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <View
+        style={[
+          styles.customHeader,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()}>
-          <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
+          <FontAwesome
+            name="arrow-left"
+            size={24}
+            color={theme.colors.primary}
+          />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle,{color:theme.colors.text}]}>{anotherUser?.name || "Chat"}</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {anotherUser?.name || "Chat"}
+        </Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
+          <TouchableOpacity
+            onPress={() => alert("Call")}
+            style={styles.iconSpacing}
+          >
             <FontAwesome name="phone" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
-            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
+          <TouchableOpacity
+            onPress={() => alert("Video")}
+            style={styles.iconSpacing}
+          >
+            <FontAwesome
+              name="video-camera"
+              size={24}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
           <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
             <FontAwesome name="list" size={24} color={theme.colors.primary} />
@@ -172,16 +213,25 @@ const ChatScreen = () => {
             onLongPress={() => handleLongPress(item)}
             style={[
               styles.messageContainer,
-              item.category === "send" ? styles.sentMessage : styles.receivedMessage,
+              item.category === "send"
+                ? styles.sentMessage
+                : styles.receivedMessage,
             ]}
           >
-            {item.category === "receive" && <Image source={{ uri: anotherUser?.image }} style={styles.avatar} />}
+            {item.category === "receive" && (
+              <Image
+                source={{ uri: anotherUser?.image }}
+                style={styles.avatar}
+              />
+            )}
             <View
               style={[
                 styles.messageBubble,
                 {
                   backgroundColor:
-                    item.category === "send" ? theme.colors.primary : theme.colors.card,
+                    item.category === "send"
+                      ? theme.colors.primary
+                      : theme.colors.card,
                 },
               ]}
             >
@@ -199,22 +249,47 @@ const ChatScreen = () => {
       {/* Message Options Modal */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
+          <View
+            style={[
+              styles.menuContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Reply")}
+            >
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Reply
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Forward")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Forward")}
+            >
               <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Forward</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Forward
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Copy")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Copy")}
+            >
               <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Copy</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Copy
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Save to Cloud")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Save to Cloud")}
+            >
               <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Cloud</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Cloud
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "red" }]}
@@ -231,10 +306,15 @@ const ChatScreen = () => {
               <Text style={styles.menuText}>Recall</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
+              style={[
+                styles.closeButton,
+                { backgroundColor: theme.colors.border },
+              ]}
               onPress={closeMenu}
             >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Close</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -254,46 +334,104 @@ const ChatScreen = () => {
           >
             <View style={styles.settingsHeader}>
               <TouchableOpacity onPress={closeSettings}>
-                <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
+                <FontAwesome
+                  name="arrow-left"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
-              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Tùy chọn</Text>
+              <Text
+                style={[styles.settingsTitle, { color: theme.colors.text }]}
+              >
+                Tùy chọn
+              </Text>
             </View>
             <View style={styles.userInfo}>
-              <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
-              <Text style={[styles.userName, { color: theme.colors.text }]}>User Name</Text>
+              <FontAwesome
+                name="user-circle"
+                size={60}
+                color={theme.colors.text}
+              />
+              <Text style={[styles.userName, { color: theme.colors.text }]}>
+                User Name
+              </Text>
             </View>
             <View style={styles.settingsOptions}>
               <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="pencil" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Đổi tên gợi nhớ</Text>
+                <FontAwesome
+                  name="pencil"
+                  size={20}
+                  color={theme.colors.text}
+                />
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Đổi tên gợi nhớ
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="image" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Ảnh, file, link</Text>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Ảnh, file, link
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="search" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tìm tin nhắn</Text>
+                <FontAwesome
+                  name="search"
+                  size={20}
+                  color={theme.colors.text}
+                />
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Tìm tin nhắn
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="bell" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tắt thông báo</Text>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Tắt thông báo
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tạo nhóm với User Name</Text>
+                <FontAwesome
+                  name="user-plus"
+                  size={20}
+                  color={theme.colors.text}
+                />
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Tạo nhóm với User Name
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="users" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Thêm User Name vào nhóm</Text>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Thêm User Name vào nhóm
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="group" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xem nhóm chung</Text>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Xem nhóm chung
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.settingsItem]}>
                 <FontAwesome name="trash" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xóa lịch sử trò chuyện</Text>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.text }]}
+                >
+                  Xóa lịch sử trò chuyện
+                </Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -301,12 +439,23 @@ const ChatScreen = () => {
       </Modal>
 
       {/* Input Container */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity onPress={() => alert("Add Emoji")} style={styles.iconSpacing}>
+      <View
+        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
+      >
+        <TouchableOpacity
+          onPress={() => alert("Add Emoji")}
+          style={styles.iconSpacing}
+        >
           <FontAwesome name="smile-o" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <TextInput
-          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.background,
+              color: theme.colors.text,
+            },
+          ]}
           value={message}
           onChangeText={setMessage}
           placeholder="Nhập tin nhắn..."
@@ -315,10 +464,21 @@ const ChatScreen = () => {
         {message === "" ? (
           <>
             <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
+              <FontAwesome
+                name="ellipsis-v"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
-              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
+            <TouchableOpacity
+              onPress={() => alert("Record")}
+              style={styles.iconSpacing}
+            >
+              <FontAwesome
+                name="microphone"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => {}} style={styles.iconSpacing}>
               <FontAwesome name="image" size={24} color={theme.colors.text} />
@@ -332,24 +492,46 @@ const ChatScreen = () => {
       {/* Options Modal */}
       <Modal visible={optionsVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity style={styles.optionItem} onPress={() => { }}>
+          <View
+            style={[
+              styles.optionsContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <TouchableOpacity style={styles.optionItem} onPress={() => {}}>
               <FontAwesome name="file" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Cloud")}>
-              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Cloud</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Remind")}>
-              <FontAwesome name="bell" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Remind</Text>
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                File
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
+              style={styles.optionItem}
+              onPress={() => alert("Cloud")}
+            >
+              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Cloud
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => alert("Remind")}
+            >
+              <FontAwesome name="bell" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Remind
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.closeButton,
+                { backgroundColor: theme.colors.border },
+              ]}
               onPress={closeOptions}
             >
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Close</Text>
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -371,14 +553,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    paddingTop:StatusBar.currentHeight? StatusBar.currentHeight+5: 30
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    textAlign:'left',
-    flex:1,
-    paddingLeft:15
+    textAlign: "left",
+    flex: 1,
+    paddingLeft: 15,
   },
   container: {
     flex: 1,
@@ -524,7 +706,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
-    paddingHorizontal:20
+    paddingHorizontal: 20,
   },
   settingsText: {
     fontSize: 16,
