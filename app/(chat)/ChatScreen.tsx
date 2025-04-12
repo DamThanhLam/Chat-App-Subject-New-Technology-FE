@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  Modal,
   Platform,
   StatusBar,
   useColorScheme,
   Dimensions,
-  Animated,
   Keyboard,
+  Modal,
+  Alert,
+  Animated,
 } from "react-native";
 import io from "socket.io-client";
 import Button from "@/components/ui/Button";
@@ -22,21 +23,34 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
 import { connectSocket, getSocket } from "@/src/socket/socket";
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
-import * as MediaLibrary from 'expo-media-library';
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
-import { format } from 'date-fns';
-import { Theme } from 'emoji-picker-react';
+import { format } from "date-fns";
+import { v4 as uuidv4 } from 'uuid';
+
+interface FileMessage {
+  data: string;
+  filename: string;
+  size: number;
+  type: string;
+}
 
 interface Message {
   id: string;
-  id_user1: string;
-  id_user2: string;
-  message: string;
-  name: string;
-  category: "send" | "receive";
+  conversationId: string | null;
+  senderId: string;
+  message: string | FileMessage;
+  createdAt: string;
+  updatedAt: string;
+  parentMessage?: Message;
+  readed: string[];
+  messageType: "group" | "private";
+  contentType: "file" | "emoji" | "text";
+  receiverId: string;
+  status: "recall" | "delete" | "readed" | "sended" | "received";
 }
 
 interface DeviceFile {
@@ -50,7 +64,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
   const [userID1, setUserID1] = useState("");
-  const [userID2, setUserID2] = useState("");
+  const [userID2] = useState("492ad52c-1041-707e-21cc-2e8d96752239");
   const [anotherUser, setAnotherUser] = useState<{ _id: string; name: string; image: string } | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
@@ -64,13 +78,91 @@ const ChatScreen = () => {
   const [deviceImages, setDeviceImages] = useState<MediaLibrary.Asset[]>([]);
   const [deviceFiles, setDeviceFiles] = useState<DeviceFile[]>([]);
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useColorScheme();
   const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
   const { userId } = useLocalSearchParams();
-
-  // Animation for sliding panel
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
-  
+
+  useEffect(() => {
+    connectSocket();
+    const socket = getSocket();
+
+    socket.on("delete-message", (data: { messageId: string }) => {
+      setConversation(prev => prev.map(msg => 
+        msg.id === data.messageId 
+          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" } 
+          : msg
+      ));
+    });
+
+    socket.on("recall-message", (data: { message: Message }) => {
+      setConversation(prev => prev.map(msg => 
+        msg.id === data.message.id 
+          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" } 
+          : msg
+      ));
+    });
+
+    return () => {
+      socket.off("delete-message");
+      socket.off("recall-message");
+    };
+  }, []);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      getSocket().emit("delete-message", messageId);
+      setConversation(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" } 
+          : msg
+      ));
+      setMenuVisible(false);
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      Alert.alert("Error", "Failed to delete message");
+    }
+  }, []);
+
+  const handleRecallMessage = useCallback(async (messageId: string) => {
+    try {
+      getSocket().emit("recall-message", messageId);
+      setConversation(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" } 
+          : msg
+      ));
+      setMenuVisible(false);
+    } catch (error) {
+      console.error("Error recalling message:", error);
+      Alert.alert("Error", "Failed to recall message");
+    }
+  }, []);
+
+  const sendTextMessage = () => {
+    if (!message.trim()) return;
+    getSocket().emit("private-message", {
+      receiverId: userID2,
+      message,
+      messageType: "private",
+      contentType: "text",
+    });
+    setMessage("");
+    setShowEmojiPicker(false);
+  };
+
+  const toggleEmojiPicker = () => {
+    setShowEmojiPicker((prev) => !prev);
+    if (showEmojiPicker) Keyboard.dismiss();
+    setShowImagePicker(false);
+    setShowFilePicker(false);
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setMessage((prev) => prev + emojiData.emoji);
+  };
+
   const openSettings = useCallback(() => {
     if (settingsVisible || menuVisible || optionsVisible) {
       console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
@@ -79,17 +171,16 @@ const ChatScreen = () => {
 
     console.log("openSettings called, settingsVisible:", settingsVisible);
 
-
     slideAnim.setValue(SCREEN_WIDTH);
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => setSettingsVisible(true)); // Cập nhật trạng thái sau khi animation chạy xong
+    }).start(() => setSettingsVisible(true));
   }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
 
   const closeSettings = useCallback(() => {
-    setSettingsVisible(false); // Đặt trạng thái về false trước
+    setSettingsVisible(false);
     Animated.timing(slideAnim, {
       toValue: SCREEN_WIDTH,
       duration: 200,
@@ -97,34 +188,15 @@ const ChatScreen = () => {
     }).start();
   }, [slideAnim]);
 
-  const normalizeCategory = (category: string): "send" | "receive" => {
-    return category === "send" || category === "receive" ? category : "receive";
-  };
-
-  const selectUser = (user: { _id: string; name: string; image: string }) => {
-    setUserID2(user._id);
-    setAnotherUser(user); 
-  };
-
-  const sendMessage = () => {
-    getSocket().emit("private-message", {
-      receiverId: "b9ba65cc-2061-7031-229d-5f892034d870",
-      message: message,
-      messageType: "private",
-      contentType: "text"
+  const handleLongPress = (item: Message) => {
+    if (item.status === "delete" || item.status === "recall") return;
+    setSelectedMessage({
+      id: item.id,
+      message: typeof item.message === "string" ? item.message : "[File message]",
     });
-    setMessage("");
-    setShowEmojiPicker(false);
-  };
-
-  useEffect(() => {
-    connectSocket();
-  }, []);
-
-  const handleLongPress = (message: { id: string; message: string }) => {
-    setSelectedMessage(message);
     setMenuVisible(true);
   };
+  
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -134,65 +206,90 @@ const ChatScreen = () => {
   const showOptions = () => {
     setOptionsVisible(true);
     setShowFilePicker(false);
+    setShowImagePicker(false);
   };
 
   const closeOptions = () => {
     setOptionsVisible(false);
   };
 
-  const handleFileOptionPress = () => {
-    setOptionsVisible(false);
-    setShowFilePicker(true);
-    getDeviceFiles();
-  };
-
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setMessage(prev => prev + emojiData.emoji);
-  };
-
-  const toggleEmojiPicker = () => {
-    setShowEmojiPicker(!showEmojiPicker);
-    if (showEmojiPicker) {
-      Keyboard.dismiss();
-    }
-    setShowImagePicker(false);
-    setShowFilePicker(false);
-  };
-
   const loadDeviceImages = async () => {
-    if (permissionResponse?.status !== 'granted') {
+    if (permissionResponse?.status !== "granted") {
       await requestPermission();
     }
-    
     const media = await MediaLibrary.getAssetsAsync({
       first: 100,
-      mediaType: ['photo'],
-      sortBy: ['creationTime'],
+      mediaType: ["photo"],
+      sortBy: ["creationTime"],
     });
     setDeviceImages(media.assets);
   };
 
-  const handleImageSelect = async (asset: MediaLibrary.Asset) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-      base64: true,
-    });
+  useEffect(() => {
+    if (showImagePicker && Platform.OS !== "web") {
+      loadDeviceImages();
+    }
+  }, [showImagePicker]);
 
-    if (!result.canceled) {
+  const handleMobileImageSelect = async (asset: MediaLibrary.Asset) => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      getSocket().emit("private-message", {
+        receiverId: userID2,
+        message: {
+          data: base64,
+          filename: asset.filename || `IMG_${asset.id}.jpg`,
+          size: asset.width * asset.height,
+          type: 'image/jpeg'
+        },
+        messageType: "private",
+        contentType: "file",
+      });
       setShowImagePicker(false);
+    } catch (error) {
+      console.error("Error selecting mobile image:", error);
+      Alert.alert("Error", "Failed to select image. Please try again.");
     }
   };
 
-  const toggleImagePicker = () => {
-    setShowImagePicker(!showImagePicker);
-    if (showImagePicker) {
-      Keyboard.dismiss();
+  const onWebFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      getSocket().emit("private-message", {
+        receiverId: userID2,
+        message: {
+          data: base64,
+          filename: file.name,
+          size: file.size,
+          type: file.type
+        },
+        messageType: "private",
+        contentType: "file",
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const openImagePicker = () => {
+    if (Platform.OS === "web") {
+      fileInputRef.current?.click();
+    } else {
+      setShowImagePicker((prev) => !prev);
+      setShowEmojiPicker(false);
+      setShowFilePicker(false);
     }
-    setShowEmojiPicker(false);
-    setShowFilePicker(false);
+  };
+
+  const handleFileOptionPress = () => {
+    setOptionsVisible(false);
+    setShowFilePicker(true);
+    getDeviceFiles();
   };
 
   const getDeviceFiles = async () => {
@@ -211,7 +308,7 @@ const ChatScreen = () => {
               const fileInfo = await FileSystem.getInfoAsync(file.uri);
               if (fileInfo.exists) {
                 return {
-                  name: file.name || 'Không xác định',
+                  name: file.name || 'Unknown',
                   size: file.size || 0,
                   uri: file.uri,
                   lastModified: fileInfo.modificationTime || Date.now(),
@@ -219,7 +316,7 @@ const ChatScreen = () => {
               }
               return null;
             } catch (error) {
-              console.error('Lỗi khi lấy thông tin file:', error);
+              console.error('Error getting file info:', error);
               return null;
             }
           })
@@ -227,12 +324,18 @@ const ChatScreen = () => {
         setDeviceFiles(fileDetails.filter((f): f is DeviceFile => f !== null));
       }
     } catch (error) {
-      console.error('Lỗi khi chọn file:', error);
+      console.error('Error selecting files:', error);
+      Alert.alert("Error", "Could not access files. Please try again.");
     }
   };
 
   const openFile = async (fileUri: string) => {
     try {
+      if (Platform.OS === 'web') {
+        window.open(fileUri, '_blank');
+        return;
+      }
+
       const downloadResumable = FileSystem.createDownloadResumable(
         fileUri, 
         FileSystem.documentDirectory + 'tempfile'
@@ -241,62 +344,37 @@ const ChatScreen = () => {
       const downloadResult = await downloadResumable.downloadAsync();
       if (downloadResult) {
         const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
-        console.log('File sẵn sàng để mở:', contentUri);
+        console.log('File ready to open:', contentUri);
       }
     } catch (error) {
-      console.error('Lỗi khi mở file:', error);
+      console.error('Error opening file:', error);
+      Alert.alert("Error", "Could not open file. Please try again.");
     }
   };
 
   const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
 
-  const toggleFilePicker = () => {
-    setShowFilePicker(!showFilePicker);
-    if (showFilePicker) {
-      Keyboard.dismiss();
-    }
-    setShowEmojiPicker(false);
-    setShowImagePicker(false);
-  };
-
-  useEffect(() => {
-    if (showImagePicker) {
-      loadDeviceImages();
-    }
-    if (showFilePicker) {
-      getDeviceFiles();
-    }
-  }, [showImagePicker, showFilePicker]);
-
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'jpg': case 'jpeg': case 'png': case 'gif': return 'image';
-      case 'mp3': case 'wav': case 'aac': return 'audiotrack';
-      case 'mp4': case 'mov': case 'avi': return 'video-file';
-      case 'pdf': return 'picture-as-pdf';
-      case 'apk': return 'android';
-      case 'doc': case 'docx': return 'description';
-      case 'xls': case 'xlsx': return 'grid-on';
-      case 'ppt': case 'pptx': return 'slideshow';
-      case 'zip': case 'rar': return 'folder-zip';
-      default: return 'insert-drive-file';
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Hidden web file input */}
+      {Platform.OS === "web" && (
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          ref={fileInputRef}
+          onChange={onWebFileChange}
+        />
+      )}
+
+      {/* Header */}
       <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{anotherUser?.name || "Chat"}</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {anotherUser?.name || "Chat"}
+        </Text>
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
             <FontAwesome name="phone" size={24} color={theme.colors.primary} />
@@ -310,45 +388,140 @@ const ChatScreen = () => {
         </View>
       </View>
 
-      {/* Chat Messages */}
+      {/* Messages */}
       <FlatList
-        data={conversation || []}
+        data={conversation}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onLongPress={() => handleLongPress(item)}
-            style={[
-              styles.messageContainer,
-              item.category === "send" ? styles.sentMessage : styles.receivedMessage,
-            ]}
-          >
-            {item.category === "receive" && <Image source={{ uri: anotherUser?.image }} style={styles.avatar} />}
-            <View
+        renderItem={({ item }) => {
+          const isDeleted = item.status === "delete";
+          const isRecalled = item.status === "recall";
+          const isFile = item.contentType === "file";
+          const isText = item.contentType === "text";
+          const messageTime = format(new Date(item.createdAt), "HH:mm");
+
+          return (
+            <TouchableOpacity
+              onLongPress={() => !isDeleted && !isRecalled && handleLongPress(item)}
               style={[
-                styles.messageBubble,
-                {
-                  backgroundColor:
-                    item.category === "send" ? theme.colors.primary : theme.colors.card,
-                },
+                styles.messageContainer,
+                item.senderId === userID1 
+                  ? styles.sentMessageContainer 
+                  : styles.receivedMessageContainer,
+                (isDeleted || isRecalled) && styles.recalledMessageContainer
               ]}
             >
-              <Text style={[styles.messageText, { color: theme.colors.text }]}>
-                {item.message}
-              </Text>
-              <Text style={[styles.messageTime, { color: theme.colors.text }]}>
-                {new Date().toLocaleTimeString()}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+              {/* Avatar for received messages */}
+              {item.senderId !== userID1 && anotherUser && (
+                <Image 
+                  source={{ uri: anotherUser.image }} 
+                  style={styles.avatar} 
+                />
+              )}
+
+              {/* Message bubble */}
+              <View
+                style={[
+                  styles.messageBubble,
+                  {
+                    backgroundColor:
+                      item.senderId === userID1 
+                        ? theme.colors.primary 
+                        : theme.colors.card,
+                    marginLeft: item.senderId !== userID1 ? 8 : 0,
+                    marginRight: item.senderId === userID1 ? 8 : 0,
+                    opacity: isDeleted || isRecalled ? 0.7 : 1
+                  },
+                ]}
+              >
+                {/* Render recalled/deleted message */}
+                {(isDeleted || isRecalled) ? (
+                  <Text 
+                    style={[
+                      styles.recalledMessageText,
+                      { 
+                        color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                        fontStyle: "italic"
+                      }
+                    ]}
+                  >
+                    {typeof item.message === "string" ? item.message : "Tin nhắn đã bị thu hồi"}
+                  </Text>
+                ) : isFile ? (
+                  <TouchableOpacity 
+                    style={styles.fileContainer}
+                    onPress={() => openFile(typeof item.message !== "string" ? item.message.data : "")}
+                  >
+                    <FontAwesome 
+                      name="file" 
+                      size={24} 
+                      color={item.senderId === userID1 ? "#fff" : theme.colors.text} 
+                    />
+                    <View style={styles.fileInfo}>
+                      <Text 
+                        style={[
+                          styles.fileName,
+                          { color: item.senderId === userID1 ? "#fff" : theme.colors.text }
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {typeof item.message !== "string" ? item.message.filename : "File"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <Text 
+                    style={[
+                      styles.messageText,
+                      { 
+                        color: item.senderId === userID1 ? "#fff" : theme.colors.text 
+                      }
+                    ]}
+                  >
+                    {typeof item.message === "string" ? item.message : ""}
+                  </Text>
+                )}
+
+                <Text 
+                  style={[
+                    styles.messageTime,
+                    { 
+                      color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                      alignSelf: item.senderId === userID1 ? "flex-end" : "flex-start",
+                    }
+                  ]}
+                >
+                  {messageTime}
+                  {(isDeleted || isRecalled) && (
+                    <FontAwesome 
+                      name={isDeleted ? "trash" : "undo"} 
+                      size={12} 
+                      color={item.senderId === userID1 ? "#fff" : theme.colors.text}
+                      style={{ marginLeft: 5 }}
+                    />
+                  )}
+                </Text>
+              </View>
+
+              {/* Empty view to balance avatar space for sent messages */}
+              {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
+            </TouchableOpacity>
+          );
+        }}
+        contentContainerStyle={styles.messagesContainer}
       />
 
+      {/* Emoji Picker */}
       {showEmojiPicker && (
-        <View style={[styles.emojiPickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
+        <View
+          style={[
+            styles.emojiPickerContainer,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
           <EmojiPicker
             width={SCREEN_WIDTH}
             height={350}
@@ -361,43 +534,47 @@ const ChatScreen = () => {
         </View>
       )}
 
-      {showImagePicker && (
-        <View style={[styles.imagePickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
+      {/* Image Picker (Mobile) */}
+      {showImagePicker && Platform.OS !== "web" && (
+        <View
+          style={[
+            styles.imagePickerContainer,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
           <View style={styles.imagePickerHeader}>
-            <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>Chọn ảnh</Text>
+            <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>
+              Select Image
+            </Text>
             <TouchableOpacity onPress={() => setShowImagePicker(false)}>
               <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
-          
           <FlatList
             data={deviceImages}
             numColumns={3}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <TouchableOpacity 
-                onPress={() => handleImageSelect(item)}
+              <TouchableOpacity
+                onPress={() => handleMobileImageSelect(item)}
                 style={styles.imageItem}
               >
-                <Image 
-                  source={{ uri: item.uri }} 
-                  style={styles.imageThumbnail}
-                />
+                <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
               </TouchableOpacity>
             )}
-            contentContainerStyle={styles.imageList}
           />
         </View>
       )}
 
+      {/* Message Options Menu */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
           <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
               <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
             </TouchableOpacity>
@@ -415,14 +592,14 @@ const ChatScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "red" }]}
-              onPress={() => alert("Remove")}
+              onPress={() => selectedMessage && handleDeleteMessage(selectedMessage.id)}
             >
               <FontAwesome name="trash" size={20} color="#fff" />
               <Text style={styles.menuText}>Remove</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "orange" }]}
-              onPress={() => alert("Recall")}
+              onPress={() => selectedMessage && handleRecallMessage(selectedMessage.id)}
             >
               <FontAwesome name="undo" size={20} color="#fff" />
               <Text style={styles.menuText}>Recall</Text>
@@ -432,7 +609,7 @@ const ChatScreen = () => {
               onPress={closeMenu}
             >
               <Text style={[styles.menuText, { color: theme.colors.text }]}>Close</Text>
-              </TouchableOpacity>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -453,7 +630,7 @@ const ChatScreen = () => {
               <TouchableOpacity onPress={closeSettings}>
                 <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
               </TouchableOpacity>
-              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Tùy chọn</Text>
+              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Settings</Text>
             </View>
             <View style={styles.userInfo}>
               <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
@@ -462,83 +639,40 @@ const ChatScreen = () => {
             <View style={styles.settingsOptions}>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="pencil" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Đổi tên gợi nhớ</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Change Nickname</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="image" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Ảnh, file, link</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Media, Files & Links</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="search" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tìm tin nhắn</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Search Messages</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="bell" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tắt thông báo</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Mute Notifications</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tạo nhóm với User Name</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Create Group</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="users" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Thêm User Name vào nhóm</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Add to Group</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
                 <FontAwesome name="group" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xem nhóm chung</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>View Common Groups</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.settingsItem]}>
                 <FontAwesome name="trash" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xóa lịch sử trò chuyện</Text>
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Clear Chat History</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         </View>
       </Modal>
-
-      {/* Input Container */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity 
-          onPress={toggleEmojiPicker} 
-          style={styles.iconSpacing}
-        >
-          <FontAwesome 
-            name="smile-o" 
-            size={24} 
-            color={showEmojiPicker ? theme.colors.primary : theme.colors.text} 
-          />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Nhập tin nhắn..."
-          placeholderTextColor={theme.colors.text}
-        />
-        {message === "" ? (
-          <>
-            <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
-              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={toggleImagePicker} 
-              style={styles.iconSpacing}
-            >
-              <FontAwesome 
-                name="image" 
-                size={24} 
-                color={showImagePicker ? theme.colors.primary : theme.colors.text} 
-              />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <Button onPress={sendMessage}>Gửi</Button>
-        )}
-      </View>
 
       {/* Options Modal */}
       <Modal visible={optionsVisible} transparent animationType="fade">
@@ -550,7 +684,7 @@ const ChatScreen = () => {
             >
               <FontAwesome name="file" size={20} color={theme.colors.text} />
               <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
-              </TouchableOpacity>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.optionItem} onPress={() => alert("Cloud")}>
               <FontAwesome name="cloud" size={20} color={theme.colors.text} />
               <Text style={[styles.optionText, { color: theme.colors.text }]}>Cloud</Text>
@@ -569,48 +703,42 @@ const ChatScreen = () => {
         </View>
       </Modal>
 
-      {showFilePicker && (
-        <View style={[styles.filePickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
-          <View style={styles.filePickerHeader}>
-            <Text style={[styles.filePickerTitle, { color: theme.colors.text }]}>Chọn file</Text>
-            <TouchableOpacity onPress={() => setShowFilePicker(false)}>
-              <MaterialIcons name="close" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
-          
-          <FlatList
-            data={deviceFiles}
-            keyExtractor={(item) => item.uri}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                onPress={() => openFile(item.uri)}
-                style={styles.fileItem}
-              >
-                <View style={styles.fileIconContainer}>
-                  <MaterialIcons 
-                    name={getFileIcon(item.name)} 
-                    size={24} 
-                    color={theme.colors.primary} 
-                  />
-                </View>
-                <View style={styles.fileInfoContainer}>
-                  <Text style={[styles.fileName, { color: theme.colors.text }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={[styles.fileDetails, { color: theme.colors.text }]}>
-                    {formatFileSize(item.size)} • {format(new Date(item.lastModified), 'd/M/yyyy')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.fileList}
+      {/* Input */}
+      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
+        <TouchableOpacity onPress={toggleEmojiPicker} style={styles.iconSpacing}>
+          <FontAwesome
+            name="smile-o"
+            size={24}
+            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
           />
-        </View>
-      )}
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Type a message..."
+          placeholderTextColor={theme.colors.text}
+        />
+        {message.trim() === "" ? (
+          <>
+            <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
+              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
+              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openImagePicker} style={styles.iconSpacing}>
+              <FontAwesome
+                name="image"
+                size={24}
+                color={showImagePicker ? theme.colors.primary : theme.colors.text}
+              />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Button onPress={sendTextMessage}>Send</Button>
+        )}
+      </View>
     </View>
   );
 };
@@ -618,6 +746,10 @@ const ChatScreen = () => {
 export default ChatScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -637,9 +769,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 15
   },
-  container: {
-    flex: 1,
-  },
   headerIcons: {
     flexDirection: "row",
     alignItems: "center",
@@ -647,18 +776,25 @@ const styles = StyleSheet.create({
   iconSpacing: {
     marginHorizontal: 10,
   },
+  messagesContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  sentMessageContainer: {
+    justifyContent: "flex-end",
+    marginLeft: 50,
+  },
+  receivedMessageContainer: {
+    justifyContent: "flex-start",
+    marginRight: 50,
+  },
   messageContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     marginVertical: 5,
   },
-  sentMessage: {
-    justifyContent: "flex-end",
-    alignSelf: "flex-end",
-  },
-  receivedMessage: {
-    justifyContent: "flex-start",
-    alignSelf: "flex-start",
+  recalledMessageContainer: {
+    opacity: 0.7,
   },
   avatar: {
     width: 40,
@@ -666,18 +802,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
+  avatarPlaceholder: {
+    width: 40,
+  },
   messageBubble: {
+    maxWidth: "80%",
+    borderRadius: 12,
     padding: 10,
-    borderRadius: 15,
-    maxWidth: "70%",
+    marginVertical: 4,
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 20,
+  },
+  recalledMessageText: {
+    fontSize: 16,
+    fontStyle: 'italic',
   },
   messageTime: {
-    fontSize: 12,
-    marginTop: 5,
-    opacity: 0.7,
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.8,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  imageTimeText: {
+    fontSize: 11,
+    textAlign: "right",
+    opacity: 0.8,
+  },
+  fileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  fileTimeText: {
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 4,
   },
   inputContainer: {
     flexDirection: "row",
@@ -726,7 +900,7 @@ const styles = StyleSheet.create({
   optionsContainer: {
     width: 250,
     borderRadius: 10,
-    padding: 10,
+    padding: 15,
     alignItems: "center",
   },
   optionItem: {
@@ -740,7 +914,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  // Settings panel styles
   settingsModalBackground: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -787,9 +960,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 15,
   },
-  deleteButton: {
-    marginTop: 20,
-  },
   emojiPickerContainer: {
     position: 'absolute',
     bottom: 60,
@@ -817,9 +987,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  imageList: {
-    padding: 5,
-  },
   imageItem: {
     flex: 1,
     aspectRatio: 1,
@@ -829,55 +996,5 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 5,
-  },
-  filePickerContainer: {
-    position: 'absolute',
-    bottom: 60,
-    left: 0,
-    right: 0,
-    height: 300,
-    zIndex: 1000,
-  },
-  filePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
-  filePickerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  fileList: {
-    padding: 10,
-  },
-  fileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  fileIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  fileInfoContainer: {
-    flex: 1,
-  },
-  fileName: {
-    fontSize: 16,
-    marginBottom: 3,
-  },
-  fileDetails: {
-    fontSize: 12,
-    opacity: 0.7,
   },
 });
