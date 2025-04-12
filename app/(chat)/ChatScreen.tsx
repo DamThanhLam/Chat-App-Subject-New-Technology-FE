@@ -97,7 +97,7 @@ const ChatScreen = () => {
 
  useEffect(() => {
     connectSocket()
-    
+    //fetch api get messages
   }, [])
 
   const handleLongPress = (message: { id: string; message: string }) => {
