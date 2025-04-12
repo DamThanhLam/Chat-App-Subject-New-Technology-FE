@@ -1,4 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
+import messageReducer from './slices/MessageSlice';
 import { persistStore, persistReducer } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import storage from 'redux-persist/lib/storage'; // Local storage for web
@@ -15,6 +16,7 @@ const persistConfig = {
 
 const rootReducer = combineReducers({
   user: userReducer,
+  messages: messageReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

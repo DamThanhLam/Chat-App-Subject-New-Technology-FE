@@ -60,9 +60,18 @@ const HomeScreen = ({ navigation }: any) => {
       </View>
     </TouchableOpacity>
   );
-
+  const log_access_token = async () => {
+    const session = await Auth.currentSession();
+    const accessToken = session.getAccessToken().getJwtToken();
+    console.log("access_token:", session.getAccessToken().getJwtToken());
+    console.log("id_token:", session.getIdToken().getJwtToken());
+    const jwtHeader = JSON.parse(atob(accessToken.split('.')[0]));
+    console.log(jwtHeader.kid);
+  }
+  log_access_token()
   useEffect(() => {
     connectSocket()
+    
   }, [])
 
   return (
