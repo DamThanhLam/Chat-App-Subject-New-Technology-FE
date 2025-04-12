@@ -103,7 +103,7 @@ const ChatScreen = () => {
 
   const selectUser = (user: { _id: string; name: string; image: string }) => {
     setUserID2(user._id);
-    setAnotherUser(user);
+    setAnotherUser(user); 
   };
 
   const sendMessage = () => {
