@@ -16,71 +16,223 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router } from "expo-router";
-import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
 import { Auth } from "aws-amplify";
+import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
+import { getCurrentUserId } from "../../src/utils/config";
+import {
+  fetchFriends,
+  fetchUserInfo,
+  fetchLatestMessage,
+} from "../../src/apis/message";
+import {
+  Message,
+  Friend,
+  DisplayConversation,
+} from "@/src/interface/interface";
 
-const HomeScreen = ({ navigation }: any) => {
+const HomeScreen = () => {
   const [search, setSearch] = useState("");
-  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const [displayConversations, setDisplayConversations] = useState<
+    DisplayConversation[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string>("");
+  const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
-  const data = [
-    { id: "1", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
-    { id: "2", name: "Full Name", message: "latest message", time: "1 phút", unread: 3 },
-    { id: "3", name: "Full Name", message: "latest message", time: "1 phút", unread: 2 },
-    { id: "4", name: "Full Name", message: "latest message", time: "1 phút", unread: 1 },
-  ];
+  // Lấy danh sách bạn bè và tin nhắn cuối cùng
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      const currentUserId = await getCurrentUserId();
+      setUserId(currentUserId);
 
-  const renderItem = ({ item }: any) => (
-    <TouchableOpacity
-      style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
-      onPress={() => {
-        router.push("/ChatScreen", { params: { friendId: item.id } });
-      }}
-    >
-      <Image
-        source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
-        style={styles.avatar}
-      />
-      <View style={styles.chatDetails}>
-        <Text style={[styles.chatName, { color: theme.colors.text }]}>{item.name}</Text>
-        <Text style={[styles.chatMessage, { color: theme.colors.text, opacity: 0.7 }]}>
-          {item.message}
-        </Text>
-      </View>
-      <View style={styles.chatMeta}>
-        <Text style={[styles.chatTime, { color: theme.colors.text, opacity: 0.7 }]}>
-          {item.time}
-        </Text>
-        {item.unread > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unread}</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-  const log_access_token = async () => {
-    const session = await Auth.currentSession();
-    const accessToken = session.getAccessToken().getJwtToken();
-    console.log("access_token:", session.getAccessToken().getJwtToken());
-    console.log("id_token:", session.getIdToken().getJwtToken());
-    const jwtHeader = JSON.parse(atob(accessToken.split('.')[0]));
-    console.log(jwtHeader.kid);
-  }
-  log_access_token()
+      // Bước 1: Lấy danh sách bạn bè
+      const friends = await fetchFriends();
+      const acceptedFriends = friends.filter(
+        (friend) => friend.status === "accepted"
+      );
+
+      // Bước 2: Lấy thông tin bạn bè và tin nhắn cuối
+      const conversations: DisplayConversation[] = [];
+      const friendIds = acceptedFriends.map((friend) =>
+        friend.senderId === currentUserId ? friend.receiverId : friend.senderId
+      );
+
+      // Gọi API để lấy thông tin tất cả người dùng
+      const usersResponse = await Promise.all(
+        friendIds.map((friendId) => fetchUserInfo(friendId))
+      );
+
+      // Tạo map để tra cứu displayName và avatar nhanh
+      const userMap = usersResponse.reduce((map, user) => {
+        map[user.friendId] = user;
+        return map;
+      }, {});
+
+      // Bước 3: Lấy tin nhắn cuối cho từng người bạn
+      for (const friend of acceptedFriends) {
+        const friendId =
+          friend.senderId === currentUserId
+            ? friend.receiverId
+            : friend.senderId;
+
+        const lastMessage = await fetchLatestMessage(friendId);
+        const userInfo = userMap[friendId] || {
+          displayName: friendId,
+          avatar: null,
+        };
+
+        conversations.push({
+          friendId,
+          displayName: userInfo.displayName,
+          avatar:
+            friend.senderId === currentUserId
+              ? friend.senderAVT
+              : userInfo.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          lastMessage,
+        });
+      }
+
+      setDisplayConversations(conversations);
+    } catch (error) {
+      console.error("Lỗi khi lấy cuộc trò chuyện:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    connectSocket()
-    
-  }, [])
+    fetchConversations();
+    // connectSocket();
+  }, []);
+
+  // Hàm tính số tin nhắn chưa đọc
+  const getUnreadCount = (
+    conversation: DisplayConversation,
+    currentUserId: string
+  ) => {
+    if (
+      !conversation.lastMessage ||
+      conversation.lastMessage.readed.includes(currentUserId)
+    ) {
+      return 0;
+    }
+    return 1;
+  };
+
+  // Hàm định dạng thời gian (đã sửa để tránh NaN)
+  const formatTime = (isoTime: string) => {
+    if (!isoTime || typeof isoTime !== "string") {
+      return "Không rõ";
+    }
+
+    const date = new Date(isoTime);
+    if (isNaN(date.getTime())) {
+      return "Không rõ";
+    }
+
+    const now = new Date();
+    const diffInMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / 1000 / 60
+    );
+
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} phút`;
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)} giờ`;
+    } else {
+      return `${Math.floor(diffInMinutes / 1440)} ngày`;
+    }
+  };
+
+  const renderItem = ({ item }: { item: DisplayConversation }) => {
+    const displayName = item.displayName;
+    const lastMessageContent =
+      item.lastMessage?.contentType === "text"
+        ? typeof item.lastMessage.message === "string"
+          ? item.lastMessage.message
+          : ""
+        : item.lastMessage?.contentType === "emoji"
+        ? "Emoji"
+        : "File";
+    const unreadCount = getUnreadCount(item, userId);
+
+    return (
+      <TouchableOpacity
+        style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
+        onPress={() => {
+          router.push({
+            pathname: "/ChatScreen",
+            params: {
+              conversationId: item.lastMessage?.conversationId || "",
+              friendId: item.friendId,
+            },
+          });
+        }}
+      >
+        <Image
+          source={{
+            uri:
+              item.avatar ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          }}
+          style={styles.avatar}
+        />
+        <View style={styles.chatDetails}>
+          <Text style={[styles.chatName, { color: theme.colors.text }]}>
+            {displayName}
+          </Text>
+          <Text
+            style={[
+              styles.chatMessage,
+              { color: theme.colors.text, opacity: 0.7 },
+            ]}
+          >
+            {lastMessageContent}
+          </Text>
+        </View>
+        <View style={styles.chatMeta}>
+          <Text
+            style={[
+              styles.chatTime,
+              { color: theme.colors.text, opacity: 0.7 },
+            ]}
+          >
+            {item.lastMessage && item.lastMessage.createdAt
+              ? formatTime(item.lastMessage.createdAt)
+              : ""}
+          </Text>
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{unreadCount}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <SafeAreaView style={[styles.safeContainer, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[
+        styles.safeContainer,
+        { backgroundColor: theme.colors.background },
+      ]}
+    >
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.searchContainer,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
           <TextInput
-            placeholder="Search..."
+            placeholder="Tìm kiếm..."
             style={[styles.searchInput, { color: theme.colors.text }]}
             value={search}
             onChangeText={setSearch}
@@ -90,12 +242,20 @@ const HomeScreen = ({ navigation }: any) => {
         </View>
 
         {/* Chat List */}
-        <FlatList
-          data={data}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.chatList}
-        />
+        {loading ? (
+          <Text style={{ color: theme.colors.text, textAlign: "center" }}>
+            Đang tải...
+          </Text>
+        ) : (
+          <FlatList
+            data={displayConversations.filter((conv) =>
+              conv.displayName.toLowerCase().includes(search.toLowerCase())
+            )}
+            keyExtractor={(item) => item.friendId}
+            renderItem={renderItem}
+            contentContainerStyle={styles.chatList}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -156,7 +316,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   unreadBadge: {
-    backgroundColor: "red", // Giữ màu đỏ cho badge
+    backgroundColor: "red",
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -166,16 +326,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 12,
     fontWeight: "bold",
-  },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    backgroundColor: "#fff",
-  },
-  navItem: {
-    alignItems: "center",
   },
 });
