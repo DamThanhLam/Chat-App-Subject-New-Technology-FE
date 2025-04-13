@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -14,21 +14,22 @@ import {
   Dimensions,
   Animated,
   Keyboard,
+  SafeAreaView,
 } from "react-native";
-import io from "socket.io-client";
-import Button from "@/components/ui/Button";
-import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons, FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
 import { connectSocket, getSocket } from "@/src/socket/socket";
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
-import * as MediaLibrary from 'expo-media-library';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import * as DocumentPicker from 'expo-document-picker';
-import { format } from 'date-fns';
-import { Theme } from 'emoji-picker-react';
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import * as MediaLibrary from "expo-media-library";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import * as DocumentPicker from "expo-document-picker";
+import { Theme } from "emoji-picker-react";
+import SettingsPanel from "../../components/ui/SettingsPanel";
+import { getNickname } from "@/src/apis/nickName";
+import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+import { Auth } from "aws-amplify";
 
 interface Message {
   id: string;
@@ -36,6 +37,7 @@ interface Message {
   id_user2: string;
   message: string;
   name: string;
+  senderId: string; // Thêm senderId để biết người gửi
   category: "send" | "receive";
 }
 
@@ -46,15 +48,34 @@ interface DeviceFile {
   lastModified: number;
 }
 
+interface User {
+  _id: string;
+  name: string;
+  image: string;
+}
+
+interface Conversation {
+  id: string;
+  participants: string[];
+  groupName?: string;
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
   const [userID1, setUserID1] = useState("");
   const [userID2, setUserID2] = useState("");
-  const [anotherUser, setAnotherUser] = useState<{ _id: string; name: string; image: string } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [anotherUser, setAnotherUser] = useState<User | null>(null);
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState<string | null>(null); // Tên nhóm
+  const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -65,31 +86,35 @@ const ChatScreen = () => {
   const [deviceFiles, setDeviceFiles] = useState<DeviceFile[]>([]);
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
   const colorScheme = useColorScheme();
-  const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
-  const { userId } = useLocalSearchParams();
+  const theme = useMemo(
+    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
+    [colorScheme]
+  );
+  const { friendId, conversationId } = useLocalSearchParams();
 
   // Animation for sliding panel
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
-  
+
   const openSettings = useCallback(() => {
     if (settingsVisible || menuVisible || optionsVisible) {
-      console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
+      console.log("Cannot open settings: another modal is visible", {
+        settingsVisible,
+        menuVisible,
+        optionsVisible,
+      });
       return;
     }
-
-    console.log("openSettings called, settingsVisible:", settingsVisible);
-
 
     slideAnim.setValue(SCREEN_WIDTH);
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => setSettingsVisible(true)); // Cập nhật trạng thái sau khi animation chạy xong
+    }).start(() => setSettingsVisible(true));
   }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
 
   const closeSettings = useCallback(() => {
-    setSettingsVisible(false); // Đặt trạng thái về false trước
+    setSettingsVisible(false);
     Animated.timing(slideAnim, {
       toValue: SCREEN_WIDTH,
       duration: 200,
@@ -97,29 +122,139 @@ const ChatScreen = () => {
     }).start();
   }, [slideAnim]);
 
+  // Lấy currentUserId từ Auth
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await Auth.currentAuthenticatedUser();
+        const userId = user.attributes.sub;
+        if (!userId || typeof userId !== "string") {
+          throw new Error("ID người dùng hiện tại không hợp lệ");
+        }
+        setCurrentUserId(userId);
+      } catch (error: any) {
+        console.error("Lỗi khi lấy currentUserId:", error.message);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  // Lấy thông tin cuộc trò chuyện (chat nhóm hoặc chat đôi)
+  const fetchConversationInfo = async () => {
+    try {
+      if (conversationId) {
+        // Nếu có conversationId, đây là chat nhóm
+        const headers = await getAuthHeaders();
+        const response = await fetch(
+          `${API_BASE_URL}/conversation/${conversationId}`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Không thể lấy thông tin cuộc trò chuyện");
+        }
+
+        const conversationData: Conversation = await response.json();
+        setIsGroupChat(conversationData.participants.length > 2);
+        setGroupName(conversationData.groupName || "Nhóm mới");
+      } else if (friendId) {
+        // Nếu có friendId, đây là chat đôi
+        setIsGroupChat(false);
+        await fetchUserInfo();
+        await fetchNickname();
+      } else {
+        throw new Error("Không có friendId hoặc conversationId hợp lệ");
+      }
+    } catch (error: any) {
+      console.error("Lỗi khi lấy thông tin cuộc trò chuyện:", error.message);
+    }
+  };
+
+  // Lấy thông tin người dùng (dùng cho chat đôi)
+  const fetchUserInfo = async () => {
+    try {
+      if (!friendId || typeof friendId !== "string") {
+        throw new Error("friendId không hợp lệ");
+      }
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/user/${friendId}`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error("Không thể lấy thông tin người dùng");
+      }
+
+      const userData = await response.json();
+      setAnotherUser({
+        _id: friendId as string,
+        name: userData.name || friendId,
+        image:
+          userData.urlAVT ||
+          "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      });
+    } catch (error: any) {
+      console.error("Lỗi khi lấy thông tin người dùng:", error.message);
+    }
+  };
+
+  // Lấy tên gợi nhớ (dùng cho chat đôi)
+  const fetchNickname = async () => {
+    try {
+      if (!friendId || typeof friendId !== "string") {
+        throw new Error("friendId không hợp lệ");
+      }
+      const { nickname } = await getNickname(friendId);
+      setNickname(nickname);
+    } catch (error: any) {
+      console.error("Lỗi khi lấy tên gợi nhớ:", error.message);
+    }
+  };
+
+  // Load thông tin cuộc trò chuyện khi màn hình được mở
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchConversationInfo();
+    };
+    loadData();
+    connectSocket();
+  }, [friendId, conversationId]);
+
+  // Callback khi đổi tên gợi nhớ
+  const handleRename = (newName: string) => {
+    setNickname(newName); // Cập nhật nickname khi tên gợi nhớ được thay đổi
+  };
+
   const normalizeCategory = (category: string): "send" | "receive" => {
     return category === "send" || category === "receive" ? category : "receive";
   };
 
   const selectUser = (user: { _id: string; name: string; image: string }) => {
     setUserID2(user._id);
-    setAnotherUser(user); 
+    setAnotherUser(user);
   };
 
   const sendMessage = () => {
-    getSocket().emit("private-message", {
-      receiverId: "b9ba65cc-2061-7031-229d-5f892034d870",
+    if (!message.trim()) return; // Không gửi tin nhắn rỗng
+    const socket = getSocket();
+    if (!socket) {
+      console.error("Socket chưa được kết nối");
+      return;
+    }
+
+    socket.emit("private-message", {
+      receiverId: conversationId || friendId, // Sử dụng conversationId cho chat nhóm, friendId cho chat đôi
       message: message,
-      messageType: "private",
-      contentType: "text"
+      messageType: isGroupChat ? "group" : "private",
+      contentType: "text",
     });
     setMessage("");
     setShowEmojiPicker(false);
   };
-
-  useEffect(() => {
-    connectSocket();
-  }, []);
 
   const handleLongPress = (message: { id: string; message: string }) => {
     setSelectedMessage(message);
@@ -147,7 +282,7 @@ const ChatScreen = () => {
   };
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setMessage(prev => prev + emojiData.emoji);
+    setMessage((prev) => prev + emojiData.emoji);
   };
 
   const toggleEmojiPicker = () => {
@@ -160,14 +295,14 @@ const ChatScreen = () => {
   };
 
   const loadDeviceImages = async () => {
-    if (permissionResponse?.status !== 'granted') {
+    if (permissionResponse?.status !== "granted") {
       await requestPermission();
     }
-    
+
     const media = await MediaLibrary.getAssetsAsync({
       first: 100,
-      mediaType: ['photo'],
-      sortBy: ['creationTime'],
+      mediaType: ["photo"],
+      sortBy: ["creationTime"],
     });
     setDeviceImages(media.assets);
   };
@@ -198,11 +333,11 @@ const ChatScreen = () => {
   const getDeviceFiles = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: "*/*",
         copyToCacheDirectory: true,
         multiple: true,
       });
-  
+
       if (result && result.assets) {
         const files = result.assets;
         const fileDetails = await Promise.all(
@@ -211,7 +346,7 @@ const ChatScreen = () => {
               const fileInfo = await FileSystem.getInfoAsync(file.uri);
               if (fileInfo.exists) {
                 return {
-                  name: file.name || 'Không xác định',
+                  name: file.name || "Không xác định",
                   size: file.size || 0,
                   uri: file.uri,
                   lastModified: fileInfo.modificationTime || Date.now(),
@@ -219,7 +354,7 @@ const ChatScreen = () => {
               }
               return null;
             } catch (error) {
-              console.error('Lỗi khi lấy thông tin file:', error);
+              console.error("Lỗi khi lấy thông tin file:", error);
               return null;
             }
           })
@@ -227,28 +362,31 @@ const ChatScreen = () => {
         setDeviceFiles(fileDetails.filter((f): f is DeviceFile => f !== null));
       }
     } catch (error) {
-      console.error('Lỗi khi chọn file:', error);
+      console.error("Lỗi khi chọn file:", error);
     }
   };
 
   const openFile = async (fileUri: string) => {
     try {
       const downloadResumable = FileSystem.createDownloadResumable(
-        fileUri, 
-        FileSystem.documentDirectory + 'tempfile'
+        fileUri,
+        FileSystem.documentDirectory + "tempfile"
       );
-      
+
       const downloadResult = await downloadResumable.downloadAsync();
       if (downloadResult) {
-        const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
-        console.log('File sẵn sàng để mở:', contentUri);
+        const contentUri = await FileSystem.getContentUriAsync(
+          downloadResult.uri
+        );
+        console.log("File sẵn sàng để mở:", contentUri);
       }
     } catch (error) {
-      console.error('Lỗi khi mở file:', error);
+      console.error("Lỗi khi mở file:", error);
     }
   };
 
-  const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
+  const emojiPickerTheme: Theme =
+    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
 
   const toggleFilePicker = () => {
     setShowFilePicker(!showFilePicker);
@@ -269,18 +407,39 @@ const ChatScreen = () => {
   }, [showImagePicker, showFilePicker]);
 
   const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const ext = fileName.split(".").pop()?.toLowerCase();
     switch (ext) {
-      case 'jpg': case 'jpeg': case 'png': case 'gif': return 'image';
-      case 'mp3': case 'wav': case 'aac': return 'audiotrack';
-      case 'mp4': case 'mov': case 'avi': return 'video-file';
-      case 'pdf': return 'picture-as-pdf';
-      case 'apk': return 'android';
-      case 'doc': case 'docx': return 'description';
-      case 'xls': case 'xlsx': return 'grid-on';
-      case 'ppt': case 'pptx': return 'slideshow';
-      case 'zip': case 'rar': return 'folder-zip';
-      default: return 'insert-drive-file';
+      case "jpg":
+      case "jpeg":
+      case "png":
+      case "gif":
+        return "image";
+      case "mp3":
+      case "wav":
+      case "aac":
+        return "audiotrack";
+      case "mp4":
+      case "mov":
+      case "avi":
+        return "video-file";
+      case "pdf":
+        return "picture-as-pdf";
+      case "apk":
+        return "android";
+      case "doc":
+      case "docx":
+        return "description";
+      case "xls":
+      case "xlsx":
+        return "grid-on";
+      case "ppt":
+      case "pptx":
+        return "slideshow";
+      case "zip":
+      case "rar":
+        return "folder-zip";
+      default:
+        return "insert-drive-file";
     }
   };
 
@@ -291,21 +450,43 @@ const ChatScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[
+        styles.safeContainer,
+        { backgroundColor: theme.colors.background },
+      ]}
+    >
+      <View
+        style={[
+          styles.customHeader,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()}>
-          <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{anotherUser?.name || "Chat"}</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {isGroupChat ? groupName : nickname || anotherUser?.name || "Chat"}
+        </Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
-            <FontAwesome name="phone" size={24} color={theme.colors.primary} />
+          <TouchableOpacity
+            onPress={() => alert("Call")}
+            style={styles.iconSpacing}
+          >
+            <Ionicons name="call" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
-            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
+          <TouchableOpacity
+            onPress={() => alert("Video")}
+            style={styles.iconSpacing}
+          >
+            <Ionicons name="videocam" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
-            <FontAwesome name="list" size={24} color={theme.colors.primary} />
+            <Ionicons
+              name="ellipsis-vertical"
+              size={24}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -319,19 +500,33 @@ const ChatScreen = () => {
             onLongPress={() => handleLongPress(item)}
             style={[
               styles.messageContainer,
-              item.category === "send" ? styles.sentMessage : styles.receivedMessage,
+              item.category === "send"
+                ? styles.sentMessage
+                : styles.receivedMessage,
             ]}
           >
-            {item.category === "receive" && <Image source={{ uri: anotherUser?.image }} style={styles.avatar} />}
+            {item.category === "receive" && (
+              <Image
+                source={{ uri: anotherUser?.image }}
+                style={styles.avatar}
+              />
+            )}
             <View
               style={[
                 styles.messageBubble,
                 {
                   backgroundColor:
-                    item.category === "send" ? theme.colors.primary : theme.colors.card,
+                    item.category === "send"
+                      ? theme.colors.primary
+                      : theme.colors.card,
                 },
               ]}
             >
+              {isGroupChat && item.category === "receive" && (
+                <Text style={[styles.senderName, { color: theme.colors.text }]}>
+                  {item.name}
+                </Text>
+              )}
               <Text style={[styles.messageText, { color: theme.colors.text }]}>
                 {item.message}
               </Text>
@@ -344,11 +539,16 @@ const ChatScreen = () => {
       />
 
       {showEmojiPicker && (
-        <View style={[styles.emojiPickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
+        <View
+          style={[
+            styles.emojiPickerContainer,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
           <EmojiPicker
             width={SCREEN_WIDTH}
             height={350}
@@ -362,29 +562,38 @@ const ChatScreen = () => {
       )}
 
       {showImagePicker && (
-        <View style={[styles.imagePickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
+        <View
+          style={[
+            styles.imagePickerContainer,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
           <View style={styles.imagePickerHeader}>
-            <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>Chọn ảnh</Text>
+            <Text
+              style={[styles.imagePickerTitle, { color: theme.colors.text }]}
+            >
+              Chọn ảnh
+            </Text>
             <TouchableOpacity onPress={() => setShowImagePicker(false)}>
-              <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <FlatList
             data={deviceImages}
             numColumns={3}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => handleImageSelect(item)}
                 style={styles.imageItem}
               >
-                <Image 
-                  source={{ uri: item.uri }} 
+                <Image
+                  source={{ uri: item.uri }}
                   style={styles.imageThumbnail}
                 />
               </TouchableOpacity>
@@ -396,121 +605,106 @@ const ChatScreen = () => {
 
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
+          <View
+            style={[
+              styles.menuContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Reply")}
+            >
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Trả lời
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Forward")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Forward")}
+            >
               <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Forward</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Chuyển tiếp
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Copy")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Copy")}
+            >
               <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Copy</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Sao chép
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Save to Cloud")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Save to Cloud")}
+            >
               <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Cloud</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Lưu lên đám mây
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "red" }]}
               onPress={() => alert("Remove")}
             >
               <FontAwesome name="trash" size={20} color="#fff" />
-              <Text style={styles.menuText}>Remove</Text>
+              <Text style={[styles.menuText, { color: "#fff" }]}>Xóa</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "orange" }]}
               onPress={() => alert("Recall")}
             >
               <FontAwesome name="undo" size={20} color="#fff" />
-              <Text style={styles.menuText}>Recall</Text>
+              <Text style={[styles.menuText, { color: "#fff" }]}>Thu hồi</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
+              style={[
+                styles.closeButton,
+                { backgroundColor: theme.colors.border },
+              ]}
               onPress={closeMenu}
             >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Close</Text>
-              </TouchableOpacity>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Đóng
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Settings Panel */}
-      <Modal visible={settingsVisible} transparent animationType="none">
-        <View style={styles.settingsModalBackground}>
-          <Animated.View
-            style={[
-              styles.settingsPanel,
-              {
-                transform: [{ translateX: slideAnim }],
-                backgroundColor: theme.colors.card,
-              },
-            ]}
-          >
-            <View style={styles.settingsHeader}>
-              <TouchableOpacity onPress={closeSettings}>
-                <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Tùy chọn</Text>
-            </View>
-            <View style={styles.userInfo}>
-              <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
-              <Text style={[styles.userName, { color: theme.colors.text }]}>User Name</Text>
-            </View>
-            <View style={styles.settingsOptions}>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="pencil" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Đổi tên gợi nhớ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="image" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Ảnh, file, link</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="search" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tìm tin nhắn</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="bell" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tắt thông báo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Tạo nhóm với User Name</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="users" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Thêm User Name vào nhóm</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="group" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xem nhóm chung</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.settingsItem]}>
-                <FontAwesome name="trash" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Xóa lịch sử trò chuyện</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+      {/* Sử dụng SettingsPanel */}
+      <SettingsPanel
+        visible={settingsVisible}
+        onClose={closeSettings}
+        slideAnim={slideAnim}
+        colorScheme={colorScheme || null}
+        targetUserId={friendId as string}
+        onRename={handleRename}
+        currentUserId={currentUserId || ""}
+        isGroupChat={isGroupChat}
+        conversationId={conversationId as string}
+      />
 
       {/* Input Container */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity 
-          onPress={toggleEmojiPicker} 
+      <View
+        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
+      >
+        <TouchableOpacity
+          onPress={toggleEmojiPicker}
           style={styles.iconSpacing}
         >
-          <FontAwesome 
-            name="smile-o" 
-            size={24} 
-            color={showEmojiPicker ? theme.colors.primary : theme.colors.text} 
+          <Ionicons
+            name="happy-outline"
+            size={24}
+            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
           />
         </TouchableOpacity>
         <TextInput
-          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
+          style={[styles.input, { color: theme.colors.text }]}
           value={message}
           onChangeText={setMessage}
           placeholder="Nhập tin nhắn..."
@@ -519,90 +713,138 @@ const ChatScreen = () => {
         {message === "" ? (
           <>
             <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
+              <Ionicons
+                name="ellipsis-vertical"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
-              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={toggleImagePicker} 
+            <TouchableOpacity
+              onPress={() => alert("Record")}
               style={styles.iconSpacing}
             >
-              <FontAwesome 
-                name="image" 
-                size={24} 
-                color={showImagePicker ? theme.colors.primary : theme.colors.text} 
+              <Ionicons name="mic" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={toggleImagePicker}
+              style={styles.iconSpacing}
+            >
+              <Ionicons
+                name="image"
+                size={24}
+                color={
+                  showImagePicker ? theme.colors.primary : theme.colors.text
+                }
               />
             </TouchableOpacity>
           </>
         ) : (
-          <Button onPress={sendMessage}>Gửi</Button>
+          <TouchableOpacity onPress={sendMessage} style={styles.iconSpacing}>
+            <Ionicons name="send" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
         )}
       </View>
 
       {/* Options Modal */}
       <Modal visible={optionsVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity 
-              style={styles.optionItem} 
+          <View
+            style={[
+              styles.optionsContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.optionItem}
               onPress={handleFileOptionPress}
             >
-              <FontAwesome name="file" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
-              </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Cloud")}>
-              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Cloud</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Remind")}>
-              <FontAwesome name="bell" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Remind</Text>
+              <Ionicons name="document" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                File
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
+              style={styles.optionItem}
+              onPress={() => alert("Cloud")}
+            >
+              <Ionicons name="cloud" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Đám mây
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => alert("Remind")}
+            >
+              <Ionicons name="alarm" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Nhắc nhở
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.closeButton,
+                { backgroundColor: theme.colors.border },
+              ]}
               onPress={closeOptions}
             >
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Close</Text>
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Đóng
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       {showFilePicker && (
-        <View style={[styles.filePickerContainer, { 
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border
-        }]}>
+        <View
+          style={[
+            styles.filePickerContainer,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
           <View style={styles.filePickerHeader}>
-            <Text style={[styles.filePickerTitle, { color: theme.colors.text }]}>Chọn file</Text>
+            <Text
+              style={[styles.filePickerTitle, { color: theme.colors.text }]}
+            >
+              Chọn file
+            </Text>
             <TouchableOpacity onPress={() => setShowFilePicker(false)}>
-              <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
-          
+
           <FlatList
             data={deviceFiles}
             keyExtractor={(item) => item.uri}
             renderItem={({ item }) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => openFile(item.uri)}
                 style={styles.fileItem}
               >
                 <View style={styles.fileIconContainer}>
-                  <MaterialIcons 
-                    name={getFileIcon(item.name)} 
-                    size={24} 
-                    color={theme.colors.primary} 
+                  <MaterialIcons
+                    name={getFileIcon(item.name)}
+                    size={24}
+                    color={theme.colors.primary}
                   />
                 </View>
                 <View style={styles.fileInfoContainer}>
-                  <Text style={[styles.fileName, { color: theme.colors.text }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.fileName, { color: theme.colors.text }]}
+                    numberOfLines={1}
+                  >
                     {item.name}
                   </Text>
-                  <Text style={[styles.fileDetails, { color: theme.colors.text }]}>
-                    {formatFileSize(item.size)} • {format(new Date(item.lastModified), 'd/M/yyyy')}
+                  <Text
+                    style={[styles.fileDetails, { color: theme.colors.text }]}
+                  >
+                    {formatFileSize(item.size)} •{" "}
+                    {new Date(item.lastModified).toLocaleDateString("vi-VN")}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -611,34 +853,31 @@ const ChatScreen = () => {
           />
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default ChatScreen;
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+  },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 15,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    textAlign: 'left',
     flex: 1,
-    paddingLeft: 15
-  },
-  container: {
-    flex: 1,
+    marginLeft: 10,
   },
   headerIcons: {
     flexDirection: "row",
@@ -651,6 +890,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 5,
+    paddingHorizontal: 10,
   },
   sentMessage: {
     justifyContent: "flex-end",
@@ -671,6 +911,11 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     maxWidth: "70%",
   },
+  senderName: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
   messageText: {
     fontSize: 16,
   },
@@ -688,10 +933,9 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 40,
-    borderRadius: 20,
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    marginHorizontal: 10,
+    fontSize: 16,
   },
   modalBackground: {
     flex: 1,
@@ -740,65 +984,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  // Settings panel styles
-  settingsModalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  settingsPanel: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: SCREEN_WIDTH * 0.75,
-  },
-  settingsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-  },
-  settingsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  userInfo: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 10,
-  },
-  settingsOptions: {
-    flex: 1,
-  },
-  settingsItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    paddingHorizontal: 20
-  },
-  settingsText: {
-    fontSize: 16,
-    marginLeft: 15,
-  },
-  deleteButton: {
-    marginTop: 20,
-  },
   emojiPickerContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 0,
     right: 0,
     zIndex: 1000,
   },
   imagePickerContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 0,
     right: 0,
@@ -806,16 +1000,16 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   imagePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: "#ccc",
   },
   imagePickerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   imageList: {
     padding: 5,
@@ -826,12 +1020,12 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   imageThumbnail: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 5,
   },
   filePickerContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 0,
     right: 0,
@@ -839,34 +1033,34 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   filePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: "#ccc",
   },
   filePickerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   fileList: {
     padding: 10,
   },
   fileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   fileIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 15,
   },
   fileInfoContainer: {
