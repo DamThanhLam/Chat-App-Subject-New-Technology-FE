@@ -166,7 +166,7 @@ const HomeScreen = () => {
           router.push({
             pathname: "/ChatScreen",
             params: {
-              conversationId: item.lastMessage?.conversationId || "",
+              // conversationId: item.lastMessage?.conversationId || "",
               friendId: item.friendId,
             },
           });

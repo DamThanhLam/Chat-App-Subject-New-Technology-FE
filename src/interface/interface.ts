@@ -31,6 +31,11 @@ export interface UserInfo {
   displayName: string;
   avatar: string | null;
 }
+export interface FriendUserDetail {
+  _id: string;
+  name: string;
+  urlAVT: string;
+}
 
 export interface DisplayConversation {
   friendId: string;
