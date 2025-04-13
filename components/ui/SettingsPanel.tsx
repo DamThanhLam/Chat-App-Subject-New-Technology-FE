@@ -1,4 +1,4 @@
-// src/components/SettingsPanel.tsx
+// @ts-nocheck
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -54,43 +54,43 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<FriendUserDetail[]>([]);
+  const [friendName, setFriendName] = useState<string>(""); // Tên bạn bè (chat đơn)
+  const [groupName, setGroupName] = useState<string>(""); // Tên nhóm (chat nhóm)
   const [newName, setNewName] = useState("");
-  const [groupName, setGroupName] = useState("");
+  const [newGroupName, setNewGroupName] = useState(""); // Tên nhóm khi tạo nhóm
   const [friends, setFriends] = useState<FriendUserDetail[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 
-  // Lấy danh sách bạn bè và tự động tích chọn bạn bè có _id trùng với targetUserId
+  // Lấy tên bạn bè (chat đơn)
   useEffect(() => {
-    if (createGroupModalVisible && !isGroupChat) {
-      const loadFriends = async () => {
+    if (visible && !isGroupChat && targetUserId) {
+      const fetchFriendName = async () => {
         try {
-          const friendList = await fetchDetailFriends(currentUserId);
-          // Lọc bỏ targetUserId khỏi danh sách bạn bè để tránh trùng lặp
-          const filteredFriends: any = friendList.filter(
-            (friend: any) => friend._id !== targetUserId
-          );
-          setFriends(filteredFriends);
+          const headers = await getAuthHeaders();
+          const response = await fetch(`${API_BASE_URL}/user/${targetUserId}`, {
+            method: "GET",
+            headers,
+          });
 
-          // Tự động tích chọn bạn bè có _id trùng với targetUserId
-          const friendToSelect: any = filteredFriends.find(
-            (friend: any) => friend._id === targetUserId
-          );
-          if (friendToSelect) {
-            setSelectedFriends([friendToSelect._id]);
+          if (!response.ok) {
+            throw new Error("Không thể lấy thông tin bạn bè");
           }
+
+          const userData = await response.json();
+          setFriendName(userData.name || "Bạn bè");
         } catch (error: any) {
-          console.error("Lỗi khi lấy danh sách bạn bè:", error.message);
-          Alert.alert("Lỗi", "Không thể lấy danh sách bạn bè.");
+          console.error("Lỗi khi lấy tên bạn bè:", error.message);
+          setFriendName("Bạn bè");
         }
       };
-      loadFriends();
+      fetchFriendName();
     }
-  }, [createGroupModalVisible, currentUserId, targetUserId, isGroupChat]);
+  }, [visible, isGroupChat, targetUserId]);
 
-  // Lấy danh sách thành viên nhóm nếu là chat nhóm
+  // Lấy tên nhóm và danh sách thành viên nhóm (chat nhóm)
   useEffect(() => {
     if (visible && isGroupChat && conversationId) {
-      const loadGroupMembers = async () => {
+      const loadGroupInfo = async () => {
         try {
           const headers = await getAuthHeaders();
           const response = await fetch(
@@ -146,16 +146,43 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           );
 
           setGroupMembers(members);
+          setGroupName(conversationData.groupName || "Nhóm chat");
         } catch (error: any) {
-          console.error(
-            "Lỗi khi lấy danh sách thành viên nhóm:",
-            error.message
-          );
+          console.error("Lỗi khi lấy thông tin nhóm:", error.message);
+          setGroupName("Nhóm chat");
         }
       };
-      loadGroupMembers();
+      loadGroupInfo();
     }
   }, [visible, isGroupChat, conversationId]);
+
+  // Lấy danh sách bạn bè và tự động tích chọn bạn bè có _id trùng với targetUserId
+  useEffect(() => {
+    if (createGroupModalVisible && !isGroupChat) {
+      const loadFriends = async () => {
+        try {
+          const friendList = await fetchDetailFriends(currentUserId);
+          // Lọc bỏ targetUserId khỏi danh sách bạn bè để tránh trùng lặp
+          const filteredFriends: any = friendList.filter(
+            (friend: any) => friend._id !== targetUserId
+          );
+          setFriends(filteredFriends);
+
+          // Tự động tích chọn bạn bè có _id trùng với targetUserId
+          const friendToSelect: any = filteredFriends.find(
+            (friend: any) => friend._id === targetUserId
+          );
+          if (friendToSelect) {
+            setSelectedFriends([friendToSelect._id]);
+          }
+        } catch (error: any) {
+          console.error("Lỗi khi lấy danh sách bạn bè:", error.message);
+          Alert.alert("Lỗi", "Không thể lấy danh sách bạn bè.");
+        }
+      };
+      loadFriends();
+    }
+  }, [createGroupModalVisible, currentUserId, targetUserId, isGroupChat]);
 
   // Xử lý đổi tên gợi nhớ
   const handleRename = async () => {
@@ -165,6 +192,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         onRename(newName.trim());
         setRenameModalVisible(false);
         setNewName("");
+        setFriendName(newName.trim()); // Cập nhật tên bạn bè sau khi đổi
       } catch (error: any) {
         console.error("Lỗi khi đổi tên gợi nhớ:", error.message);
         Alert.alert("Lỗi", "Không thể đổi tên gợi nhớ.");
@@ -205,21 +233,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         currentUserId,
         targetUserId,
         friendsToAdd,
-        groupName,
+        groupName: newGroupName,
       });
       const result = await createGroupFromChat(
         targetUserId,
         friendsToAdd,
-        groupName || "Nhóm mới"
+        newGroupName || "Nhóm mới"
       );
       setCreateGroupModalVisible(false);
-      setGroupName("");
+      setNewGroupName("");
       setSelectedFriends([]);
       onClose();
 
       router.push({
-        pathname: "/ChatScreen",
-        params: { conversationId: result.conversationId },
+        pathname: "/home/HomeScreen",
       });
     } catch (error: any) {
       console.error("Lỗi khi tạo nhóm:", error.message);
@@ -261,7 +288,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 color={theme.colors.text}
               />
               <Text style={[styles.userName, { color: theme.colors.text }]}>
-                {isGroupChat ? "Nhóm chat" : "User Name"}
+                {isGroupChat ? groupName : friendName}
               </Text>
             </View>
             {isGroupChat && (
@@ -352,7 +379,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <Text
                     style={[styles.settingsText, { color: theme.colors.text }]}
                   >
-                    Tạo nhóm với User Name
+                    Tạo nhóm với {friendName}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -361,7 +388,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <Text
                   style={[styles.settingsText, { color: theme.colors.text }]}
                 >
-                  Thêm User Name vào nhóm
+                  Thêm {friendName} vào nhóm
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.settingsItem}>
@@ -441,8 +468,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </Text>
             <TextInput
               style={[styles.renameInput, { color: theme.colors.text }]}
-              value={groupName}
-              onChangeText={setGroupName}
+              value={newGroupName}
+              onChangeText={setNewGroupName}
               placeholder="Nhập tên nhóm (mặc định: Nhóm mới)..."
               placeholderTextColor={theme.colors.text}
             />
@@ -604,7 +631,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   createGroupModal: {
-    width: 300,
+    width: 370,
     height: 400,
     borderRadius: 10,
     padding: 20,
@@ -669,3 +696,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+export default SettingsPanel;

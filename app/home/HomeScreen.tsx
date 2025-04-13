@@ -18,7 +18,11 @@ import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Auth } from "aws-amplify";
 import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
-import { getCurrentUserId } from "../../src/utils/config";
+import {
+  getCurrentUserId,
+  API_BASE_URL,
+  getAuthHeaders,
+} from "../../src/utils/config";
 import {
   fetchFriends,
   fetchUserInfo,
@@ -30,6 +34,12 @@ import {
   DisplayConversation,
 } from "@/src/interface/interface";
 
+interface GroupConversation {
+  id: string;
+  participants: string[];
+  groupName?: string;
+}
+
 const HomeScreen = () => {
   const [search, setSearch] = useState("");
   const [displayConversations, setDisplayConversations] = useState<
@@ -40,13 +50,9 @@ const HomeScreen = () => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
-  // Lấy danh sách bạn bè và tin nhắn cuối cùng
-  const fetchConversations = async () => {
+  // Lấy danh sách bạn bè và tin nhắn cuối cùng (chat đơn)
+  const fetchSingleChats = async (currentUserId: string) => {
     try {
-      setLoading(true);
-      const currentUserId = await getCurrentUserId();
-      setUserId(currentUserId);
-
       // Bước 1: Lấy danh sách bạn bè
       const friends = await fetchFriends();
       const acceptedFriends = friends.filter(
@@ -85,17 +91,89 @@ const HomeScreen = () => {
 
         conversations.push({
           friendId,
-          displayName: userInfo.displayName,
+          displayName: userInfo.displayName || friendId,
           avatar:
             friend.senderId === currentUserId
               ? friend.senderAVT
               : userInfo.avatar ||
                 "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
+          isGroupChat: false, // Đánh dấu đây là chat đơn
         });
       }
 
-      setDisplayConversations(conversations);
+      return conversations;
+    } catch (error) {
+      console.error("Lỗi khi lấy cuộc trò chuyện đơn:", error);
+      return [];
+    }
+  };
+
+  // Lấy danh sách chat nhóm từ API /conversation
+  const fetchGroupChats = async (currentUserId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/conversation`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error("Không thể lấy danh sách chat nhóm");
+      }
+
+      const groupConversations: GroupConversation[] = await response.json();
+
+      // Lọc các cuộc trò chuyện nhóm (participants.length > 2)
+      const groupChats: DisplayConversation[] = [];
+      for (const conv of groupConversations) {
+        if (conv.participants.length <= 2) continue; // Bỏ qua chat đơn
+
+        const lastMessage = await fetchLatestMessage(conv.id);
+        groupChats.push({
+          conversationId: conv.id,
+          displayName: conv.groupName || "Nhóm chat",
+          avatar: "https://cdn-icons-png.flaticon.com/512/166/166344.png", // Avatar mặc định cho nhóm
+          lastMessage,
+          isGroupChat: true,
+        });
+      }
+
+      return groupChats;
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách chat nhóm:", error);
+      return [];
+    }
+  };
+
+  // Tải tất cả cuộc trò chuyện (chat đơn và chat nhóm)
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      const currentUserId = await getCurrentUserId();
+      setUserId(currentUserId);
+
+      // Lấy danh sách chat đơn
+      const singleChats = await fetchSingleChats(currentUserId);
+
+      // Lấy danh sách chat nhóm
+      const groupChats = await fetchGroupChats(currentUserId);
+
+      // Kết hợp danh sách chat đơn và chat nhóm
+      const combinedConversations = [...groupChats, ...singleChats];
+
+      // Sắp xếp theo thời gian tin nhắn cuối (nếu có)
+      combinedConversations.sort((a, b) => {
+        const timeA = a.lastMessage?.createdAt
+          ? new Date(a.lastMessage.createdAt).getTime()
+          : 0;
+        const timeB = b.lastMessage?.createdAt
+          ? new Date(b.lastMessage.createdAt).getTime()
+          : 0;
+        return timeB - timeA;
+      });
+
+      setDisplayConversations(combinedConversations);
     } catch (error) {
       console.error("Lỗi khi lấy cuộc trò chuyện:", error);
     } finally {
@@ -115,7 +193,7 @@ const HomeScreen = () => {
   ) => {
     if (
       !conversation.lastMessage ||
-      conversation.lastMessage.readed.includes(currentUserId)
+      conversation?.lastMessage?.readed?.includes(currentUserId)
     ) {
       return 0;
     }
@@ -163,20 +241,32 @@ const HomeScreen = () => {
       <TouchableOpacity
         style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
         onPress={() => {
-          router.push({
-            pathname: "/ChatScreen",
-            params: {
-              // conversationId: item.lastMessage?.conversationId || "",
-              friendId: item.friendId,
-            },
-          });
+          if (item.isGroupChat) {
+            // Điều hướng đến chat nhóm với conversationId
+            router.push({
+              pathname: "/ChatScreen",
+              params: {
+                conversationId: item.conversationId,
+              },
+            });
+          } else {
+            // Điều hướng đến chat đơn với friendId
+            router.push({
+              pathname: "/ChatScreen",
+              params: {
+                friendId: item.friendId,
+              },
+            });
+          }
         }}
       >
         <Image
           source={{
             uri:
               item.avatar ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              (item.isGroupChat
+                ? "https://cdn-icons-png.flaticon.com/512/166/166344.png"
+                : "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"),
           }}
           style={styles.avatar}
         />
@@ -251,7 +341,9 @@ const HomeScreen = () => {
             data={displayConversations.filter((conv) =>
               conv.displayName.toLowerCase().includes(search.toLowerCase())
             )}
-            keyExtractor={(item) => item.friendId}
+            keyExtractor={(item) =>
+              item.isGroupChat ? item.conversationId! : item.friendId
+            }
             renderItem={renderItem}
             contentContainerStyle={styles.chatList}
           />
