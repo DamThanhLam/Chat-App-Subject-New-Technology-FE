@@ -59,8 +59,10 @@ export const connectSocket = async () => {
     });
     setSocket(newSocket)
 
+
   }
 }
 export const getSocket = () => socket;
+export const setSocket = (socketNew: Socket) => { socket = socketNew }
 export const setSocket = (socketNew: Socket) => { socket = socketNew }
 export const disconnectSocket = () => socket?.disconnect();

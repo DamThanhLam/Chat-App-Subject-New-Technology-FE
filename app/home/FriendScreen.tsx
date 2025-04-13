@@ -1,285 +1,473 @@
 // @ts-nocheck
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
+  ScrollView,
   Image,
-  Platform,
-  StatusBar,
+  SafeAreaView,
+  ActivityIndicator,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Modal,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, useNavigation } from "@react-navigation/native";
+import { Auth } from "aws-amplify";
+import { useSelector } from "react-redux";
+import { RootState } from "@/src/redux/store";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { getSocket } from "@/src/socket/socket";
+import Toast from "react-native-toast-message";
 
 const FriendScreen = () => {
-  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("friends"); // "friends" or "groups"
-  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const navigation = useNavigation();
 
-  const friendData = [
-    { id: "1", name: "Báo", avatar: null, letter: "B" },
-    { id: "2", name: "Bình", avatar: null, letter: "B" },
-    { id: "3", name: "Hoàng Phúc", avatar: "https://via.placeholder.com/50", letter: "H" },
-  ];
+  const user = useSelector((state: RootState) => state.user);
+  const [token, setToken] = useState("");
+  const [friends, setFriends] = useState([]);
+  const [filteredFriends, setFilteredFriends] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState("friends");
 
-  const groupData = [
-    { id: "1", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
-    { id: "2", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
-    { id: "3", name: "Full Name", message: "latest message", time: "1 phút", unread: 5 },
-  ];
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchResult, setSearchResult] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [friendRequestSent, setFriendRequestSent] = useState(false);
+  const [isAlreadyFriend, setIsAlreadyFriend] = useState(false);
 
-  const renderFriendItem = ({ item }: any) => (
-    <View style={[styles.friendItem, { borderBottomColor: theme.colors.border }]}>
-      {item.avatar ? (
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
-      ) : (
-        <View style={[styles.friendAvatarLetter, { backgroundColor: theme.colors.card }]}>
-          <Text style={[styles.avatarLetter, { color: theme.colors.text }]}>{item.letter}</Text>
-        </View>
-      )}
-      <Text style={[styles.friendName, { color: theme.colors.text }]}>{item.name}</Text>
-      <View style={styles.friendActions}>
-        <TouchableOpacity>
-          <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={{ marginLeft: 10 }}>
-          <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  useEffect(() => {
+    const getToken = async () => {
+      try {
+        const session = await Auth.currentSession();
+        const jwtToken = session.getIdToken().getJwtToken();
+        setToken(jwtToken);
+      } catch (err) {
+        console.error("Lỗi lấy token:", err);
+      }
+    };
+    getToken();
+  }, []);
 
-  const renderGroupItem = ({ item }: any) => (
-    <View style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}>
-      <Image
-        source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
-        style={styles.avatar}
-      />
-      <View style={styles.chatDetails}>
-        <Text style={[styles.chatName, { color: theme.colors.text }]}>{item.name}</Text>
-        <Text style={[styles.chatMessage, { color: theme.colors.text, opacity: 0.7 }]}>
-          {item.message}
-        </Text>
-      </View>
-      <View style={styles.chatMeta}>
-        <Text style={[styles.chatTime, { color: theme.colors.text, opacity: 0.7 }]}>{item.time}</Text>
-        {item.unread > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unread}</Text>
+  useEffect(() => {
+    if (!token || !user.id) return;
+
+    const fetchFriends = async () => {
+      try {
+        const res = await fetch(`http://192.168.1.62:3000/api/friends/get-friends/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        const rawFriends = data.friends || [];
+
+        const acceptedFriends = rawFriends.filter(friend => friend.status === "accepted");
+
+        const enrichedFriends = await Promise.all(
+          acceptedFriends.map(async (friend) => {
+            const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
+            try {
+              const userRes = await fetch(`http://192.168.1.62:3000/api/user/${otherUserId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const userData = await userRes.json();
+              return {
+                ...friend,
+                name: userData.username || "Unknown",
+                avatarUrl:
+                  userData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+              };
+            } catch (error) {
+              return {
+                ...friend,
+                name: "Unknown",
+                avatarUrl: "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+              };
+            }
+          })
+        );
+
+        setFriends(enrichedFriends);
+        setFilteredFriends(enrichedFriends);
+      } catch (err) {
+        console.error("Lỗi fetch friends:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFriends();
+  }, [token, user.id]);
+
+  useEffect(() => {
+    const filtered = friends.filter(friend =>
+      friend.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredFriends(filtered);
+  }, [searchTerm, friends]);
+
+  const groupByFirstLetter = (list) => {
+    const groups = {};
+    list.forEach((friend) => {
+      const letter = friend.name[0].toUpperCase();
+      if (!groups[letter]) groups[letter] = [];
+      groups[letter].push(friend);
+    });
+    return Object.entries(groups).sort();
+  };
+
+  const handleSearchByEmail = async () => {
+    setSearching(true);
+    setSearchResult(null);
+    setIsAlreadyFriend(false);
+    try {
+      const res = await fetch(`http://192.168.1.62:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (data?.users && data.users.length > 0) {
+        const foundUser = data.users[0];
+        setSearchResult(foundUser);
+
+        // Kiểm tra nếu người tìm được đã là bạn bè
+        const alreadyFriend = friends.some(f =>
+          (f.senderId === user.id && f.receiverId === foundUser.id) ||
+          (f.receiverId === user.id && f.senderId === foundUser.id)
+        );
+
+        setIsAlreadyFriend(alreadyFriend);
+      } else {
+        setSearchResult(null);
+      }
+    } catch (err) {
+      console.error("Lỗi tìm user:", err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSendFriendRequest = (receiverId: string) => {
+    const socket = getSocket();
+
+    if (!socket || !user?.id || !receiverId) {
+      console.error("Thiếu thông tin gửi lời mời");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể gửi lời mời kết bạn",
+      });
+      return;
+    }
+
+    const payload = {
+      senderId: user.id,
+      receiverId,
+      message: "",
+    };
+
+    socket.emit("send-friend-request", payload);
+
+    socket.once("send-friend-request-response", (res) => {
+      if (res.code === 200) {
+        setFriendRequestSent(true);
+        Toast.show({
+          type: "success",
+          text1: "Đã gửi lời mời kết bạn",
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Gửi thất bại",
+          text2: res.error,
+        });
+      }
+    });
+  };
+
+  const handleCancelFriendRequest = async (receiverId) => {
+    try {
+      const res = await fetch(`http://192.168.1.62:3000/api/friends/cancel-request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          senderId: user.id,
+          receiverId,
+        }),
+      });
+      if (res.ok) {
+        setFriendRequestSent(false);
+        alert("Đã hủy lời mời kết bạn!");
+        setShowAddFriendModal(false);
+      } else {
+        alert("Không thể hủy lời mời.");
+      }
+    } catch (err) {
+      console.error("Lỗi hủy lời mời:", err);
+    }
+  };
+
+  const renderFriendGroup = () => {
+    const grouped = groupByFirstLetter(filteredFriends);
+    return grouped.map(([letter, items]) => (
+      <View key={letter}>
+        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
+        {items.map((item) => (
+          <View key={item.id} style={[styles.itemContainer, { borderColor: theme.colors.border }]}>
+            <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+            <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
+            <View style={styles.actions}>
+              <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
+              <MaterialIcons name="video-call" size={22} color={theme.colors.primary} style={{ marginLeft: 10 }} />
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color={theme.colors.primary}
+                style={{ marginLeft: 10 }}
+                onPress={() => {
+                  
+                  console.log("Nhấn để nhắn tin với:", item.name);
+                }}
+              />
+            </View>
           </View>
-        )}
+        ))}
       </View>
-    </View>
-  );
+    ));
+  };
+
+  const handleOpenAddFriendModal = () => {
+    setSearchEmail(""); // Reset ô input
+    setSearchResult(null); // Reset kết quả tìm kiếm
+    setSearching(false); // Reset trạng thái loading
+    setFriendRequestSent(false); // Reset trạng thái gửi lời mời
+    setShowAddFriendModal(true);
+  };
+  
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
-        <TextInput
-          placeholder="Search..."
-          style={[styles.searchInput, { color: theme.colors.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholderTextColor={theme.colors.text}
-        />
-        <Ionicons name="search" size={20} color={theme.colors.text} />
-      </View>
-
-      {/* Tab Navigation */}
-      <View style={[styles.tabContainer, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === "friends" && styles.activeTab]}
-          onPress={() => setActiveTab("friends")}
-        >
-          <Text
-            style={activeTab === "friends" ? styles.activeTabText : [styles.tabText, { color: theme.colors.text }]}
-          >
-            Bạn bè
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === "groups" && styles.activeTab]}
-          onPress={() => setActiveTab("groups")}
-        >
-          <Text
-            style={activeTab === "groups" ? styles.activeTabText : [styles.tabText, { color: theme.colors.text }]}
-          >
-            Nhóm
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Functional Categories */}
-      {activeTab === "friends" ? (
-        <View style={styles.functionContainer}>
-          <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="person-add-outline" size={24} color={theme.colors.primary} />
-            <Text style={[styles.functionText, { color: theme.colors.text }]}>Lời mời kết bạn (8)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="calendar-outline" size={24} color={theme.colors.primary} />
-            <Text style={[styles.functionText, { color: theme.colors.text }]}>Sinh nhật</Text>
-          </TouchableOpacity>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <View style={styles.functionContainer}>
-          <TouchableOpacity style={styles.functionItem}>
-            <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
-            <Text style={[styles.functionText, { color: theme.colors.text }]}>Tạo nhóm</Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
+            <TextInput
+              placeholder="Search..."
+              placeholderTextColor="#888"
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+            />
+          </View>
+
+          <View style={styles.tabContainer}>
+            <TouchableOpacity onPress={() => setSelectedTab("friends")} style={styles.tab}>
+              <Text style={[styles.tabText, selectedTab === "friends" && styles.tabActive]}>
+                Bạn bè
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSelectedTab("groups")} style={styles.tab}>
+              <Text style={[styles.tabText, selectedTab === "groups" && styles.tabActive]}>
+                Nhóm
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedTab === "friends" && (
+            <View style={styles.shortcuts}>
+              <TouchableOpacity onPress={handleOpenAddFriendModal} style={styles.shortcutItem}>
+                <Ionicons name="person-add" size={22} color="#0066cc" />
+                <Text style={styles.shortcutText}>Thêm bạn</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={{ paddingHorizontal: 16 }}>
+            {selectedTab === "friends" ? (
+              renderFriendGroup()
+            ) : (
+              <Text style={{ color: theme.colors.text, marginTop: 20 }}>
+                Tính năng nhóm sẽ sớm ra mắt!
+              </Text>
+            )}
+          </View>
+        </ScrollView>
       )}
 
-      {/* Content */}
-      {activeTab === "friends" ? (
-        <FlatList
-          data={friendData}
-          keyExtractor={(item) => item.id}
-          renderItem={renderFriendItem}
-          contentContainerStyle={styles.friendList}
-        />
-      ) : (
-        <FlatList
-          data={groupData}
-          keyExtractor={(item) => item.id}
-          renderItem={renderGroupItem}
-          contentContainerStyle={styles.chatList}
-        />
-      )}
-    </View>
+      <Modal visible={showAddFriendModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Thêm bạn</Text>
+
+            <TextInput
+              placeholder="Nhập email..."
+              placeholderTextColor="#888"
+              style={styles.input}
+              value={searchEmail}
+              onChangeText={setSearchEmail}
+            />
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                setShowAddFriendModal(false);
+                setSearchEmail("");
+                setSearchResult(null);
+                setSearching(false);
+                setFriendRequestSent(false);
+              }}>
+                <Text style={styles.cancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.searchBtn} onPress={handleSearchByEmail}>
+                <Text style={styles.searchText}>Tìm kiếm</Text>
+              </TouchableOpacity>
+            </View>
+
+            {searching && <ActivityIndicator style={{ marginTop: 10 }} />}
+            {searchResult && (
+              <View style={styles.searchResultContainer}>
+                <Text style={{ fontSize: 16, fontWeight: "bold" }}>{searchResult.username}</Text>
+                <Text>{searchResult.email}</Text>
+                <Image source={{ uri: searchResult.avatarUrl }} style={styles.avatar} />
+
+                {isAlreadyFriend ? (
+                  <Text style={{ marginTop: 10, color: "green", fontWeight: "bold" }}>Đã là bạn bè</Text>
+                ) : friendRequestSent ? (
+                  <TouchableOpacity
+                    onPress={() => handleCancelFriendRequest(searchResult.id)}
+                    style={[styles.searchBtn, { marginTop: 10 }]}
+                  >
+                    <Text style={styles.searchText}>Hủy lời mời</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => handleSendFriendRequest(searchResult.id)}
+                    style={[styles.searchBtn, { marginTop: 10 }]}
+                  >
+                    <Text style={styles.searchText}>Gửi lời mời</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 };
 
-export default FriendScreen;
+
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   searchContainer: {
+    marginTop: 10,
+    marginHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: 10,
-    margin: 10,
-    borderRadius: 8,
-  },
-  searchInput: {
-    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    fontSize: 16,
+    borderColor: "#ccc",
   },
+  searchIcon: { marginRight: 10 },
+  searchInput: { flex: 1, fontSize: 16 },
   tabContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    borderBottomWidth: 1,
+    marginTop: 16,
   },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: "blue", // Giữ màu xanh cho tab active
-  },
-  tabText: {
-    fontSize: 16,
-    opacity: 0.7,
-  },
-  activeTabText: {
-    fontSize: 16,
-    color: "blue",
-    fontWeight: "bold",
-  },
-  functionContainer: {
+  tab: { paddingVertical: 12, paddingHorizontal: 20 },
+  tabText: { fontSize: 16, fontWeight: "600" },
+  tabActive: { borderBottomWidth: 3, borderBottomColor: "#0066cc" },
+  shortcuts: {
+    marginTop: 20,
     flexDirection: "row",
     justifyContent: "space-around",
-    marginVertical: 10,
   },
-  functionItem: {
-    alignItems: "center",
-  },
-  functionText: {
-    fontSize: 14,
-    marginTop: 5,
-  },
-  friendList: {
-    paddingHorizontal: 10,
-  },
-  friendItem: {
+  shortcutItem: { alignItems: "center" },
+  shortcutText: { marginTop: 5, fontSize: 14 },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  actions: { flexDirection: "row", marginLeft: "auto" },
+  itemContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingLeft: 10,
     borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
   },
-  friendAvatarLetter: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  name: { marginLeft: 12, fontSize: 16, fontWeight: "600" },
+  groupTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 10,
+    marginLeft: 10,
+  },
+  modalOverlay: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  avatarLetter: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  friendName: {
-    flex: 1,
-    fontSize: 16,
-  },
-  friendActions: {
-    flexDirection: "row",
-  },
-  chatList: {
-    paddingHorizontal: 10,
-  },
-  chatItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  chatDetails: {
-    flex: 1,
-  },
-  chatName: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  chatMessage: {
-    fontSize: 14,
-  },
-  chatMeta: {
-    alignItems: "flex-end",
-  },
-  chatTime: {
-    fontSize: 12,
-  },
-  unreadBadge: {
-    backgroundColor: "red", // Giữ màu đỏ cho badge
+  modalContainer: {
+    width: 300,
+    padding: 20,
+    backgroundColor: "#fff",
     borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
   },
-  unreadText: {
-    color: "white",
-    fontSize: 12,
+  modalTitle: {
+    fontSize: 18,
     fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  input: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingLeft: 10,
+    marginBottom: 15,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  cancelBtn: {
+    backgroundColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  searchBtn: {
+    backgroundColor: "#0066cc",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  cancelText: { color: "#fff" },
+  searchText: { color: "#fff" },
+  searchResultContainer: {
+    marginTop: 20,
+    alignItems: "center",
   },
 });
+
+export default FriendScreen;

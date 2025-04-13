@@ -13,7 +13,7 @@ interface RegisterResponse {
   message: string;
   // Add other fields returned by the register API
 }
-
+const getToken = () => localStorage.getItem("access_token") || "";
 const accountApi = {
   // Define the function type with parameters and return type
   async fetchCheckLogin(access_token: string){
