@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,38 +7,53 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  Modal,
   Platform,
   StatusBar,
   useColorScheme,
   Dimensions,
-  Animated,
   Keyboard,
-  SafeAreaView,
+  Modal,
+  Alert,
+  Animated,
 } from "react-native";
-import { Ionicons, FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import io from "socket.io-client";
+import Button from "@/components/ui/Button";
+import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
 import { connectSocket, getSocket } from "@/src/socket/socket";
-import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import * as MediaLibrary from "expo-media-library";
-import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
-import * as DocumentPicker from "expo-document-picker";
-import { Theme } from "emoji-picker-react";
-import SettingsPanel from "../../components/ui/SettingsPanel";
-import { getNickname } from "@/src/apis/nickName";
-import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { format } from "date-fns";
+import { DOMAIN } from "@/src/configs/base_url";
 import { Auth } from "aws-amplify";
+import FileMessage from "@/components/FileMessage";
+import SettingsPanel from "@/components/ui/SettingsPanel";
+
+interface FileMessage {
+  data: string;
+  filename: string;
+  size: number;
+  type: string;
+}
 
 interface Message {
   id: string;
-  id_user1: string;
-  id_user2: string;
-  message: string;
-  name: string;
-  senderId: string; // Thêm senderId để biết người gửi
-  category: "send" | "receive";
+  conversationId: string | null;
+  senderId: string;
+  message: string | FileMessage;
+  createdAt: string;
+  updatedAt: string;
+  parentMessage?: Message;
+  readed: string[];
+  messageType: "group" | "private";
+  contentType: "file" | "emoji" | "text";
+  receiverId: string;
+  status: "recall" | "delete" | "readed" | "sended" | "received";
 }
 
 interface DeviceFile {
@@ -47,35 +62,19 @@ interface DeviceFile {
   uri: string;
   lastModified: number;
 }
-
 interface User {
   _id: string;
   name: string;
   image: string;
 }
-
-interface Conversation {
-  id: string;
-  participants: string[];
-  groupName?: string;
-}
-
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
-  const [userID1, setUserID1] = useState("");
-  const [userID2, setUserID2] = useState("");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [anotherUser, setAnotherUser] = useState<User | null>(null);
-  const [nickname, setNickname] = useState<string | null>(null);
-  const [groupName, setGroupName] = useState<string | null>(null); // Tên nhóm
-  const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
+  const [userID1, setUserID1] = useState("4574703b-f2c0-41dd-a850-dd780297e8ae");
+  const [userID2] = useState("b9ba65cc-2061-7031-229d-5f892034d870");
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState<{
-    id: string;
-    message: string;
-  } | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -85,25 +84,165 @@ const ChatScreen = () => {
   const [deviceImages, setDeviceImages] = useState<MediaLibrary.Asset[]>([]);
   const [deviceFiles, setDeviceFiles] = useState<DeviceFile[]>([]);
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useColorScheme();
-  const theme = useMemo(
-    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
-    [colorScheme]
-  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [anotherUser, setAnotherUser] = useState<User | null>(null);
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState<string | null>(null); // Tên nhóm
+  const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
+  const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
+  const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
   const { friendId, conversationId } = useLocalSearchParams();
 
-  // Animation for sliding panel
+  // router.push({ pathname: '/ChatScreen', params: { userID2: '1234' } });
+  // const { userID2 } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
+  const [token, setToken] = useState<string>("");
+  const dateBefore = useRef<Date | null>()
+  // Lấy token khi mount
+  
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const session = await Auth.currentSession();
+        const jwtToken = session.getIdToken().getJwtToken();
+        setToken(jwtToken);
+      } catch (err) {
+        console.error("Error fetching token", err);
+      }
+    };
+    fetchToken();
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      fetch(DOMAIN + ":3000/api/message?friendId=" + userID2, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+      }).then(res => res.json())
+        .then(data => {
+          setConversation(data)
+        })
+    }
+  }, [token])
+  useEffect(() => {
+    let socketRef: any = null;
+    connectSocket().then(socket => {
+      socketRef = socket;
+      socket.on("delete-message", (data: { messageId: string }) => {
+        setConversation(prev => prev.map(msg =>
+          msg.id === data.messageId
+            ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
+            : msg
+        ));
+      });
+
+      socket.on("recall-message", (data: { message: Message }) => {
+        setConversation(prev => prev.map(msg =>
+          msg.id === data.message.id
+            ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
+            : msg
+        ));
+      });
+      socket.on("result", (data: { message: Message }) => {
+        setConversation(prev => [...prev, data.message]);
+      });
+      socket.on("private-message", (data: { message: Message }) => {
+        setConversation(prev => [...prev, data.message]);
+      });
+    });
+
+    return () => {
+      if (socketRef) {
+        socketRef.off("delete-message");
+        socketRef.off("recall-message");
+      }
+    };
+  }, []);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    try {
+      getSocket().emit("delete-message", messageId);
+      setConversation(prev => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
+          : msg
+      ));
+      setMenuVisible(false);
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      Alert.alert("Error", "Failed to delete message");
+    }
+  }, []);
+
+  const handleRecallMessage = useCallback(async (messageId: string) => {
+    try {
+      getSocket().emit("recall-message", messageId);
+      setConversation(prev => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
+          : msg
+      ));
+      setMenuVisible(false);
+    } catch (error) {
+      console.error("Error recalling message:", error);
+      Alert.alert("Error", "Failed to recall message");
+    }
+  }, []);
+
+  const sendTextMessage = () => {
+    if (!message.trim()) return;
+    getSocket().emit("private-message", {
+      receiverId: userID2,
+      message,
+      messageType: "private",
+      contentType: "text",
+    });
+    setMessage("");
+    setShowEmojiPicker(false);
+  };
+
+  // 2. Khi người dùng nhấn vào 1 ảnh thì toggle chọn / bỏ chọn
+  const toggleSelectImage = (asset: MediaLibrary.Asset) => {
+    setTempSelectedImages(prev => {
+      const exists = prev.find(a => a.id === asset.id);
+      if (exists) {
+        return prev.filter(a => a.id !== asset.id);
+      } else {
+        return [...prev, asset];
+      }
+    });
+  };
+
+  // 3. Nút Send sẽ gọi upload với tất cả ảnh đã chọn
+  const sendSelectedImages = async () => {
+    if (tempSelectedImages.length === 0) return;
+    await handleMobileMultiImageSelect(tempSelectedImages);
+  };
+
+  const toggleEmojiPicker = () => {
+    setShowEmojiPicker((prev) => !prev);
+    if (showEmojiPicker) Keyboard.dismiss();
+    setShowImagePicker(false);
+    setShowFilePicker(false);
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setMessage((prev) => prev + emojiData.emoji);
+  };
 
   const openSettings = useCallback(() => {
     if (settingsVisible || menuVisible || optionsVisible) {
-      console.log("Cannot open settings: another modal is visible", {
-        settingsVisible,
-        menuVisible,
-        optionsVisible,
-      });
+      console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
       return;
     }
+
+    console.log("openSettings called, settingsVisible:", settingsVisible);
 
     slideAnim.setValue(SCREEN_WIDTH);
     Animated.timing(slideAnim, {
@@ -122,144 +261,77 @@ const ChatScreen = () => {
     }).start();
   }, [slideAnim]);
 
-  // Lấy currentUserId từ Auth
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const user = await Auth.currentAuthenticatedUser();
-        const userId = user.attributes.sub;
-        if (!userId || typeof userId !== "string") {
-          throw new Error("ID người dùng hiện tại không hợp lệ");
-        }
-        setCurrentUserId(userId);
-      } catch (error: any) {
-        console.error("Lỗi khi lấy currentUserId:", error.message);
-      }
-    };
-    fetchCurrentUser();
-  }, []);
-
-  // Lấy thông tin cuộc trò chuyện (chat nhóm hoặc chat đôi)
-  const fetchConversationInfo = async () => {
-    try {
-      if (conversationId) {
-        // Nếu có conversationId, đây là chat nhóm
-        const headers = await getAuthHeaders();
-        const response = await fetch(
-          `${API_BASE_URL}/conversation/${conversationId}`,
-          {
-            method: "GET",
-            headers,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Không thể lấy thông tin cuộc trò chuyện");
-        }
-
-        const conversationData: Conversation = await response.json();
-        setIsGroupChat(conversationData.participants.length > 2);
-        setGroupName(conversationData.groupName || "Nhóm mới");
-      } else if (friendId) {
-        // Nếu có friendId, đây là chat đôi
-        setIsGroupChat(false);
-        await fetchUserInfo();
-        await fetchNickname();
-      } else {
-        throw new Error("Không có friendId hoặc conversationId hợp lệ");
-      }
-    } catch (error: any) {
-      console.error("Lỗi khi lấy thông tin cuộc trò chuyện:", error.message);
-    }
+  const handleLongPress = (item: Message) => {
+    if (item.status === "delete" || item.status === "recall") return;
+    setSelectedMessage({
+      id: item.id,
+      message: typeof item.message === "string" ? item.message : "[File message]",
+    });
+    setMenuVisible(true);
   };
-
-  // Lấy thông tin người dùng (dùng cho chat đôi)
-  const fetchUserInfo = async () => {
-    try {
-      if (!friendId || typeof friendId !== "string") {
-        throw new Error("friendId không hợp lệ");
-      }
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/user/${friendId}`, {
-        method: "GET",
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error("Không thể lấy thông tin người dùng");
-      }
-
-      const userData = await response.json();
-      setAnotherUser({
-        _id: friendId as string,
-        name: userData.name || friendId,
-        image:
-          userData.urlAVT ||
-          "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-      });
-    } catch (error: any) {
-      console.error("Lỗi khi lấy thông tin người dùng:", error.message);
-    }
-  };
-
-  // Lấy tên gợi nhớ (dùng cho chat đôi)
-  const fetchNickname = async () => {
-    try {
-      if (!friendId || typeof friendId !== "string") {
-        throw new Error("friendId không hợp lệ");
-      }
-      const { nickname } = await getNickname(friendId);
-      setNickname(nickname);
-    } catch (error: any) {
-      console.error("Lỗi khi lấy tên gợi nhớ:", error.message);
-    }
-  };
-
-  // Load thông tin cuộc trò chuyện khi màn hình được mở
-  useEffect(() => {
-    const loadData = async () => {
-      await fetchConversationInfo();
-    };
-    loadData();
-    connectSocket();
-  }, [friendId, conversationId]);
-
   // Callback khi đổi tên gợi nhớ
   const handleRename = (newName: string) => {
     setNickname(newName); // Cập nhật nickname khi tên gợi nhớ được thay đổi
   };
-
-  const normalizeCategory = (category: string): "send" | "receive" => {
-    return category === "send" || category === "receive" ? category : "receive";
-  };
-
-  const selectUser = (user: { _id: string; name: string; image: string }) => {
-    setUserID2(user._id);
-    setAnotherUser(user);
-  };
-
-  const sendMessage = () => {
-    if (!message.trim()) return; // Không gửi tin nhắn rỗng
-    const socket = getSocket();
-    if (!socket) {
-      console.error("Socket chưa được kết nối");
-      return;
+  // 2. Mobile: chọn nhiều ảnh rồi upload
+  const handleMobileMultiImageSelect = async (selectedAssets: MediaLibrary.Asset[]) => {
+    try {
+      // map sang định dạng cần thiết
+      const files = selectedAssets.map(asset => ({
+        uri: asset.uri,
+        name: asset.filename,
+      }));
+      // 1) upload lên server, nhận mảng URL
+      const imagesUpload = await uploadFilesToServer(files);
+      // 2) emit socket cho mỗi URL hoặc gộp
+      imagesUpload.forEach((image: any) => {
+        getSocket().emit("private-message", {
+          receiverId: userID2,
+          message: { data: image.url, filename: image.filename },
+          messageType: "private",
+          contentType: "file",
+        });
+      });
+      setShowImagePicker(false);
+    } catch (error: any) {
+      console.error("Upload images error:", error);
+      Alert.alert("Error", error.message);
     }
-
-    socket.emit("private-message", {
-      receiverId: conversationId || friendId, // Sử dụng conversationId cho chat nhóm, friendId cho chat đôi
-      message: message,
-      messageType: isGroupChat ? "group" : "private",
-      contentType: "text",
+  };
+  // 1. Hàm upload chung
+  async function uploadFilesToServer(
+    files: Array<{ uri: string | any; name: string; }>
+  ) {
+    const formData = new FormData();
+    files.forEach((file) => {
+      if (Platform.OS === "web" && file.uri instanceof File) {
+        // Web: append trực tiếp File object
+        formData.append("images", file.uri, file.name);
+      } else {
+        // Mobile: append RN file object
+        formData.append("images", {
+          uri: file.uri,
+          name: file.filename,
+          type: "application/octet-stream",
+        } as any);
+      }
     });
-    setMessage("");
-    setShowEmojiPicker(false);
-  };
 
-  const handleLongPress = (message: { id: string; message: string }) => {
-    setSelectedMessage(message);
-    setMenuVisible(true);
-  };
+
+    const res = await fetch(`${DOMAIN}:3000/api/message/files`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Upload failed");
+    }
+    const data = await res.json();
+    return data.images;
+  }
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -269,36 +341,17 @@ const ChatScreen = () => {
   const showOptions = () => {
     setOptionsVisible(true);
     setShowFilePicker(false);
+    setShowImagePicker(false);
   };
 
   const closeOptions = () => {
     setOptionsVisible(false);
   };
 
-  const handleFileOptionPress = () => {
-    setOptionsVisible(false);
-    setShowFilePicker(true);
-    getDeviceFiles();
-  };
-
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setMessage((prev) => prev + emojiData.emoji);
-  };
-
-  const toggleEmojiPicker = () => {
-    setShowEmojiPicker(!showEmojiPicker);
-    if (showEmojiPicker) {
-      Keyboard.dismiss();
-    }
-    setShowImagePicker(false);
-    setShowFilePicker(false);
-  };
-
   const loadDeviceImages = async () => {
     if (permissionResponse?.status !== "granted") {
       await requestPermission();
     }
-
     const media = await MediaLibrary.getAssetsAsync({
       first: 100,
       mediaType: ["photo"],
@@ -307,33 +360,77 @@ const ChatScreen = () => {
     setDeviceImages(media.assets);
   };
 
-  const handleImageSelect = async (asset: MediaLibrary.Asset) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-      base64: true,
-    });
+  useEffect(() => {
+    if (showImagePicker && Platform.OS !== "web") {
+      loadDeviceImages();
+    }
+  }, [showImagePicker]);
 
-    if (!result.canceled) {
+  const handleMobileImageSelect = async (asset: MediaLibrary.Asset) => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      getSocket().emit("private-message", {
+        receiverId: userID2,
+        message: {
+          data: base64,
+          filename: asset.filename || `IMG_${asset.id}.jpg`,
+          size: asset.width * asset.height,
+          type: 'image/jpeg'
+        },
+        messageType: "private",
+        contentType: "file",
+      });
       setShowImagePicker(false);
+    } catch (error) {
+      console.error("Error selecting mobile image:", error);
+      Alert.alert("Error", "Failed to select image. Please try again.");
     }
   };
 
-  const toggleImagePicker = () => {
-    setShowImagePicker(!showImagePicker);
-    if (showImagePicker) {
-      Keyboard.dismiss();
+  // Web file change
+  const onWebFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      getSocket().emit("private-message", {
+        receiverId: userID2,
+        message: {
+          data: base64,
+          filename: file.name,
+        },
+        messageType: "private",
+        contentType: "file",
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const openImagePicker = () => {
+    if (Platform.OS === "web") {
+      fileInputRef.current?.click();
+    } else {
+      setShowImagePicker((prev) => !prev);
+      setShowEmojiPicker(false);
+      setShowFilePicker(false);
     }
-    setShowEmojiPicker(false);
-    setShowFilePicker(false);
+  };
+
+  const handleFileOptionPress = () => {
+    setOptionsVisible(false);
+    setShowFilePicker(true);
+    getDeviceFiles();
   };
 
   const getDeviceFiles = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
+        type: '*/*',
         copyToCacheDirectory: true,
         multiple: true,
       });
@@ -346,7 +443,7 @@ const ChatScreen = () => {
               const fileInfo = await FileSystem.getInfoAsync(file.uri);
               if (fileInfo.exists) {
                 return {
-                  name: file.name || "Không xác định",
+                  name: file.name || 'Unknown',
                   size: file.size || 0,
                   uri: file.uri,
                   lastModified: fileInfo.modificationTime || Date.now(),
@@ -354,7 +451,7 @@ const ChatScreen = () => {
               }
               return null;
             } catch (error) {
-              console.error("Lỗi khi lấy thông tin file:", error);
+              console.error('Error getting file info:', error);
               return null;
             }
           })
@@ -362,182 +459,233 @@ const ChatScreen = () => {
         setDeviceFiles(fileDetails.filter((f): f is DeviceFile => f !== null));
       }
     } catch (error) {
-      console.error("Lỗi khi chọn file:", error);
+      console.error('Error selecting files:', error);
+      Alert.alert("Error", "Could not access files. Please try again.");
     }
   };
 
   const openFile = async (fileUri: string) => {
     try {
+      if (Platform.OS === 'web') {
+        window.open(fileUri, '_blank');
+        return;
+      }
+
       const downloadResumable = FileSystem.createDownloadResumable(
         fileUri,
-        FileSystem.documentDirectory + "tempfile"
+        FileSystem.documentDirectory + 'tempfile'
       );
 
       const downloadResult = await downloadResumable.downloadAsync();
       if (downloadResult) {
-        const contentUri = await FileSystem.getContentUriAsync(
-          downloadResult.uri
-        );
-        console.log("File sẵn sàng để mở:", contentUri);
+        const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
+        console.log('File ready to open:', contentUri);
       }
     } catch (error) {
-      console.error("Lỗi khi mở file:", error);
+      console.error('Error opening file:', error);
+      Alert.alert("Error", "Could not open file. Please try again.");
+    }
+  };
+  // 3. Web: chọn nhiều file qua input[type="file"]
+  const onWebFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    try {
+      // map sang định dạng cho upload
+      const uploadFiles = files.map(f => ({
+        uri: f,
+        name: f.name,
+      }));
+      const urls = await uploadFilesToServer(uploadFiles);
+      urls.forEach((item: any) => {
+        getSocket().emit("private-message", {
+          receiverId: userID2,
+          message: { data: item.url, filename: item.filename },
+          messageType: "private",
+          contentType: "file",
+        });
+      });
+    } catch (error: any) {
+      console.error("Upload files error:", error);
+      alert(error.message);
+    } finally {
+      e.target.value = "";
     }
   };
 
-  const emojiPickerTheme: Theme =
-    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
 
-  const toggleFilePicker = () => {
-    setShowFilePicker(!showFilePicker);
-    if (showFilePicker) {
-      Keyboard.dismiss();
-    }
-    setShowEmojiPicker(false);
-    setShowImagePicker(false);
-  };
-
-  useEffect(() => {
-    if (showImagePicker) {
-      loadDeviceImages();
-    }
-    if (showFilePicker) {
-      getDeviceFiles();
-    }
-  }, [showImagePicker, showFilePicker]);
-
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split(".").pop()?.toLowerCase();
-    switch (ext) {
-      case "jpg":
-      case "jpeg":
-      case "png":
-      case "gif":
-        return "image";
-      case "mp3":
-      case "wav":
-      case "aac":
-        return "audiotrack";
-      case "mp4":
-      case "mov":
-      case "avi":
-        return "video-file";
-      case "pdf":
-        return "picture-as-pdf";
-      case "apk":
-        return "android";
-      case "doc":
-      case "docx":
-        return "description";
-      case "xls":
-      case "xlsx":
-        return "grid-on";
-      case "ppt":
-      case "pptx":
-        return "slideshow";
-      case "zip":
-      case "rar":
-        return "folder-zip";
-      default:
-        return "insert-drive-file";
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
 
   return (
-    <SafeAreaView
-      style={[
-        styles.safeContainer,
-        { backgroundColor: theme.colors.background },
-      ]}
-    >
-      <View
-        style={[
-          styles.customHeader,
-          { backgroundColor: theme.colors.background },
-        ]}
-      >
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Hidden web file input */}
+      {Platform.OS === "web" && (
+        <input
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          ref={fileInputRef}
+          onChange={onWebFilesChange}
+        />
+      )}
+
+      {/* Header */}
+      <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.primary} />
+          <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {isGroupChat ? groupName : nickname || anotherUser?.name || "Chat"}
+          {anotherUser?.name || "Chat"}
         </Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity
-            onPress={() => alert("Call")}
-            style={styles.iconSpacing}
-          >
-            <Ionicons name="call" size={24} color={theme.colors.primary} />
+          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
+            <FontAwesome name="phone" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => alert("Video")}
-            style={styles.iconSpacing}
-          >
-            <Ionicons name="videocam" size={24} color={theme.colors.primary} />
+          <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
+            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={24}
-              color={theme.colors.primary}
-            />
+            <FontAwesome name="list" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Chat Messages */}
+      {/* Messages */}
       <FlatList
-        data={conversation || []}
+        data={conversation}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onLongPress={() => handleLongPress(item)}
-            style={[
-              styles.messageContainer,
-              item.category === "send"
-                ? styles.sentMessage
-                : styles.receivedMessage,
-            ]}
-          >
-            {item.category === "receive" && (
-              <Image
-                source={{ uri: anotherUser?.image }}
-                style={styles.avatar}
-              />
-            )}
-            <View
-              style={[
-                styles.messageBubble,
-                {
-                  backgroundColor:
-                    item.category === "send"
-                      ? theme.colors.primary
-                      : theme.colors.card,
-                },
-              ]}
-            >
-              {isGroupChat && item.category === "receive" && (
-                <Text style={[styles.senderName, { color: theme.colors.text }]}>
-                  {item.name}
-                </Text>
-              )}
-              <Text style={[styles.messageText, { color: theme.colors.text }]}>
-                {item.message}
-              </Text>
-              <Text style={[styles.messageTime, { color: theme.colors.text }]}>
-                {new Date().toLocaleTimeString()}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          let showDate = false;
+          let stringDate = ""
+          let createdAt = new Date(item.createdAt);
+          const vietnamTime = createdAt.toLocaleString("vi-VN", {
+            timeZone: "Asia/Ho_Chi_Minh",
+            year: "numeric",
+            month: "2-digit", // Tháng có 2 chữ số
+            day: "2-digit", // Ngày có 2 chữ số
+          });
+
+          // Chuyển đổi lại chuỗi ngày thành đối tượng Date hợp lệ sau khi định dạng
+          let dateParts = vietnamTime.split("/"); // Chia ngày, tháng, năm
+          const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`); // Tạo đối tượng Date hợp lệ
+
+
+          if (!dateBefore.current) {
+            showDate = true;
+            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+          }
+          if (dateBefore.current &&
+            (
+              dateBefore.current.getDate() != createdAt.getDate() ||
+              dateBefore.current.getMonth() != createdAt.getMonth() ||
+              dateBefore.current.getFullYear() != createdAt.getFullYear()
+            )
+          ) {
+            showDate = true;
+            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+          }
+          const isDeleted = item.status === "delete";
+          const isRecalled = item.status === "recall";
+          const isFile = item.contentType === "file";
+          const isText = item.contentType === "text";
+          const messageTime = format(new Date(item.createdAt), "HH:mm");
+
+          dateBefore.current = createdAt;
+          return (
+            <>
+              {showDate && <Text style={{ color: theme.colors.text, textAlign: 'center' }}>{stringDate}</Text>}
+              <TouchableOpacity
+                onLongPress={() => !isDeleted && !isRecalled && handleLongPress(item)}
+                style={[
+                  styles.messageContainer,
+                  item.senderId === userID1
+                    ? styles.sentMessageContainer
+                    : styles.receivedMessageContainer,
+                  (isDeleted || isRecalled) && styles.recalledMessageContainer
+                ]}
+              >
+                {/* Avatar for received messages */}
+                {item.senderId !== userID1 && anotherUser && (
+                  <Image
+                    source={{ uri: anotherUser.image }}
+                    style={styles.avatar}
+                  />
+                )}
+
+                {/* Message bubble */}
+                <View
+                  style={[
+                    styles.messageBubble,
+                    {
+                      backgroundColor:
+                        item.senderId === userID1
+                          ? theme.colors.primary
+                          : theme.colors.card,
+                      marginLeft: item.senderId !== userID1 ? 8 : 0,
+                      marginRight: item.senderId === userID1 ? 8 : 0,
+                      opacity: isDeleted || isRecalled ? 0.7 : 1
+                    },
+                  ]}
+                >
+                  {/* Render recalled/deleted message */}
+                  {(isDeleted || isRecalled) ? (
+                    <Text
+                      style={[
+                        styles.recalledMessageText,
+                        {
+                          color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                          fontStyle: "italic"
+                        }
+                      ]}
+                    >
+                      {typeof item.message === "string" ? item.message : "Tin nhắn đã bị thu hồi"}
+                    </Text>
+                  ) : isFile ? (
+                    <FileMessage item={item} theme={theme} userID1={userID1} key={item.id} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        {
+                          color: item.senderId === userID1 ? "#fff" : theme.colors.text
+                        }
+                      ]}
+                    >
+                      {typeof item.message === "string" ? item.message : ""}
+                    </Text>
+                  )}
+
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      {
+                        color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                        alignSelf: item.senderId === userID1 ? "flex-end" : "flex-start",
+                      }
+                    ]}
+                  >
+                    {messageTime}
+                    {(isDeleted || isRecalled) && (
+                      <FontAwesome
+                        name={isDeleted ? "trash" : "undo"}
+                        size={12}
+                        color={item.senderId === userID1 ? "#fff" : theme.colors.text}
+                        style={{ marginLeft: 5 }}
+                      />
+                    )}
+                  </Text>
+                </View>
+
+                {/* Empty view to balance avatar space for sent messages */}
+                {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
+              </TouchableOpacity>
+            </>
+          );
+        }}
+        contentContainerStyle={styles.messagesContainer}
       />
 
+      {/* Emoji Picker */}
       {showEmojiPicker && (
         <View
           style={[
@@ -561,121 +709,93 @@ const ChatScreen = () => {
         </View>
       )}
 
-      {showImagePicker && (
-        <View
-          style={[
-            styles.imagePickerContainer,
-            {
-              backgroundColor: theme.colors.card,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-            },
-          ]}
-        >
+      {/* Image Picker (Mobile) */}
+      {showImagePicker && Platform.OS !== "web" && (
+        <View style={[styles.imagePickerContainer, { backgroundColor: theme.colors.card }]}>
+          {/* Header như cũ */}
           <View style={styles.imagePickerHeader}>
-            <Text
-              style={[styles.imagePickerTitle, { color: theme.colors.text }]}
-            >
-              Chọn ảnh
+            <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>
+              Select Images ({tempSelectedImages.length})
             </Text>
-            <TouchableOpacity onPress={() => setShowImagePicker(false)}>
-              <Ionicons name="close" size={24} color={theme.colors.text} />
+            <TouchableOpacity onPress={() => { setShowImagePicker(false); setTempSelectedImages([]); }}>
+              <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
+          {/* Grid ảnh */}
           <FlatList
             data={deviceImages}
             numColumns={3}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => handleImageSelect(item)}
-                style={styles.imageItem}
-              >
-                <Image
-                  source={{ uri: item.uri }}
-                  style={styles.imageThumbnail}
-                />
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.imageList}
+            renderItem={({ item }) => {
+              const selected = !!tempSelectedImages.find(a => a.id === item.id);
+              return (
+                <TouchableOpacity
+                  onPress={() => toggleSelectImage(item)}
+                  style={[
+                    styles.imageItem,
+                    selected && { borderWidth: 2, borderColor: theme.colors.primary }
+                  ]}
+                >
+                  <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
+                </TouchableOpacity>
+              );
+            }}
           />
+
+          {/* Nút Gửi */}
+          <View style={{ padding: 10, borderTopWidth: 1, borderColor: theme.colors.border }}>
+            <Button disabled={tempSelectedImages.length === 0} onPress={sendSelectedImages}>
+              Gửi {tempSelectedImages.length} ảnh
+            </Button>
+          </View>
         </View>
       )}
 
+
+      {/* Message Options Menu */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[
-              styles.menuContainer,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Reply")}
-            >
+          <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Trả lời
-              </Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Forward")}
-            >
+            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Forward")}>
               <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Chuyển tiếp
-              </Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>Forward</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Copy")}
-            >
+            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Copy")}>
               <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Sao chép
-              </Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>Copy</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Save to Cloud")}
-            >
+            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Save to Cloud")}>
               <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Lưu lên đám mây
-              </Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>Cloud</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "red" }]}
-              onPress={() => alert("Remove")}
+              onPress={() => selectedMessage && handleDeleteMessage(selectedMessage.id)}
             >
               <FontAwesome name="trash" size={20} color="#fff" />
-              <Text style={[styles.menuText, { color: "#fff" }]}>Xóa</Text>
+              <Text style={styles.menuText}>Remove</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "orange" }]}
-              onPress={() => alert("Recall")}
+              onPress={() => selectedMessage && handleRecallMessage(selectedMessage.id)}
             >
               <FontAwesome name="undo" size={20} color="#fff" />
-              <Text style={[styles.menuText, { color: "#fff" }]}>Thu hồi</Text>
+              <Text style={styles.menuText}>Recall</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.closeButton,
-                { backgroundColor: theme.colors.border },
-              ]}
+              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
               onPress={closeMenu}
             >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Đóng
-              </Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
       {/* Sử dụng SettingsPanel */}
       <SettingsPanel
         visible={settingsVisible}
@@ -688,196 +808,160 @@ const ChatScreen = () => {
         isGroupChat={isGroupChat}
         conversationId={conversationId as string}
       />
-
-      {/* Input Container */}
-      <View
-        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
-      >
-        <TouchableOpacity
-          onPress={toggleEmojiPicker}
-          style={styles.iconSpacing}
-        >
-          <Ionicons
-            name="happy-outline"
-            size={24}
-            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
-          />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.input, { color: theme.colors.text }]}
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Nhập tin nhắn..."
-          placeholderTextColor={theme.colors.text}
-        />
-        {message === "" ? (
-          <>
-            <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-              <Ionicons
-                name="ellipsis-vertical"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => alert("Record")}
-              style={styles.iconSpacing}
-            >
-              <Ionicons name="mic" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={toggleImagePicker}
-              style={styles.iconSpacing}
-            >
-              <Ionicons
-                name="image"
-                size={24}
-                color={
-                  showImagePicker ? theme.colors.primary : theme.colors.text
-                }
-              />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity onPress={sendMessage} style={styles.iconSpacing}>
-            <Ionicons name="send" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Settings Panel */}
+      <Modal visible={settingsVisible} transparent animationType="none">
+        <View style={styles.settingsModalBackground}>
+          <Animated.View
+            style={[
+              styles.settingsPanel,
+              {
+                transform: [{ translateX: slideAnim }],
+                backgroundColor: theme.colors.card,
+              },
+            ]}
+          >
+            <View style={styles.settingsHeader}>
+              <TouchableOpacity onPress={closeSettings}>
+                <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Settings</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
+              <Text style={[styles.userName, { color: theme.colors.text }]}>User Name</Text>
+            </View>
+            <View style={styles.settingsOptions}>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="pencil" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Change Nickname</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="image" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Media, Files & Links</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="search" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Search Messages</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="bell" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Mute Notifications</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Create Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="users" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Add to Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.settingsItem}>
+                <FontAwesome name="group" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>View Common Groups</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.settingsItem]}>
+                <FontAwesome name="trash" size={20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Clear Chat History</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Options Modal */}
       <Modal visible={optionsVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[
-              styles.optionsContainer,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
+          <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
             <TouchableOpacity
               style={styles.optionItem}
               onPress={handleFileOptionPress}
             >
-              <Ionicons name="document" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>
-                File
-              </Text>
+              <FontAwesome name="file" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Cloud")}>
+              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>Cloud</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Remind")}>
+              <FontAwesome name="bell" size={20} color={theme.colors.text} />
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>Remind</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => alert("Cloud")}
-            >
-              <Ionicons name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>
-                Đám mây
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => alert("Remind")}
-            >
-              <Ionicons name="alarm" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>
-                Nhắc nhở
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.closeButton,
-                { backgroundColor: theme.colors.border },
-              ]}
+              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
               onPress={closeOptions}
             >
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>
-                Đóng
-              </Text>
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {showFilePicker && (
-        <View
-          style={[
-            styles.filePickerContainer,
-            {
-              backgroundColor: theme.colors.card,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-            },
-          ]}
-        >
-          <View style={styles.filePickerHeader}>
-            <Text
-              style={[styles.filePickerTitle, { color: theme.colors.text }]}
-            >
-              Chọn file
-            </Text>
-            <TouchableOpacity onPress={() => setShowFilePicker(false)}>
-              <Ionicons name="close" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={deviceFiles}
-            keyExtractor={(item) => item.uri}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => openFile(item.uri)}
-                style={styles.fileItem}
-              >
-                <View style={styles.fileIconContainer}>
-                  <MaterialIcons
-                    name={getFileIcon(item.name)}
-                    size={24}
-                    color={theme.colors.primary}
-                  />
-                </View>
-                <View style={styles.fileInfoContainer}>
-                  <Text
-                    style={[styles.fileName, { color: theme.colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {item.name}
-                  </Text>
-                  <Text
-                    style={[styles.fileDetails, { color: theme.colors.text }]}
-                  >
-                    {formatFileSize(item.size)} •{" "}
-                    {new Date(item.lastModified).toLocaleDateString("vi-VN")}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.fileList}
+      {/* Input */}
+      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
+        <TouchableOpacity onPress={toggleEmojiPicker} style={styles.iconSpacing}>
+          <FontAwesome
+            name="smile-o"
+            size={24}
+            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
           />
-        </View>
-      )}
-    </SafeAreaView>
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Type a message..."
+          placeholderTextColor={theme.colors.text}
+        />
+        {message.trim() === "" ? (
+          <>
+            <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
+              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
+              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openImagePicker} style={styles.iconSpacing}>
+              <FontAwesome
+                name="image"
+                size={24}
+                color={showImagePicker ? theme.colors.primary : theme.colors.text}
+              />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Button onPress={sendTextMessage}>Send</Button>
+        )}
+      </View>
+    </View>
   );
 };
 
 export default ChatScreen;
 
 const styles = StyleSheet.create({
-  safeContainer: {
+  container: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    padding: 15,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
+    textAlign: 'left',
     flex: 1,
-    marginLeft: 10,
+    paddingLeft: 15
   },
   headerIcons: {
     flexDirection: "row",
@@ -886,19 +970,25 @@ const styles = StyleSheet.create({
   iconSpacing: {
     marginHorizontal: 10,
   },
+  messagesContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  sentMessageContainer: {
+    justifyContent: "flex-end",
+    marginLeft: 50,
+  },
+  receivedMessageContainer: {
+    justifyContent: "flex-start",
+    marginRight: 50,
+  },
   messageContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     marginVertical: 5,
-    paddingHorizontal: 10,
   },
-  sentMessage: {
-    justifyContent: "flex-end",
-    alignSelf: "flex-end",
-  },
-  receivedMessage: {
-    justifyContent: "flex-start",
-    alignSelf: "flex-start",
+  recalledMessageContainer: {
+    opacity: 0.7,
   },
   avatar: {
     width: 40,
@@ -906,23 +996,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  messageBubble: {
-    padding: 10,
-    borderRadius: 15,
-    maxWidth: "70%",
+  avatarPlaceholder: {
+    width: 40,
   },
-  senderName: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 5,
+  messageBubble: {
+    maxWidth: "80%",
+    borderRadius: 12,
+    padding: 10,
+    marginVertical: 4,
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 20,
+  },
+  recalledMessageText: {
+    fontSize: 16,
+    fontStyle: 'italic',
   },
   messageTime: {
-    fontSize: 12,
-    marginTop: 5,
-    opacity: 0.7,
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.8,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  imageTimeText: {
+    fontSize: 11,
+    textAlign: "right",
+    opacity: 0.8,
+  },
+  fileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  fileTimeText: {
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 4,
   },
   inputContainer: {
     flexDirection: "row",
@@ -933,9 +1056,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: 8,
+    height: 40,
+    borderRadius: 20,
     paddingHorizontal: 10,
-    fontSize: 16,
+    marginHorizontal: 10,
   },
   modalBackground: {
     flex: 1,
@@ -970,7 +1094,7 @@ const styles = StyleSheet.create({
   optionsContainer: {
     width: 250,
     borderRadius: 10,
-    padding: 10,
+    padding: 15,
     alignItems: "center",
   },
   optionItem: {
@@ -984,15 +1108,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  emojiPickerContainer: {
+  settingsModalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  settingsPanel: {
     position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: SCREEN_WIDTH * 0.75,
+  },
+  settingsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  userInfo: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 10,
+  },
+  settingsOptions: {
+    flex: 1,
+  },
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    paddingHorizontal: 20
+  },
+  settingsText: {
+    fontSize: 16,
+    marginLeft: 15,
+  },
+  emojiPickerContainer: {
+    position: 'absolute',
     bottom: 60,
     left: 0,
     right: 0,
     zIndex: 1000,
   },
   imagePickerContainer: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 60,
     left: 0,
     right: 0,
@@ -1000,19 +1170,16 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   imagePickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
+    borderBottomColor: '#ccc',
   },
   imagePickerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-  },
-  imageList: {
-    padding: 5,
+    fontWeight: 'bold',
   },
   imageItem: {
     flex: 1,
@@ -1020,58 +1187,8 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   imageThumbnail: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
     borderRadius: 5,
-  },
-  filePickerContainer: {
-    position: "absolute",
-    bottom: 60,
-    left: 0,
-    right: 0,
-    height: 300,
-    zIndex: 1000,
-  },
-  filePickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-  },
-  filePickerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  fileList: {
-    padding: 10,
-  },
-  fileItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  fileIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  fileInfoContainer: {
-    flex: 1,
-  },
-  fileName: {
-    fontSize: 16,
-    marginBottom: 3,
-  },
-  fileDetails: {
-    fontSize: 12,
-    opacity: 0.7,
   },
 });
