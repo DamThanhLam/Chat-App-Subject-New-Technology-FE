@@ -16,16 +16,27 @@ export const initSocket = (token: string) => {
   return socket;
 };
 export const connectSocket = async () => {
-  const session = await Auth.currentSession();
-  const jwtToken = session.getIdToken().getJwtToken();
-  const socket = getSocket()
-  if (!socket || !socket.connected) {
-    const newSocket = initSocket(jwtToken)
-    newSocket.connect();
-    newSocket.emit("join");
+  const session = await Auth.currentSession();//get session then login success the cognito
+  const jwtToken = session.getIdToken().getJwtToken();//get JWT access token in the session
+  const socket = getSocket() //
+  if (!socket || !socket.connected) { //check socket is connected before performming new connect
+    const newSocket = initSocket(jwtToken) //initial socket. Prepare to authentication in the BE
+    newSocket.connect();// action to connect to BE
+    newSocket.emit("join"); //publish join, that setup socket ip with sub of the jwt before publish other
+    newSocket.on("private-message", (data) => {
+      console.log("Got message:", data);
+    });
+    newSocket.on("result", (data) => {
+      console.log("Got message:", data);
+    });
+
+    newSocket.on("error", (err) => {
+      console.log("Error:", err);
+    });
     setSocket(newSocket)
+
   }
 }
 export const getSocket = () => socket;
-export const setSocket = (socketNew:Socket)=>{socket = socketNew}
+export const setSocket = (socketNew: Socket) => { socket = socketNew }
 export const disconnectSocket = () => socket?.disconnect();
