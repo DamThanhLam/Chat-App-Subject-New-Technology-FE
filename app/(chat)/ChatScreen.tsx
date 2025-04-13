@@ -29,7 +29,9 @@ import * as FileSystem from "expo-file-system";
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { format } from "date-fns";
-import { v4 as uuidv4 } from 'uuid';
+import { DOMAIN } from "@/src/configs/base_url";
+import { Auth } from "aws-amplify";
+import FileMessage from "@/components/FileMessage";
 
 interface FileMessage {
   data: string;
@@ -63,8 +65,8 @@ interface DeviceFile {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
-  const [userID1, setUserID1] = useState("");
-  const [userID2] = useState("492ad52c-1041-707e-21cc-2e8d96752239");
+  const [userID1, setUserID1] = useState("4574703b-f2c0-41dd-a850-dd780297e8ae");
+  const [userID2] = useState("b9ba65cc-2061-7031-229d-5f892034d870");
   const [anotherUser, setAnotherUser] = useState<{ _id: string; name: string; image: string } | null>(null);
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
@@ -81,41 +83,83 @@ const ChatScreen = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useColorScheme();
   const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
-  const { userId } = useLocalSearchParams();
+  const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
+
+  // router.push({ pathname: '/ChatScreen', params: { userID2: '1234' } });
+  // const { userID2 } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
+  const [token, setToken] = useState<string>("");
+  const dateBefore = useRef<Date | null>()
+  // Lấy token khi mount
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const session = await Auth.currentSession();
+        const jwtToken = session.getIdToken().getJwtToken();
+        setToken(jwtToken);
+      } catch (err) {
+        console.error("Error fetching token", err);
+      }
+    };
+    fetchToken();
+  }, []);
 
   useEffect(() => {
-    connectSocket();
-    const socket = getSocket();
+    if (token) {
+      fetch(DOMAIN + ":3000/api/message?friendId=" + userID2, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
 
-    socket.on("delete-message", (data: { messageId: string }) => {
-      setConversation(prev => prev.map(msg => 
-        msg.id === data.messageId 
-          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" } 
-          : msg
-      ));
-    });
+      }).then(res => res.json())
+        .then(data => {
+          setConversation(data)
+        })
+    }
+  }, [token])
+  useEffect(() => {
+    let socketRef: any = null;
+    connectSocket().then(socket => {
+      socketRef = socket;
+      socket.on("delete-message", (data: { messageId: string }) => {
+        setConversation(prev => prev.map(msg =>
+          msg.id === data.messageId
+            ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
+            : msg
+        ));
+      });
 
-    socket.on("recall-message", (data: { message: Message }) => {
-      setConversation(prev => prev.map(msg => 
-        msg.id === data.message.id 
-          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" } 
-          : msg
-      ));
+      socket.on("recall-message", (data: { message: Message }) => {
+        setConversation(prev => prev.map(msg =>
+          msg.id === data.message.id
+            ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
+            : msg
+        ));
+      });
+      socket.on("result", (data: { message: Message }) => {
+        setConversation(prev => [...prev, data.message]);
+      });
+      socket.on("private-message", (data: { message: Message }) => {
+        setConversation(prev => [...prev, data.message]);
+      });
     });
 
     return () => {
-      socket.off("delete-message");
-      socket.off("recall-message");
+      if (socketRef) {
+        socketRef.off("delete-message");
+        socketRef.off("recall-message");
+      }
     };
   }, []);
 
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     try {
       getSocket().emit("delete-message", messageId);
-      setConversation(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" } 
+      setConversation(prev => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
           : msg
       ));
       setMenuVisible(false);
@@ -128,9 +172,9 @@ const ChatScreen = () => {
   const handleRecallMessage = useCallback(async (messageId: string) => {
     try {
       getSocket().emit("recall-message", messageId);
-      setConversation(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" } 
+      setConversation(prev => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
           : msg
       ));
       setMenuVisible(false);
@@ -150,6 +194,24 @@ const ChatScreen = () => {
     });
     setMessage("");
     setShowEmojiPicker(false);
+  };
+
+  // 2. Khi người dùng nhấn vào 1 ảnh thì toggle chọn / bỏ chọn
+  const toggleSelectImage = (asset: MediaLibrary.Asset) => {
+    setTempSelectedImages(prev => {
+      const exists = prev.find(a => a.id === asset.id);
+      if (exists) {
+        return prev.filter(a => a.id !== asset.id);
+      } else {
+        return [...prev, asset];
+      }
+    });
+  };
+
+  // 3. Nút Send sẽ gọi upload với tất cả ảnh đã chọn
+  const sendSelectedImages = async () => {
+    if (tempSelectedImages.length === 0) return;
+    await handleMobileMultiImageSelect(tempSelectedImages);
   };
 
   const toggleEmojiPicker = () => {
@@ -196,7 +258,65 @@ const ChatScreen = () => {
     });
     setMenuVisible(true);
   };
-  
+  // 2. Mobile: chọn nhiều ảnh rồi upload
+  const handleMobileMultiImageSelect = async (selectedAssets: MediaLibrary.Asset[]) => {
+    try {
+      // map sang định dạng cần thiết
+      const files = selectedAssets.map(asset => ({
+        uri: asset.uri,
+        name: asset.filename,
+      }));
+      // 1) upload lên server, nhận mảng URL
+      const imagesUpload = await uploadFilesToServer(files);
+      // 2) emit socket cho mỗi URL hoặc gộp
+      imagesUpload.forEach((image: any) => {
+        getSocket().emit("private-message", {
+          receiverId: userID2,
+          message: { data: image.url, filename: image.filename },
+          messageType: "private",
+          contentType: "file",
+        });
+      });
+      setShowImagePicker(false);
+    } catch (error: any) {
+      console.error("Upload images error:", error);
+      Alert.alert("Error", error.message);
+    }
+  };
+  // 1. Hàm upload chung
+  async function uploadFilesToServer(
+    files: Array<{ uri: string | any; name: string; }>
+  ) {
+    const formData = new FormData();
+    files.forEach((file) => {
+      if (Platform.OS === "web" && file.uri instanceof File) {
+        // Web: append trực tiếp File object
+        formData.append("images", file.uri, file.name);
+      } else {
+        // Mobile: append RN file object
+        formData.append("images", {
+          uri: file.uri,
+          name: file.filename,
+          type: "application/octet-stream",
+        } as any);
+      }
+    });
+
+
+    const res = await fetch(`${DOMAIN}:3000/api/message/files`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Upload failed");
+    }
+    const data = await res.json();
+    return data.images;
+  }
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -254,10 +374,12 @@ const ChatScreen = () => {
     }
   };
 
+  // Web file change
   const onWebFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+
     reader.onload = () => {
       const base64 = (reader.result as string).split(",")[1];
       getSocket().emit("private-message", {
@@ -265,8 +387,6 @@ const ChatScreen = () => {
         message: {
           data: base64,
           filename: file.name,
-          size: file.size,
-          type: file.type
         },
         messageType: "private",
         contentType: "file",
@@ -299,7 +419,7 @@ const ChatScreen = () => {
         copyToCacheDirectory: true,
         multiple: true,
       });
-  
+
       if (result && result.assets) {
         const files = result.assets;
         const fileDetails = await Promise.all(
@@ -337,10 +457,10 @@ const ChatScreen = () => {
       }
 
       const downloadResumable = FileSystem.createDownloadResumable(
-        fileUri, 
+        fileUri,
         FileSystem.documentDirectory + 'tempfile'
       );
-      
+
       const downloadResult = await downloadResumable.downloadAsync();
       if (downloadResult) {
         const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
@@ -351,6 +471,33 @@ const ChatScreen = () => {
       Alert.alert("Error", "Could not open file. Please try again.");
     }
   };
+  // 3. Web: chọn nhiều file qua input[type="file"]
+  const onWebFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    try {
+      // map sang định dạng cho upload
+      const uploadFiles = files.map(f => ({
+        uri: f,
+        name: f.name,
+      }));
+      const urls = await uploadFilesToServer(uploadFiles);
+      urls.forEach((item: any) => {
+        getSocket().emit("private-message", {
+          receiverId: userID2,
+          message: { data: item.url, filename: item.filename },
+          messageType: "private",
+          contentType: "file",
+        });
+      });
+    } catch (error: any) {
+      console.error("Upload files error:", error);
+      alert(error.message);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
 
   const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
 
@@ -360,10 +507,10 @@ const ChatScreen = () => {
       {Platform.OS === "web" && (
         <input
           type="file"
-          accept="image/*"
+          multiple
           style={{ display: "none" }}
           ref={fileInputRef}
-          onChange={onWebFileChange}
+          onChange={onWebFilesChange}
         />
       )}
 
@@ -393,118 +540,131 @@ const ChatScreen = () => {
         data={conversation}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
+          let showDate = false;
+          let stringDate = ""
+          let createdAt = new Date(item.createdAt);
+          const vietnamTime = createdAt.toLocaleString("vi-VN", {
+            timeZone: "Asia/Ho_Chi_Minh",
+            year: "numeric",
+            month: "2-digit", // Tháng có 2 chữ số
+            day: "2-digit", // Ngày có 2 chữ số
+          });
+
+          // Chuyển đổi lại chuỗi ngày thành đối tượng Date hợp lệ sau khi định dạng
+          let dateParts = vietnamTime.split("/"); // Chia ngày, tháng, năm
+          const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`); // Tạo đối tượng Date hợp lệ
+
+
+          if (!dateBefore.current) {
+            showDate = true;
+            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+          }
+          if (dateBefore.current &&
+            (
+              dateBefore.current.getDate() != createdAt.getDate() ||
+              dateBefore.current.getMonth() != createdAt.getMonth() ||
+              dateBefore.current.getFullYear() != createdAt.getFullYear()
+            )
+          ) {
+            showDate = true;
+            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+          }
           const isDeleted = item.status === "delete";
           const isRecalled = item.status === "recall";
           const isFile = item.contentType === "file";
           const isText = item.contentType === "text";
           const messageTime = format(new Date(item.createdAt), "HH:mm");
 
+          dateBefore.current = createdAt;
           return (
-            <TouchableOpacity
-              onLongPress={() => !isDeleted && !isRecalled && handleLongPress(item)}
-              style={[
-                styles.messageContainer,
-                item.senderId === userID1 
-                  ? styles.sentMessageContainer 
-                  : styles.receivedMessageContainer,
-                (isDeleted || isRecalled) && styles.recalledMessageContainer
-              ]}
-            >
-              {/* Avatar for received messages */}
-              {item.senderId !== userID1 && anotherUser && (
-                <Image 
-                  source={{ uri: anotherUser.image }} 
-                  style={styles.avatar} 
-                />
-              )}
-
-              {/* Message bubble */}
-              <View
+            <>
+              {showDate && <Text style={{ color: theme.colors.text, textAlign: 'center' }}>{stringDate}</Text>}
+              <TouchableOpacity
+                onLongPress={() => !isDeleted && !isRecalled && handleLongPress(item)}
                 style={[
-                  styles.messageBubble,
-                  {
-                    backgroundColor:
-                      item.senderId === userID1 
-                        ? theme.colors.primary 
-                        : theme.colors.card,
-                    marginLeft: item.senderId !== userID1 ? 8 : 0,
-                    marginRight: item.senderId === userID1 ? 8 : 0,
-                    opacity: isDeleted || isRecalled ? 0.7 : 1
-                  },
+                  styles.messageContainer,
+                  item.senderId === userID1
+                    ? styles.sentMessageContainer
+                    : styles.receivedMessageContainer,
+                  (isDeleted || isRecalled) && styles.recalledMessageContainer
                 ]}
               >
-                {/* Render recalled/deleted message */}
-                {(isDeleted || isRecalled) ? (
-                  <Text 
-                    style={[
-                      styles.recalledMessageText,
-                      { 
-                        color: item.senderId === userID1 ? "#fff" : theme.colors.text,
-                        fontStyle: "italic"
-                      }
-                    ]}
-                  >
-                    {typeof item.message === "string" ? item.message : "Tin nhắn đã bị thu hồi"}
-                  </Text>
-                ) : isFile ? (
-                  <TouchableOpacity 
-                    style={styles.fileContainer}
-                    onPress={() => openFile(typeof item.message !== "string" ? item.message.data : "")}
-                  >
-                    <FontAwesome 
-                      name="file" 
-                      size={24} 
-                      color={item.senderId === userID1 ? "#fff" : theme.colors.text} 
-                    />
-                    <View style={styles.fileInfo}>
-                      <Text 
-                        style={[
-                          styles.fileName,
-                          { color: item.senderId === userID1 ? "#fff" : theme.colors.text }
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {typeof item.message !== "string" ? item.message.filename : "File"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : (
-                  <Text 
-                    style={[
-                      styles.messageText,
-                      { 
-                        color: item.senderId === userID1 ? "#fff" : theme.colors.text 
-                      }
-                    ]}
-                  >
-                    {typeof item.message === "string" ? item.message : ""}
-                  </Text>
+                {/* Avatar for received messages */}
+                {item.senderId !== userID1 && anotherUser && (
+                  <Image
+                    source={{ uri: anotherUser.image }}
+                    style={styles.avatar}
+                  />
                 )}
 
-                <Text 
+                {/* Message bubble */}
+                <View
                   style={[
-                    styles.messageTime,
-                    { 
-                      color: item.senderId === userID1 ? "#fff" : theme.colors.text,
-                      alignSelf: item.senderId === userID1 ? "flex-end" : "flex-start",
-                    }
+                    styles.messageBubble,
+                    {
+                      backgroundColor:
+                        item.senderId === userID1
+                          ? theme.colors.primary
+                          : theme.colors.card,
+                      marginLeft: item.senderId !== userID1 ? 8 : 0,
+                      marginRight: item.senderId === userID1 ? 8 : 0,
+                      opacity: isDeleted || isRecalled ? 0.7 : 1
+                    },
                   ]}
                 >
-                  {messageTime}
-                  {(isDeleted || isRecalled) && (
-                    <FontAwesome 
-                      name={isDeleted ? "trash" : "undo"} 
-                      size={12} 
-                      color={item.senderId === userID1 ? "#fff" : theme.colors.text}
-                      style={{ marginLeft: 5 }}
-                    />
+                  {/* Render recalled/deleted message */}
+                  {(isDeleted || isRecalled) ? (
+                    <Text
+                      style={[
+                        styles.recalledMessageText,
+                        {
+                          color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                          fontStyle: "italic"
+                        }
+                      ]}
+                    >
+                      {typeof item.message === "string" ? item.message : "Tin nhắn đã bị thu hồi"}
+                    </Text>
+                  ) : isFile ? (
+                    <FileMessage item={item} theme={theme} userID1={userID1} key={item.id} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        {
+                          color: item.senderId === userID1 ? "#fff" : theme.colors.text
+                        }
+                      ]}
+                    >
+                      {typeof item.message === "string" ? item.message : ""}
+                    </Text>
                   )}
-                </Text>
-              </View>
 
-              {/* Empty view to balance avatar space for sent messages */}
-              {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
-            </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      {
+                        color: item.senderId === userID1 ? "#fff" : theme.colors.text,
+                        alignSelf: item.senderId === userID1 ? "flex-end" : "flex-start",
+                      }
+                    ]}
+                  >
+                    {messageTime}
+                    {(isDeleted || isRecalled) && (
+                      <FontAwesome
+                        name={isDeleted ? "trash" : "undo"}
+                        size={12}
+                        color={item.senderId === userID1 ? "#fff" : theme.colors.text}
+                        style={{ marginLeft: 5 }}
+                      />
+                    )}
+                  </Text>
+                </View>
+
+                {/* Empty view to balance avatar space for sent messages */}
+                {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
+              </TouchableOpacity>
+            </>
           );
         }}
         contentContainerStyle={styles.messagesContainer}
@@ -536,39 +696,47 @@ const ChatScreen = () => {
 
       {/* Image Picker (Mobile) */}
       {showImagePicker && Platform.OS !== "web" && (
-        <View
-          style={[
-            styles.imagePickerContainer,
-            {
-              backgroundColor: theme.colors.card,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-            },
-          ]}
-        >
+        <View style={[styles.imagePickerContainer, { backgroundColor: theme.colors.card }]}>
+          {/* Header như cũ */}
           <View style={styles.imagePickerHeader}>
             <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>
-              Select Image
+              Select Images ({tempSelectedImages.length})
             </Text>
-            <TouchableOpacity onPress={() => setShowImagePicker(false)}>
+            <TouchableOpacity onPress={() => { setShowImagePicker(false); setTempSelectedImages([]); }}>
               <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
+
+          {/* Grid ảnh */}
           <FlatList
             data={deviceImages}
             numColumns={3}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => handleMobileImageSelect(item)}
-                style={styles.imageItem}
-              >
-                <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const selected = !!tempSelectedImages.find(a => a.id === item.id);
+              return (
+                <TouchableOpacity
+                  onPress={() => toggleSelectImage(item)}
+                  style={[
+                    styles.imageItem,
+                    selected && { borderWidth: 2, borderColor: theme.colors.primary }
+                  ]}
+                >
+                  <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
+                </TouchableOpacity>
+              );
+            }}
           />
+
+          {/* Nút Gửi */}
+          <View style={{ padding: 10, borderTopWidth: 1, borderColor: theme.colors.border }}>
+            <Button disabled={tempSelectedImages.length === 0} onPress={sendSelectedImages}>
+              Gửi {tempSelectedImages.length} ảnh
+            </Button>
+          </View>
         </View>
       )}
+
 
       {/* Message Options Menu */}
       <Modal visible={menuVisible} transparent animationType="fade">
@@ -678,8 +846,8 @@ const ChatScreen = () => {
       <Modal visible={optionsVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
           <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity 
-              style={styles.optionItem} 
+            <TouchableOpacity
+              style={styles.optionItem}
               onPress={handleFileOptionPress}
             >
               <FontAwesome name="file" size={20} color={theme.colors.text} />

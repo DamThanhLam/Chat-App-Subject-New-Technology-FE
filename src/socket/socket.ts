@@ -47,12 +47,10 @@ export const connectSocket = async () => {
     });
 // action to connect to BE
     newSocket.emit("join"); //publish join, that setup socket ip with sub of the jwt before publish other
-    newSocket.on("private-message", (data) => {
+    newSocket.on("receiver-message", (data) => {
       console.log("Got message:", data);
     });
-    newSocket.on("result", (data) => {
-      console.log("Got message:", data);
-    });
+    
 
     newSocket.on("error", (err) => {
       console.log("Error:", err);
@@ -60,6 +58,7 @@ export const connectSocket = async () => {
     setSocket(newSocket)
 
   }
+  return getSocket()
 }
 export const getSocket = () => socket;
 export const setSocket = (socketNew: Socket) => { socket = socketNew }
