@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StyleSheet,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
@@ -15,7 +17,7 @@ import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import moment from "moment";
-import { getSocket } from "@/src/socket/socket"; // Đảm bảo hàm này trả về socket đã kết nối
+import { getSocket } from "@/src/socket/socket";
 
 const FriendRequestsScreen = () => {
   const colorScheme = useColorScheme();
@@ -25,6 +27,8 @@ const FriendRequestsScreen = () => {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
+  const [originalRequests, setOriginalRequests] = useState([]);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
@@ -45,7 +49,7 @@ const FriendRequestsScreen = () => {
 
     const fetchRequests = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/friends/requests/${user.id}`, {
+        const res = await fetch(`http://192.168.1.62:3000/api/friends/requests/${user.id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -57,7 +61,7 @@ const FriendRequestsScreen = () => {
           rawRequests.map(async (request) => {
             try {
               const senderRes = await fetch(
-                `http://localhost:3000/api/user/${request.senderId}`,
+                `http://192.168.1.62:3000/api/user/${request.senderId}`,
                 {
                   headers: {
                     Authorization: `Bearer ${token}`,
@@ -84,6 +88,7 @@ const FriendRequestsScreen = () => {
           })
         );
 
+        setOriginalRequests(enrichedRequests);
         setRequests(enrichedRequests);
       } catch (err) {
         console.error("Lỗi fetch request:", err);
@@ -98,7 +103,7 @@ const FriendRequestsScreen = () => {
   useEffect(() => {
     if (!token || !user.id) return;
 
-    const socketConnection = getSocket(token); // Đảm bảo truyền token vào hàm getSocket
+    const socketConnection = getSocket(token);
     setSocket(socketConnection);
 
     socketConnection.on("connect", () => {
@@ -109,17 +114,50 @@ const FriendRequestsScreen = () => {
       console.log("🔌 Socket disconnected");
     });
 
-    // Lắng nghe các sự kiện từ server
-    socketConnection.on("newFriendRequest", (newRequest) => {
-      setRequests((prev) => [newRequest, ...prev]);
+    socketConnection.on("newFriendRequest", async (newRequest) => {
+      try {
+        const senderRes = await fetch(
+          `http://192.168.1.62:3000/api/user/${newRequest.senderId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const senderData = await senderRes.json();
+    
+        const enrichedRequest = {
+          ...newRequest,
+          name: senderData.username || "Unknown",
+          avatarUrl:
+            senderData.avatarUrl ||
+            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+        };
+    
+        setRequests((prev) => [enrichedRequest, ...prev]);
+        setOriginalRequests((prev) => [enrichedRequest, ...prev]);
+      } catch (error) {
+        console.error("Lỗi enrich newFriendRequest:", error);
+        const enrichedFallback = {
+          ...newRequest,
+          name: "Unknown",
+          avatarUrl:
+            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+        };
+        setRequests((prev) => [enrichedFallback, ...prev]);
+        setOriginalRequests((prev) => [enrichedFallback, ...prev]);
+      }
     });
+    
 
     socketConnection.on("friendRequestDeclined", (declinedRequestId) => {
       setRequests((prev) => prev.filter((r) => r.id !== declinedRequestId));
+      setOriginalRequests((prev) => prev.filter((r) => r.id !== declinedRequestId));
     });
 
     socketConnection.on("friendRequestAccepted", (acceptedRequestId) => {
       setRequests((prev) => prev.filter((r) => r.id !== acceptedRequestId));
+      setOriginalRequests((prev) => prev.filter((r) => r.id !== acceptedRequestId));
     });
 
     return () => {
@@ -129,44 +167,35 @@ const FriendRequestsScreen = () => {
     };
   }, [token, user.id]);
 
-  const handleAccept = (friendRequestId: string) => {
-    if (!socket || !token) {
-      console.error("❌ Socket hoặc token không tồn tại");
-      return;
+  const sortRequests = (type: string, data: any[]) => {
+    switch (type) {
+      case "a-z":
+        return [...data].sort((a, b) => a.name.localeCompare(b.name));
+      case "z-a":
+        return [...data].sort((a, b) => b.name.localeCompare(a.name));
+      default:
+        return [...data]; // giữ nguyên thứ tự ban đầu
     }
+  };
 
-    console.log("📨 Gửi acceptFriendRequest:", friendRequestId);
-
+  const handleAccept = (friendRequestId: string) => {
+    if (!socket || !token) return;
     socket.emit("acceptFriendRequest", { friendRequestId, token });
-
     socket.once("acceptFriendRequestResponse", (response) => {
-      console.log("📥 Nhận acceptFriendRequestResponse:", response);
-
       if (response.code === 200) {
         setRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
-        console.log("✅ Đã chấp nhận lời mời");
-      } else {
-        console.error("❌ Lỗi khi chấp nhận:", response.error);
+        setOriginalRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
       }
     });
   };
 
   const handleDecline = (friendRequestId: string) => {
-    if (!socket || !token) {
-      console.error("❌ Socket hoặc token không tồn tại");
-      return;
-    }
-
-    console.log("📨 Gửi declineFriendRequest:", friendRequestId);
-
+    if (!socket || !token) return;
     socket.emit("declineFriendRequest", { friendRequestId, token });
-
     socket.once("declineFriendRequestResponse", (response) => {
       if (response.code === 200) {
         setRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
-        console.log("✅ Đã từ chối lời mời");
-      } else {
-        console.error("❌ Lỗi khi từ chối:", response.error);
+        setOriginalRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
       }
     });
   };
@@ -176,19 +205,15 @@ const FriendRequestsScreen = () => {
       <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
       <View style={styles.infoContainer}>
         <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
-        <Text style={[styles.time, { color: theme.colors.text }]}>{moment(item.createdAt).fromNow()} gửi lời mời</Text>
+        <Text style={[styles.time, { color: theme.colors.text }]}>
+          {moment(item.createdAt).fromNow()} gửi lời mời
+        </Text>
         <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, styles.acceptButton]}
-            onPress={() => handleAccept(item.id)}
-          >
+          <TouchableOpacity style={[styles.button, styles.acceptButton]} onPress={() => handleAccept(item.id)}>
             <Text style={styles.buttonText}>Xác nhận</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.declineButton]}
-            onPress={() => handleDecline(item.id)}
-          >
-            <Text style={styles.buttonText}>Xóa</Text>
+          <TouchableOpacity style={[styles.button, styles.declineButton]} onPress={() => handleDecline(item.id)}>
+            <Text style={styles.buttonText}>Hủy lời mời</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -205,8 +230,8 @@ const FriendRequestsScreen = () => {
         <>
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>Lời mời kết bạn ({requests.length})</Text>
-            <TouchableOpacity>
-              <Text style={styles.sortText}>Sắp xếp</Text>
+            <TouchableOpacity onPress={() => setSortModalVisible(true)}>
+              <Text style={styles.sortLabel}>Sắp xếp ▾</Text>
             </TouchableOpacity>
           </View>
 
@@ -221,6 +246,46 @@ const FriendRequestsScreen = () => {
               </Text>
             }
           />
+
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={sortModalVisible}
+            onRequestClose={() => setSortModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Sắp xếp theo</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setRequests(sortRequests("default", originalRequests));
+                    setSortModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalOption}>Mặc định</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setRequests(sortRequests("a-z", originalRequests));
+                    setSortModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalOption}>Tên A-Z</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setRequests(sortRequests("z-a", originalRequests));
+                    setSortModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalOption}>Tên Z-A</Text>
+                </TouchableOpacity>
+                <Pressable onPress={() => setSortModalVisible(false)}>
+                  <Text style={styles.modalClose}>Đóng</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </SafeAreaView>
@@ -242,7 +307,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#ccc",
   },
   headerTitle: { fontSize: 16, fontWeight: "bold" },
-  sortText: { color: "#007AFF", fontSize: 14 },
+  sortLabel: { color: "#007AFF", fontSize: 14 },
   requestItem: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -272,6 +337,39 @@ const styles = StyleSheet.create({
   acceptButton: { backgroundColor: "#4CAF50" },
   declineButton: { backgroundColor: "#F44336", marginRight: 0 },
   buttonText: { color: "#fff", fontWeight: "600" },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    paddingHorizontal: 30,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalOption: {
+    fontSize: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+  },
+  modalClose: {
+    fontSize: 16,
+    color: "#FF3B30",
+    marginTop: 20,
+    textAlign: "center",
+    fontWeight: "600",
+  },
 });
 
 export default FriendRequestsScreen;

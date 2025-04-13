@@ -39,6 +39,7 @@ const FriendScreen = () => {
   const [searchResult, setSearchResult] = useState(null);
   const [searching, setSearching] = useState(false);
   const [friendRequestSent, setFriendRequestSent] = useState(false);
+  const [isAlreadyFriend, setIsAlreadyFriend] = useState(false);
 
   useEffect(() => {
     const getToken = async () => {
@@ -58,7 +59,7 @@ const FriendScreen = () => {
 
     const fetchFriends = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/friends/get-friends/${user.id}`, {
+        const res = await fetch(`http://192.168.1.62:3000/api/friends/get-friends/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -70,7 +71,7 @@ const FriendScreen = () => {
           acceptedFriends.map(async (friend) => {
             const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
             try {
-              const userRes = await fetch(`http://localhost:3000/api/user/${otherUserId}`, {
+              const userRes = await fetch(`http://192.168.1.62:3000/api/user/${otherUserId}`, {
                 headers: { Authorization: `Bearer ${token}` },
               });
               const userData = await userRes.json();
@@ -122,8 +123,9 @@ const FriendScreen = () => {
   const handleSearchByEmail = async () => {
     setSearching(true);
     setSearchResult(null);
+    setIsAlreadyFriend(false);
     try {
-      const res = await fetch(`http://localhost:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
+      const res = await fetch(`http://192.168.1.62:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -133,7 +135,16 @@ const FriendScreen = () => {
       const data = await res.json();
 
       if (data?.users && data.users.length > 0) {
-        setSearchResult(data.users[0]);
+        const foundUser = data.users[0];
+        setSearchResult(foundUser);
+
+        // Kiểm tra nếu người tìm được đã là bạn bè
+        const alreadyFriend = friends.some(f =>
+          (f.senderId === user.id && f.receiverId === foundUser.id) ||
+          (f.receiverId === user.id && f.senderId === foundUser.id)
+        );
+
+        setIsAlreadyFriend(alreadyFriend);
       } else {
         setSearchResult(null);
       }
@@ -156,27 +167,23 @@ const FriendScreen = () => {
       });
       return;
     }
-    console.log("Gửi lời mời từ người dùng:", user.id);
-    console.log("Đến người nhận:", receiverId);
+
     const payload = {
       senderId: user.id,
       receiverId,
-      message: "", // tuỳ chọn
+      message: "",
     };
 
     socket.emit("send-friend-request", payload);
 
-    // Lắng nghe phản hồi từ server
     socket.once("send-friend-request-response", (res) => {
       if (res.code === 200) {
-        console.log("✅ Gửi lời mời thành công:", res.data);
-        setFriendRequestSent(true); // Cập nhật trạng thái gửi lời mời thành công
+        setFriendRequestSent(true);
         Toast.show({
           type: "success",
           text1: "Đã gửi lời mời kết bạn",
         });
       } else {
-        console.error("❌ Gửi lỗi:", res.error);
         Toast.show({
           type: "error",
           text1: "Gửi thất bại",
@@ -186,11 +193,9 @@ const FriendScreen = () => {
     });
   };
 
-
-
   const handleCancelFriendRequest = async (receiverId) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/friends/cancel-request`, {
+      const res = await fetch(`http://192.168.1.62:3000/api/friends/cancel-request`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -202,7 +207,7 @@ const FriendScreen = () => {
         }),
       });
       if (res.ok) {
-        setFriendRequestSent(false); // Đặt lại trạng thái sau khi hủy lời mời
+        setFriendRequestSent(false);
         alert("Đã hủy lời mời kết bạn!");
         setShowAddFriendModal(false);
       } else {
@@ -212,7 +217,6 @@ const FriendScreen = () => {
       console.error("Lỗi hủy lời mời:", err);
     }
   };
-  
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
@@ -226,12 +230,31 @@ const FriendScreen = () => {
             <View style={styles.actions}>
               <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
               <MaterialIcons name="video-call" size={22} color={theme.colors.primary} style={{ marginLeft: 10 }} />
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color={theme.colors.primary}
+                style={{ marginLeft: 10 }}
+                onPress={() => {
+                  
+                  console.log("Nhấn để nhắn tin với:", item.name);
+                }}
+              />
             </View>
           </View>
         ))}
       </View>
     ));
   };
+
+  const handleOpenAddFriendModal = () => {
+    setSearchEmail(""); // Reset ô input
+    setSearchResult(null); // Reset kết quả tìm kiếm
+    setSearching(false); // Reset trạng thái loading
+    setFriendRequestSent(false); // Reset trạng thái gửi lời mời
+    setShowAddFriendModal(true);
+  };
+  
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -267,7 +290,7 @@ const FriendScreen = () => {
 
           {selectedTab === "friends" && (
             <View style={styles.shortcuts}>
-              <TouchableOpacity onPress={() => setShowAddFriendModal(true)} style={styles.shortcutItem}>
+              <TouchableOpacity onPress={handleOpenAddFriendModal} style={styles.shortcutItem}>
                 <Ionicons name="person-add" size={22} color="#0066cc" />
                 <Text style={styles.shortcutText}>Thêm bạn</Text>
               </TouchableOpacity>
@@ -300,7 +323,13 @@ const FriendScreen = () => {
             />
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddFriendModal(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                setShowAddFriendModal(false);
+                setSearchEmail("");
+                setSearchResult(null);
+                setSearching(false);
+                setFriendRequestSent(false);
+              }}>
                 <Text style={styles.cancelText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.searchBtn} onPress={handleSearchByEmail}>
@@ -315,8 +344,9 @@ const FriendScreen = () => {
                 <Text>{searchResult.email}</Text>
                 <Image source={{ uri: searchResult.avatarUrl }} style={styles.avatar} />
 
-                {friendRequestSent ? (
-                  // Nút "Hủy lời mời" nếu đã gửi lời mời
+                {isAlreadyFriend ? (
+                  <Text style={{ marginTop: 10, color: "green", fontWeight: "bold" }}>Đã là bạn bè</Text>
+                ) : friendRequestSent ? (
                   <TouchableOpacity
                     onPress={() => handleCancelFriendRequest(searchResult.id)}
                     style={[styles.searchBtn, { marginTop: 10 }]}
@@ -324,7 +354,6 @@ const FriendScreen = () => {
                     <Text style={styles.searchText}>Hủy lời mời</Text>
                   </TouchableOpacity>
                 ) : (
-                  // Nút "Gửi lời mời" nếu chưa gửi lời mời
                   <TouchableOpacity
                     onPress={() => handleSendFriendRequest(searchResult.id)}
                     style={[styles.searchBtn, { marginTop: 10 }]}
@@ -334,13 +363,14 @@ const FriendScreen = () => {
                 )}
               </View>
             )}
-
           </View>
         </View>
       </Modal>
     </SafeAreaView>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -355,74 +385,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderColor: "#ccc",
-    backgroundColor: "#f2f2f2",
   },
-  searchIcon: { marginRight: 8 },
+  searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 16 },
-  tabContainer: { flexDirection: "row", justifyContent: "space-around", marginTop: 12 },
-  tab: { paddingVertical: 8 },
-  tabText: { fontSize: 16, color: "#888" },
-  tabActive: {
-    color: "#000",
-    borderBottomWidth: 2,
-    borderBottomColor: "#000",
-    fontWeight: "bold",
-  },
-  shortcuts: {
+  tabContainer: {
     flexDirection: "row",
-    justifyContent: "flex-start",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderColor: "#ddd",
-  },
-  shortcutItem: { flexDirection: "row", alignItems: "center" },
-  shortcutText: { marginLeft: 6, fontSize: 15, color: "#333" },
-  groupTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    justifyContent: "space-around",
     marginTop: 16,
-    marginBottom: 8,
   },
+  tab: { paddingVertical: 12, paddingHorizontal: 20 },
+  tabText: { fontSize: 16, fontWeight: "600" },
+  tabActive: { borderBottomWidth: 3, borderBottomColor: "#0066cc" },
+  shortcuts: {
+    marginTop: 20,
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  shortcutItem: { alignItems: "center" },
+  shortcutText: { marginTop: 5, fontSize: 14 },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  actions: { flexDirection: "row", marginLeft: "auto" },
   itemContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderColor: "#ccc",
+    paddingVertical: 12,
+    paddingLeft: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
   },
-  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
-  name: { fontSize: 16, flex: 1 },
-  actions: { flexDirection: "row" },
-  modalOverlay: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.4)" },
-  modalContainer: {
-    width: "85%",
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 20,
+  name: { marginLeft: 12, fontSize: 16, fontWeight: "600" },
+  groupTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 10,
+    marginLeft: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  modalContainer: {
+    width: 300,
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
   input: {
-    width: "100%",
     height: 40,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 10,
+    paddingLeft: 10,
+    marginBottom: 15,
   },
-  buttonRow: { flexDirection: "row", justifyContent: "space-between", width: "100%" },
-  cancelBtn: { padding: 10 },
-  cancelText: { color: "red" },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  cancelBtn: {
+    backgroundColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
   searchBtn: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 6,
-    marginLeft: 10,
+    backgroundColor: "#0066cc",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
+  cancelText: { color: "#fff" },
   searchText: { color: "#fff" },
-  searchResultContainer: { alignItems: "center", marginTop: 20 },
+  searchResultContainer: {
+    marginTop: 20,
+    alignItems: "center",
+  },
 });
 
 export default FriendScreen;
