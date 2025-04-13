@@ -1,9 +1,9 @@
 // socket.ts
 import { io, Socket } from "socket.io-client";
 import { DOMAIN } from "../configs/base_url";
+import { Auth } from "aws-amplify";
 import { store } from "../redux/store";
 import { addMessage, updateMessageStatus } from "../redux/slices/MessageSlice";
-import { Auth } from "aws-amplify";
 
 const SOCKET_SERVER = DOMAIN + ":3000";
 let socket: Socket;
@@ -62,6 +62,5 @@ export const connectSocket = async () => {
   return getSocket()
 }
 export const getSocket = () => socket;
-export const setSocket = (socketNew: Socket) => { socket = socketNew }
 export const setSocket = (socketNew: Socket) => { socket = socketNew }
 export const disconnectSocket = () => socket?.disconnect();

@@ -25,7 +25,7 @@ export const setNickname = async (
 // Lấy tên gợi nhớ
 export const getNickname = async (
   targetUserId: string
-): Promise<{ nickname: string | null }> => {
+): Promise<{ nickname: string | null }|null> => {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/nickname/get/${targetUserId}`, {
     method: "GET",
@@ -34,7 +34,8 @@ export const getNickname = async (
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error || "Không thể lấy tên gợi nhớ");
+    console.error(errorData)
+    return null;
   }
 
   const data = await response.json();

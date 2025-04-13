@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { Redirect, Stack, useRouter, useSegments } from "expo-router";
+import { Redirect, Slot, Stack, useRouter, useSegments } from "expo-router";
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname } from "expo-router";

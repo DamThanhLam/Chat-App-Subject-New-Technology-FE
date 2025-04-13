@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -69,6 +68,7 @@ const HomeScreen = () => {
         map[user.friendId] = user;
         return map;
       }, {});
+      console.log(usersResponse)
 
       // Bước 3: Lấy tin nhắn cuối cho từng người bạn
       for (const friend of acceptedFriends) {
@@ -114,7 +114,7 @@ const HomeScreen = () => {
     currentUserId: string
   ) => {
     if (
-      !conversation.lastMessage ||
+      !conversation.lastMessage ||!conversation.lastMessage.readed||
       conversation.lastMessage.readed.includes(currentUserId)
     ) {
       return 0;
@@ -167,7 +167,8 @@ const HomeScreen = () => {
             pathname: "/ChatScreen",
             params: {
               // conversationId: item.lastMessage?.conversationId || "",
-              friendId: item.friendId,
+              userID2: item.friendId,
+              friendName: item.displayName
             },
           });
         }}

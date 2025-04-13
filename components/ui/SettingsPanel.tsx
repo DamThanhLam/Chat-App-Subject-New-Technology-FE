@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { setNickname } from "@/src/apis/nickName";
+import { getNickname, setNickname } from "@/src/apis/nickName";
 import {
   createGroupFromChat,
   fetchDetailFriends,
@@ -35,6 +35,7 @@ interface SettingsPanelProps {
   currentUserId: string; // ID của người dùng hiện tại
   isGroupChat?: boolean; // Kiểm tra xem có phải chat nhóm không
   conversationId?: string; // ID của cuộc trò chuyện (dùng cho chat nhóm)
+  friendName: string
 }
 
 const SCREEN_WIDTH = 360; // Giả định chiều rộng màn hình
@@ -49,6 +50,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   currentUserId,
   isGroupChat = false,
   conversationId,
+  friendName,
 }) => {
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const [renameModalVisible, setRenameModalVisible] = useState(false);
@@ -58,7 +60,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [groupName, setGroupName] = useState("");
   const [friends, setFriends] = useState<FriendUserDetail[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-
   // Lấy danh sách bạn bè và tự động tích chọn bạn bè có _id trùng với targetUserId
   useEffect(() => {
     if (createGroupModalVisible && !isGroupChat) {
@@ -171,7 +172,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     }
   };
-
   // Xử lý chọn bạn bè để thêm vào nhóm
   const toggleFriendSelection = (friendId: string) => {
     setSelectedFriends((prev) => {
@@ -261,7 +261,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 color={theme.colors.text}
               />
               <Text style={[styles.userName, { color: theme.colors.text }]}>
-                {isGroupChat ? "Nhóm chat" : "User Name"}
+                {isGroupChat ? "Nhóm chat" : friendName}
               </Text>
             </View>
             {isGroupChat && (

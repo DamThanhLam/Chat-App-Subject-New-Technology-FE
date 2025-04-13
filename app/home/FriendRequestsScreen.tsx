@@ -18,6 +18,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import moment from "moment";
 import { getSocket } from "@/src/socket/socket";
+import { DOMAIN } from "@/src/configs/base_url";
 
 const FriendRequestsScreen = () => {
   const colorScheme = useColorScheme();
@@ -49,7 +50,7 @@ const FriendRequestsScreen = () => {
 
     const fetchRequests = async () => {
       try {
-        const res = await fetch(`http://192.168.1.62:3000/api/friends/requests/${user.id}`, {
+        const res = await fetch(`http://localhost:3000/api/friends/requests/${user.id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -61,7 +62,7 @@ const FriendRequestsScreen = () => {
           rawRequests.map(async (request) => {
             try {
               const senderRes = await fetch(
-                `http://192.168.1.62:3000/api/user/${request.senderId}`,
+                `http://localhost:3000/api/user/${request.senderId}`,
                 {
                   headers: {
                     Authorization: `Bearer ${token}`,
@@ -117,7 +118,7 @@ const FriendRequestsScreen = () => {
     socketConnection.on("newFriendRequest", async (newRequest) => {
       try {
         const senderRes = await fetch(
-          `http://192.168.1.62:3000/api/user/${newRequest.senderId}`,
+          `http://localhost:3000/api/user/${newRequest.senderId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

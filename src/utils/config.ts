@@ -1,6 +1,7 @@
 import { Auth } from "aws-amplify";
+import { DOMAIN } from "../configs/base_url";
 
-export const API_BASE_URL = "http://localhost:3000/api";
+export const API_BASE_URL = DOMAIN+":3000/api";
 
 export const getAuthHeaders = async () => {
   try {

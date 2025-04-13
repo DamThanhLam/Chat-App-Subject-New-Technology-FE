@@ -1,5 +1,6 @@
 import { API_BASE_URL, getAuthHeaders } from "../utils/config";
 import { Friend, Message, UserInfo } from "@/src/interface/interface";
+import { getNickname } from "./nickName";
 
 // Lấy danh sách bạn bè
 export const fetchFriends = async (): Promise<Friend[]> => {
@@ -35,9 +36,10 @@ export const fetchUserInfo = async (friendId: string): Promise<UserInfo> => {
   }
 
   const userData = await response.json();
+  const resultNickname = await getNickname(friendId);
   return {
     friendId,
-    displayName: userData.name || friendId,
+    displayName: resultNickname && resultNickname.nickname? resultNickname.nickname : userData.username || friendId,
     avatar: userData.urlAVT || null,
   };
 };

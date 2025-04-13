@@ -18,8 +18,9 @@ import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { getSocket } from "@/src/socket/socket";
+import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
 import Toast from "react-native-toast-message";
+import { DOMAIN } from "@/src/configs/base_url";
 
 const FriendScreen = () => {
   const colorScheme = useColorScheme();
@@ -59,7 +60,7 @@ const FriendScreen = () => {
 
     const fetchFriends = async () => {
       try {
-        const res = await fetch(`http://192.168.1.62:3000/api/friends/get-friends/${user.id}`, {
+        const res = await fetch(DOMAIN+`:3000/api/friends/get-friends/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -71,7 +72,7 @@ const FriendScreen = () => {
           acceptedFriends.map(async (friend) => {
             const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
             try {
-              const userRes = await fetch(`http://192.168.1.62:3000/api/user/${otherUserId}`, {
+              const userRes = await fetch(DOMAIN+`:3000/api/user/${otherUserId}`, {
                 headers: { Authorization: `Bearer ${token}` },
               });
               const userData = await userRes.json();
@@ -125,7 +126,7 @@ const FriendScreen = () => {
     setSearchResult(null);
     setIsAlreadyFriend(false);
     try {
-      const res = await fetch(`http://192.168.1.62:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
+      const res = await fetch(DOMAIN+`:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -155,6 +156,9 @@ const FriendScreen = () => {
     }
   };
 
+  useEffect(()=>{
+    connectSocket()
+  },[])
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
 
@@ -195,7 +199,7 @@ const FriendScreen = () => {
 
   const handleCancelFriendRequest = async (receiverId) => {
     try {
-      const res = await fetch(`http://192.168.1.62:3000/api/friends/cancel-request`, {
+      const res = await fetch(DOMAIN+`:3000/api/friends/cancel-request`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

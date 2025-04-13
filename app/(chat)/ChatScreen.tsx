@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
+import EmojiPickerMobile from "rn-emoji-keyboard";
 import {
   View,
   Text,
@@ -33,6 +34,8 @@ import { DOMAIN } from "@/src/configs/base_url";
 import { Auth } from "aws-amplify";
 import FileMessage from "@/components/FileMessage";
 import SettingsPanel from "@/components/ui/SettingsPanel";
+import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+import FilePickerModal from "@/components/FilePickerModal";
 
 interface FileMessage {
   data: string;
@@ -40,7 +43,17 @@ interface FileMessage {
   size: number;
   type: string;
 }
-
+interface EmojiType {
+  code: string;
+  emoji: string;
+  group: string;
+}
+interface DeviceFile {
+  name: string;
+  size: number;
+  uri: string;
+  lastModified: number;
+}
 interface Message {
   id: string;
   conversationId: string | null;
@@ -53,7 +66,7 @@ interface Message {
   messageType: "group" | "private";
   contentType: "file" | "emoji" | "text";
   receiverId: string;
-  status: "recall" | "delete" | "readed" | "sended" | "received";
+  status: "recalled" | "deleted" | "readed" | "sended" | "received";
 }
 
 interface DeviceFile {
@@ -70,8 +83,7 @@ interface User {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
-  const [userID1, setUserID1] = useState("4574703b-f2c0-41dd-a850-dd780297e8ae");
-  const [userID2] = useState("b9ba65cc-2061-7031-229d-5f892034d870");
+  const [userID1, setUserID1] = useState("");
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
@@ -93,15 +105,62 @@ const ChatScreen = () => {
   const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
   const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
   const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
+  const [filePickerVisible, setFilePickerVisible] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<DeviceFile | null>(null);
+
   const { friendId, conversationId } = useLocalSearchParams();
 
-  // router.push({ pathname: '/ChatScreen', params: { userID2: '1234' } });
-  // const { userID2 } = useLocalSearchParams();
+  const { userID2, friendName } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const [token, setToken] = useState<string>("");
   const dateBefore = useRef<Date | null>()
+  // Lấy thông tin người dùng (dùng cho chat đôi)
+  const fetchUserInfo = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/user/${userID2}`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error("Không thể lấy thông tin người dùng");
+      }
+
+      const userData = await response.json();
+      setAnotherUser({
+        _id: friendId as string,
+        name: userData.name || friendId,
+        image:
+          userData.avatarUrl ||
+          "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      });
+    } catch (error: any) {
+      console.error("Lỗi khi lấy thông tin người dùng:", error.message);
+    }
+  };
+  useEffect(() => {
+    setNickname(friendName.toString())
+  }, [friendName])
+  useEffect(() => {
+    fetchUserInfo()
+  }, [userID2])
   // Lấy token khi mount
-  
+  useEffect(() => {
+    const getSub = async () => {
+      try {
+        const session = await Auth.currentSession();
+        const sub = session.getIdToken().decodePayload().sub;
+        setUserID1(sub)
+        return;
+      } catch (err) {
+        console.error("Lỗi lấy getSub:", err);
+        return ""
+      }
+    };
+    getSub();
+  }, []);
+
   useEffect(() => {
     const fetchToken = async () => {
       try {
@@ -126,41 +185,68 @@ const ChatScreen = () => {
 
       }).then(res => res.json())
         .then(data => {
-          setConversation(data)
+          updateConversation(data)
         })
     }
   }, [token])
+  const updateConversation = (data: Message[]) => {
+    console.log(data)
+    const sort = [...data].sort((a: Message, b: Message) => {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+    setConversation(sort)
+  };
+
   useEffect(() => {
-    let socketRef: any = null;
+    let socketRef: any;
     connectSocket().then(socket => {
       socketRef = socket;
-      socket.on("delete-message", (data: { messageId: string }) => {
-        setConversation(prev => prev.map(msg =>
-          msg.id === data.messageId
-            ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
-            : msg
-        ));
+
+      // Xử lý xóa
+      socket.on("delete-message", ({ messageId }: { messageId: string }) => {
+        setConversation(prev =>
+          prev
+            .map(msg =>
+              msg.id === messageId
+                ? { ...msg, status: "deleted" as Message["status"], message: "Tin nhắn đã bị xóa" }
+                : msg
+            )
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        );
       });
 
-      socket.on("recall-message", (data: { message: Message }) => {
-        setConversation(prev => prev.map(msg =>
-          msg.id === data.message.id
-            ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
-            : msg
-        ));
+      // Xử lý thu hồi
+      socket.on("recall-message", ({ message }: { message: Message }) => {
+        setConversation(prev =>
+          prev
+            .map(msg =>
+              msg.id === message.id
+                ? { ...msg, status: "recalled" as Message["status"], message: "Tin nhắn đã bị thu hồi" }
+                : msg
+            )
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        );
       });
-      socket.on("result", (data: { message: Message }) => {
-        setConversation(prev => [...prev, data.message]);
-      });
-      socket.on("private-message", (data: { message: Message }) => {
-        setConversation(prev => [...prev, data.message]);
-      });
+
+      // Tin nhắn mới (kết quả hoặc private)
+      const handleNew = ({ message }: { message: Message }) => {
+        setConversation(prev => {
+          const exists = prev.some(m => m.id === message.id);
+          const updated = exists ? prev : [...prev, message];
+          return updated.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        });
+      };
+
+      socket.on("result", handleNew);
+      socket.on("private-message", handleNew);
     });
 
     return () => {
       if (socketRef) {
         socketRef.off("delete-message");
         socketRef.off("recall-message");
+        socketRef.off("result");
+        socketRef.off("private-message");
       }
     };
   }, []);
@@ -300,7 +386,7 @@ const ChatScreen = () => {
   };
   // 1. Hàm upload chung
   async function uploadFilesToServer(
-    files: Array<{ uri: string | any; name: string; }>
+    files: Array<{ uri: string | File; name: string }>
   ) {
     const formData = new FormData();
     files.forEach((file) => {
@@ -308,15 +394,14 @@ const ChatScreen = () => {
         // Web: append trực tiếp File object
         formData.append("images", file.uri, file.name);
       } else {
-        // Mobile: append RN file object
+        // Mobile: sử dụng thông tin hợp lệ
         formData.append("images", {
           uri: file.uri,
-          name: file.filename,
+          name: file.name, // ✅ Đúng key
           type: "application/octet-stream",
         } as any);
       }
     });
-
 
     const res = await fetch(`${DOMAIN}:3000/api/message/files`, {
       method: "POST",
@@ -325,13 +410,16 @@ const ChatScreen = () => {
       },
       body: formData,
     });
+
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || "Upload failed");
     }
+
     const data = await res.json();
     return data.images;
   }
+
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -366,58 +454,13 @@ const ChatScreen = () => {
     }
   }, [showImagePicker]);
 
-  const handleMobileImageSelect = async (asset: MediaLibrary.Asset) => {
-    try {
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      getSocket().emit("private-message", {
-        receiverId: userID2,
-        message: {
-          data: base64,
-          filename: asset.filename || `IMG_${asset.id}.jpg`,
-          size: asset.width * asset.height,
-          type: 'image/jpeg'
-        },
-        messageType: "private",
-        contentType: "file",
-      });
-      setShowImagePicker(false);
-    } catch (error) {
-      console.error("Error selecting mobile image:", error);
-      Alert.alert("Error", "Failed to select image. Please try again.");
-    }
-  };
-
-  // Web file change
-  const onWebFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      getSocket().emit("private-message", {
-        receiverId: userID2,
-        message: {
-          data: base64,
-          filename: file.name,
-        },
-        messageType: "private",
-        contentType: "file",
-      });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
 
   const openImagePicker = () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
     } else {
-      setShowImagePicker((prev) => !prev);
-      setShowEmojiPicker(false);
-      setShowFilePicker(false);
+
+      setFilePickerVisible(true)
     }
   };
 
@@ -429,14 +472,32 @@ const ChatScreen = () => {
 
   const getDeviceFiles = async () => {
     try {
+      // Gọi DocumentPicker với option multiple: true (chỉ hỗ trợ nhiều file trên web)
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: true,
-        multiple: true,
+        multiple: true, // Trên iOS chỉ có thể chọn 1 file
       });
+      console.log("DocumentPicker result:", result);
 
-      if (result && result.assets) {
-        const files = result.assets;
+      let files: Array<{ name: string; size?: number; uri: string }> = [];
+
+      if (Platform.OS === "web") {
+        // Trên web, DocumentPicker trả về đối tượng có trường assets (mảng các file)
+        if (result && (result as any).assets) {
+          files = (result as any).assets;
+        }
+      } else {
+        // Trên mobile (iOS/Android), kiểm tra xem người dùng đã chọn file thành công chưa
+        if (result.type === 'success') {
+          files = [result]; // Chỉ có 1 file được chọn
+        } else if (result.type === 'cancel') {
+          console.log("Người dùng hủy bỏ việc chọn file.");
+          return; // Không thực hiện gì nếu hủy
+        }
+      }
+
+      if (files.length > 0) {
         const fileDetails = await Promise.all(
           files.map(async (file) => {
             try {
@@ -451,41 +512,78 @@ const ChatScreen = () => {
               }
               return null;
             } catch (error) {
-              console.error('Error getting file info:', error);
+              console.error('Lỗi khi lấy thông tin file:', error);
               return null;
             }
           })
         );
-        setDeviceFiles(fileDetails.filter((f): f is DeviceFile => f !== null));
+
+        const validFiles = fileDetails.filter((f): f is DeviceFile => f !== null);
+        if (validFiles.length > 0) {
+          setDeviceFiles(validFiles);
+          console.log("Danh sách file được chọn:", validFiles);
+        } else {
+          Alert.alert("Error", "Không thể lấy thông tin file hợp lệ.");
+        }
       }
     } catch (error) {
-      console.error('Error selecting files:', error);
-      Alert.alert("Error", "Could not access files. Please try again.");
+      console.error('Lỗi khi chọn file:', error);
+      Alert.alert("Error", "Không thể truy cập file. Vui lòng thử lại.");
     }
   };
+  const uriToBlob = async (uri: string): Promise<Blob> => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return blob;
+  };
+  // Hàm upload
+  const handleFileSelected = async (files: DeviceFile[]) => {
+    console.log(files)
+    if (files.length === 0) return;
 
-  const openFile = async (fileUri: string) => {
     try {
-      if (Platform.OS === 'web') {
-        window.open(fileUri, '_blank');
-        return;
-      }
-
-      const downloadResumable = FileSystem.createDownloadResumable(
-        fileUri,
-        FileSystem.documentDirectory + 'tempfile'
+      const uploadFiles = await Promise.all(
+        files.map(async (file) => {
+          const blob = await uriToBlob(file.uri);
+          return {
+            uri: file.uri, // optional
+            name: file.name,
+            type: blob.type || "application/octet-stream",
+            blob: blob,
+          };
+        })
       );
 
-      const downloadResult = await downloadResumable.downloadAsync();
-      if (downloadResult) {
-        const contentUri = await FileSystem.getContentUriAsync(downloadResult.uri);
-        console.log('File ready to open:', contentUri);
-      }
-    } catch (error) {
-      console.error('Error opening file:', error);
-      Alert.alert("Error", "Could not open file. Please try again.");
+
+      const urls = await uploadFilesToServer(uploadFiles); // custom logic
+
+
+      urls.forEach((item: any) => {
+        getSocket().emit("private-message", {
+          receiverId: userID2,
+          message: { data: item.url, filename: item.filename },
+          messageType: "private",
+          contentType: "file",
+        });
+      });
+    } catch (error: any) {
+      console.error("Lỗi upload file:", error);
+      Alert.alert("Upload thất bại", error.message);
     }
   };
+
+
+  const handleEmojiSelectMobile = (emoji: EmojiType) => {
+    // dùng emoji.emoji để nối vào message
+    setMessage(m => {
+      if (m) {
+        return m + emoji.emoji
+      }
+      return emoji.emoji
+    });
+    setShowEmojiPicker(false);
+  };
+
   // 3. Web: chọn nhiều file qua input[type="file"]
   const onWebFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -535,7 +633,7 @@ const ChatScreen = () => {
           <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {anotherUser?.name || "Chat"}
+          {nickname || anotherUser?.name || "Chat"}
         </Text>
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
@@ -584,8 +682,8 @@ const ChatScreen = () => {
             showDate = true;
             stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
           }
-          const isDeleted = item.status === "delete";
-          const isRecalled = item.status === "recall";
+          const isDeleted = item.status === "deleted";
+          const isRecalled = item.status === "recalled";
           const isFile = item.contentType === "file";
           const isText = item.contentType === "text";
           const messageTime = format(new Date(item.createdAt), "HH:mm");
@@ -685,8 +783,8 @@ const ChatScreen = () => {
         contentContainerStyle={styles.messagesContainer}
       />
 
-      {/* Emoji Picker */}
-      {showEmojiPicker && (
+
+      {showEmojiPicker && Platform.OS === "web" && (
         <View
           style={[
             styles.emojiPickerContainer,
@@ -707,6 +805,15 @@ const ChatScreen = () => {
             theme={emojiPickerTheme}
           />
         </View>
+      )}
+
+      {showEmojiPicker && Platform.OS !== "web" && (
+        <EmojiPickerMobile
+          open={showEmojiPicker}
+          onEmojiSelected={handleEmojiSelectMobile}
+          onClose={() => setShowEmojiPicker(false)}
+        // you can customize height, columns, etc.
+        />
       )}
 
       {/* Image Picker (Mobile) */}
@@ -802,101 +909,21 @@ const ChatScreen = () => {
         onClose={closeSettings}
         slideAnim={slideAnim}
         colorScheme={colorScheme || null}
-        targetUserId={friendId as string}
+        targetUserId={userID2 as string}
         onRename={handleRename}
-        currentUserId={currentUserId || ""}
+        currentUserId={userID1 || ""}
         isGroupChat={isGroupChat}
         conversationId={conversationId as string}
+        friendName={nickname || friendName.toString()}
       />
-      {/* Settings Panel */}
-      <Modal visible={settingsVisible} transparent animationType="none">
-        <View style={styles.settingsModalBackground}>
-          <Animated.View
-            style={[
-              styles.settingsPanel,
-              {
-                transform: [{ translateX: slideAnim }],
-                backgroundColor: theme.colors.card,
-              },
-            ]}
-          >
-            <View style={styles.settingsHeader}>
-              <TouchableOpacity onPress={closeSettings}>
-                <FontAwesome name="arrow-left" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>Settings</Text>
-            </View>
-            <View style={styles.userInfo}>
-              <FontAwesome name="user-circle" size={60} color={theme.colors.text} />
-              <Text style={[styles.userName, { color: theme.colors.text }]}>User Name</Text>
-            </View>
-            <View style={styles.settingsOptions}>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="pencil" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Change Nickname</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="image" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Media, Files & Links</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="search" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Search Messages</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="bell" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Mute Notifications</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="user-plus" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Create Group</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="users" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Add to Group</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="group" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>View Common Groups</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.settingsItem]}>
-                <FontAwesome name="trash" size={20} color={theme.colors.text} />
-                <Text style={[styles.settingsText, { color: theme.colors.text }]}>Clear Chat History</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
 
-      {/* Options Modal */}
-      <Modal visible={optionsVisible} transparent animationType="fade">
-        <View style={styles.modalBackground}>
-          <View style={[styles.optionsContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={handleFileOptionPress}
-            >
-              <FontAwesome name="file" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>File</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Cloud")}>
-              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Cloud</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionItem} onPress={() => alert("Remind")}>
-              <FontAwesome name="bell" size={20} color={theme.colors.text} />
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Remind</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
-              onPress={closeOptions}
-            >
-              <Text style={[styles.optionText, { color: theme.colors.text }]}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
+      {/* Modal chọn nguồn file */}
+      <FilePickerModal
+        visible={filePickerVisible}
+        onClose={() => setFilePickerVisible(false)}
+        onFileSelected={handleFileSelected}
+      />
       {/* Input */}
       <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
         <TouchableOpacity onPress={toggleEmojiPicker} style={styles.iconSpacing}>
@@ -915,9 +942,6 @@ const ChatScreen = () => {
         />
         {message.trim() === "" ? (
           <>
-            <TouchableOpacity onPress={showOptions} style={styles.iconSpacing}>
-              <FontAwesome name="ellipsis-v" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
               <FontAwesome name="microphone" size={24} color={theme.colors.text} />
             </TouchableOpacity>
