@@ -90,7 +90,7 @@ const HomeScreen = () => {
             friend.senderId === currentUserId
               ? friend.senderAVT
               : userInfo.avatar ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
@@ -156,8 +156,8 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-        ? "Emoji"
-        : "File";
+          ? "Emoji"
+          : item.lastMessage?.contentType === "file" ? "File" : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (

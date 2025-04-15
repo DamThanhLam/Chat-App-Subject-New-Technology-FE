@@ -42,6 +42,7 @@ interface FileMessageProps {
       text: string;
     };
   };
+  onLongPress: any;
 }
 
 // Helpers
@@ -49,7 +50,7 @@ const isImage = (filename: string) => /\.(jpeg|jpg|gif|png)$/i.test(filename);
 const isVideo = (filename: string) => /\.(mp4|mov|avi)$/i.test(filename);
 const isDocument = (filename: string) => /\.(pdf|docx|xlsx|pptx)$/i.test(filename);
 
-const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme }) => {
+const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPress }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [viewingVideo, setViewingVideo] = useState(false);
   const file = item.message;
@@ -88,7 +89,7 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme }) => {
 
   return (
     <>
-      <TouchableOpacity style={styles.fileContainer} onPress={handlePress}>
+      <TouchableOpacity style={styles.fileContainer} onPress={handlePress} onLongPress={onLongPress}>
         {isImage(file.filename) ? (
           <Image source={{ uri: file.data }} style={styles.imagePreview} resizeMode="cover" />
         ) : isVideo(file.filename) ? (
