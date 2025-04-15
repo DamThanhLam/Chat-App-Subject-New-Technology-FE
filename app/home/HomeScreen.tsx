@@ -68,7 +68,7 @@ const HomeScreen = () => {
         map[user.friendId] = user;
         return map;
       }, {});
-      console.log(usersResponse)
+      console.log(usersResponse);
 
       // Bước 3: Lấy tin nhắn cuối cho từng người bạn
       for (const friend of acceptedFriends) {
@@ -114,7 +114,8 @@ const HomeScreen = () => {
     currentUserId: string
   ) => {
     if (
-      !conversation.lastMessage ||!conversation.lastMessage.readed||
+      !conversation.lastMessage ||
+      !conversation.lastMessage.readed ||
       conversation.lastMessage.readed.includes(currentUserId)
     ) {
       return 0;
@@ -168,7 +169,7 @@ const HomeScreen = () => {
             params: {
               // conversationId: item.lastMessage?.conversationId || "",
               userID2: item.friendId,
-              friendName: item.displayName
+              friendName: item.displayName,
             },
           });
         }}

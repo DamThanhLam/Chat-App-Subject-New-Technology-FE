@@ -1,4 +1,11 @@
-import React, { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import EmojiPickerMobile from "rn-emoji-keyboard";
 import {
   View,
@@ -27,8 +34,8 @@ import { connectSocket, getSocket } from "@/src/socket/socket";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { format } from "date-fns";
 import { DOMAIN } from "@/src/configs/base_url";
 import { Auth } from "aws-amplify";
@@ -86,7 +93,10 @@ const ChatScreen = () => {
   const [userID1, setUserID1] = useState("");
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState<{ id: string; message: string } | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -99,12 +109,18 @@ const ChatScreen = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useColorScheme();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList>(null); // Ref để cuộn FlatList
   const [anotherUser, setAnotherUser] = useState<User | null>(null);
   const [nickname, setNickname] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null); // Tên nhóm
   const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
-  const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
-  const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
+  const theme = useMemo(
+    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
+    [colorScheme]
+  );
+  const [tempSelectedImages, setTempSelectedImages] = useState<
+    MediaLibrary.Asset[]
+  >([]);
   const [filePickerVisible, setFilePickerVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<DeviceFile | null>(null);
 
@@ -113,7 +129,8 @@ const ChatScreen = () => {
   const { userID2, friendName } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const [token, setToken] = useState<string>("");
-  const dateBefore = useRef<Date | null>()
+  const dateBefore = useRef<Date | null>();
+
   // Lấy thông tin người dùng (dùng cho chat đôi)
   const fetchUserInfo = async () => {
     try {
@@ -140,22 +157,22 @@ const ChatScreen = () => {
     }
   };
   useEffect(() => {
-    setNickname(friendName.toString())
-  }, [friendName])
+    setNickname(friendName.toString());
+  }, [friendName]);
   useEffect(() => {
-    fetchUserInfo()
-  }, [userID2])
+    fetchUserInfo();
+  }, [userID2]);
   // Lấy token khi mount
   useEffect(() => {
     const getSub = async () => {
       try {
         const session = await Auth.currentSession();
         const sub = session.getIdToken().decodePayload().sub;
-        setUserID1(sub)
+        setUserID1(sub);
         return;
       } catch (err) {
         console.error("Lỗi lấy getSub:", err);
-        return ""
+        return "";
       }
     };
     getSub();
@@ -182,58 +199,77 @@ const ChatScreen = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-
-      }).then(res => res.json())
-        .then(data => {
-          updateConversation(data)
-        })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          updateConversation(data);
+        });
     }
-  }, [token])
+  }, [token]);
   const updateConversation = (data: Message[]) => {
-    console.log(data)
+    console.log(data);
     const sort = [...data].sort((a: Message, b: Message) => {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-    setConversation(sort)
+    setConversation(sort);
   };
 
   useEffect(() => {
     let socketRef: any;
-    connectSocket().then(socket => {
+    connectSocket().then((socket) => {
       socketRef = socket;
 
       // Xử lý xóa
       socket.on("delete-message", ({ messageId }: { messageId: string }) => {
-        setConversation(prev =>
+        setConversation((prev) =>
           prev
-            .map(msg =>
+            .map((msg) =>
               msg.id === messageId
-                ? { ...msg, status: "deleted" as Message["status"], message: "Tin nhắn đã bị xóa" }
+                ? {
+                    ...msg,
+                    status: "deleted" as Message["status"],
+                    message: "Tin nhắn đã bị xóa",
+                  }
                 : msg
             )
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            .sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime()
+            )
         );
       });
 
       // Xử lý thu hồi
       socket.on("recall-message", ({ message }: { message: Message }) => {
-        setConversation(prev =>
+        setConversation((prev) =>
           prev
-            .map(msg =>
+            .map((msg) =>
               msg.id === message.id
-                ? { ...msg, status: "recalled" as Message["status"], message: "Tin nhắn đã bị thu hồi" }
+                ? {
+                    ...msg,
+                    status: "recalled" as Message["status"],
+                    message: "Tin nhắn đã bị thu hồi",
+                  }
                 : msg
             )
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            .sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime()
+            )
         );
       });
 
       // Tin nhắn mới (kết quả hoặc private)
       const handleNew = ({ message }: { message: Message }) => {
-        setConversation(prev => {
-          const exists = prev.some(m => m.id === message.id);
+        setConversation((prev) => {
+          const exists = prev.some((m) => m.id === message.id);
           const updated = exists ? prev : [...prev, message];
-          return updated.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          return updated.sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
         });
       };
 
@@ -254,11 +290,13 @@ const ChatScreen = () => {
   const handleDeleteMessage = useCallback(async (messageId: string) => {
     try {
       getSocket().emit("delete-message", messageId);
-      setConversation(prev => prev.map(msg =>
-        msg.id === messageId
-          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
-          : msg
-      ));
+      setConversation((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
+            : msg
+        )
+      );
       setMenuVisible(false);
     } catch (error) {
       console.error("Error deleting message:", error);
@@ -269,11 +307,13 @@ const ChatScreen = () => {
   const handleRecallMessage = useCallback(async (messageId: string) => {
     try {
       getSocket().emit("recall-message", messageId);
-      setConversation(prev => prev.map(msg =>
-        msg.id === messageId
-          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
-          : msg
-      ));
+      setConversation((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
+            : msg
+        )
+      );
       setMenuVisible(false);
     } catch (error) {
       console.error("Error recalling message:", error);
@@ -295,10 +335,10 @@ const ChatScreen = () => {
 
   // 2. Khi người dùng nhấn vào 1 ảnh thì toggle chọn / bỏ chọn
   const toggleSelectImage = (asset: MediaLibrary.Asset) => {
-    setTempSelectedImages(prev => {
-      const exists = prev.find(a => a.id === asset.id);
+    setTempSelectedImages((prev) => {
+      const exists = prev.find((a) => a.id === asset.id);
       if (exists) {
-        return prev.filter(a => a.id !== asset.id);
+        return prev.filter((a) => a.id !== asset.id);
       } else {
         return [...prev, asset];
       }
@@ -324,7 +364,11 @@ const ChatScreen = () => {
 
   const openSettings = useCallback(() => {
     if (settingsVisible || menuVisible || optionsVisible) {
-      console.log("Cannot open settings: another modal is visible", { settingsVisible, menuVisible, optionsVisible });
+      console.log("Cannot open settings: another modal is visible", {
+        settingsVisible,
+        menuVisible,
+        optionsVisible,
+      });
       return;
     }
 
@@ -339,6 +383,7 @@ const ChatScreen = () => {
   }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
 
   const closeSettings = useCallback(() => {
+    console.log("Closing SettingsPanel");
     setSettingsVisible(false);
     Animated.timing(slideAnim, {
       toValue: SCREEN_WIDTH,
@@ -351,7 +396,8 @@ const ChatScreen = () => {
     if (item.status === "delete" || item.status === "recall") return;
     setSelectedMessage({
       id: item.id,
-      message: typeof item.message === "string" ? item.message : "[File message]",
+      message:
+        typeof item.message === "string" ? item.message : "[File message]",
     });
     setMenuVisible(true);
   };
@@ -360,10 +406,12 @@ const ChatScreen = () => {
     setNickname(newName); // Cập nhật nickname khi tên gợi nhớ được thay đổi
   };
   // 2. Mobile: chọn nhiều ảnh rồi upload
-  const handleMobileMultiImageSelect = async (selectedAssets: MediaLibrary.Asset[]) => {
+  const handleMobileMultiImageSelect = async (
+    selectedAssets: MediaLibrary.Asset[]
+  ) => {
     try {
       // map sang định dạng cần thiết
-      const files = selectedAssets.map(asset => ({
+      const files = selectedAssets.map((asset) => ({
         uri: asset.uri,
         name: asset.filename,
       }));
@@ -420,7 +468,6 @@ const ChatScreen = () => {
     return data.images;
   }
 
-
   const closeMenu = () => {
     setMenuVisible(false);
     setSelectedMessage(null);
@@ -454,13 +501,11 @@ const ChatScreen = () => {
     }
   }, [showImagePicker]);
 
-
   const openImagePicker = () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
     } else {
-
-      setFilePickerVisible(true)
+      setFilePickerVisible(true);
     }
   };
 
@@ -474,7 +519,7 @@ const ChatScreen = () => {
     try {
       // Gọi DocumentPicker với option multiple: true (chỉ hỗ trợ nhiều file trên web)
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: "*/*",
         copyToCacheDirectory: true,
         multiple: true, // Trên iOS chỉ có thể chọn 1 file
       });
@@ -489,9 +534,9 @@ const ChatScreen = () => {
         }
       } else {
         // Trên mobile (iOS/Android), kiểm tra xem người dùng đã chọn file thành công chưa
-        if (result.type === 'success') {
+        if (result.type === "success") {
           files = [result]; // Chỉ có 1 file được chọn
-        } else if (result.type === 'cancel') {
+        } else if (result.type === "cancel") {
           console.log("Người dùng hủy bỏ việc chọn file.");
           return; // Không thực hiện gì nếu hủy
         }
@@ -504,7 +549,7 @@ const ChatScreen = () => {
               const fileInfo = await FileSystem.getInfoAsync(file.uri);
               if (fileInfo.exists) {
                 return {
-                  name: file.name || 'Unknown',
+                  name: file.name || "Unknown",
                   size: file.size || 0,
                   uri: file.uri,
                   lastModified: fileInfo.modificationTime || Date.now(),
@@ -512,13 +557,15 @@ const ChatScreen = () => {
               }
               return null;
             } catch (error) {
-              console.error('Lỗi khi lấy thông tin file:', error);
+              console.error("Lỗi khi lấy thông tin file:", error);
               return null;
             }
           })
         );
 
-        const validFiles = fileDetails.filter((f): f is DeviceFile => f !== null);
+        const validFiles = fileDetails.filter(
+          (f): f is DeviceFile => f !== null
+        );
         if (validFiles.length > 0) {
           setDeviceFiles(validFiles);
           console.log("Danh sách file được chọn:", validFiles);
@@ -527,7 +574,7 @@ const ChatScreen = () => {
         }
       }
     } catch (error) {
-      console.error('Lỗi khi chọn file:', error);
+      console.error("Lỗi khi chọn file:", error);
       Alert.alert("Error", "Không thể truy cập file. Vui lòng thử lại.");
     }
   };
@@ -538,7 +585,7 @@ const ChatScreen = () => {
   };
   // Hàm upload
   const handleFileSelected = async (files: DeviceFile[]) => {
-    console.log(files)
+    console.log(files);
     if (files.length === 0) return;
 
     try {
@@ -554,9 +601,7 @@ const ChatScreen = () => {
         })
       );
 
-
       const urls = await uploadFilesToServer(uploadFiles); // custom logic
-
 
       urls.forEach((item: any) => {
         getSocket().emit("private-message", {
@@ -572,14 +617,13 @@ const ChatScreen = () => {
     }
   };
 
-
   const handleEmojiSelectMobile = (emoji: EmojiType) => {
     // dùng emoji.emoji để nối vào message
-    setMessage(m => {
+    setMessage((m) => {
       if (m) {
-        return m + emoji.emoji
+        return m + emoji.emoji;
       }
-      return emoji.emoji
+      return emoji.emoji;
     });
     setShowEmojiPicker(false);
   };
@@ -590,7 +634,7 @@ const ChatScreen = () => {
     if (files.length === 0) return;
     try {
       // map sang định dạng cho upload
-      const uploadFiles = files.map(f => ({
+      const uploadFiles = files.map((f) => ({
         uri: f,
         name: f.name,
       }));
@@ -611,11 +655,33 @@ const ChatScreen = () => {
     }
   };
 
+  const emojiPickerTheme: Theme =
+    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
 
-  const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
+  // Xử lý khi nhận messageId từ SettingsPanel
+  const handleMessageSelect = (messageId: string) => {
+    console.log("Selected messageId:", messageId);
+
+    const index = conversation.findIndex((msg) => msg.id === messageId);
+    console.log("flatListRef:", flatListRef.current);
+
+    if (index !== -1 && flatListRef.current) {
+      // Cuộn đến tin nhắn với messageId
+      flatListRef.current.scrollToIndex({
+        index: index, // Vì FlatList đảo ngược (inverted)
+        animated: true,
+        viewPosition: 0.5, // Cuộn để tin nhắn nằm ở giữa màn hình
+      });
+    } else {
+      console.warn("Message not found:", messageId);
+      Alert.alert("Thông báo", "Không tìm thấy tin nhắn trong đoạn chat.");
+    }
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       {/* Hidden web file input */}
       {Platform.OS === "web" && (
         <input
@@ -628,19 +694,38 @@ const ChatScreen = () => {
       )}
 
       {/* Header */}
-      <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.customHeader,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()}>
-          <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
+          <FontAwesome
+            name="arrow-left"
+            size={24}
+            color={theme.colors.primary}
+          />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           {nickname || anotherUser?.name || "Chat"}
         </Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => alert("Call")} style={styles.iconSpacing}>
+          <TouchableOpacity
+            onPress={() => alert("Call")}
+            style={styles.iconSpacing}
+          >
             <FontAwesome name="phone" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => alert("Video")} style={styles.iconSpacing}>
-            <FontAwesome name="video-camera" size={24} color={theme.colors.primary} />
+          <TouchableOpacity
+            onPress={() => alert("Video")}
+            style={styles.iconSpacing}
+          >
+            <FontAwesome
+              name="video-camera"
+              size={24}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
           <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
             <FontAwesome name="list" size={24} color={theme.colors.primary} />
@@ -651,10 +736,11 @@ const ChatScreen = () => {
       {/* Messages */}
       <FlatList
         data={conversation}
+        ref={flatListRef}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
           let showDate = false;
-          let stringDate = ""
+          let stringDate = "";
           let createdAt = new Date(item.createdAt);
           const vietnamTime = createdAt.toLocaleString("vi-VN", {
             timeZone: "Asia/Ho_Chi_Minh",
@@ -665,22 +751,32 @@ const ChatScreen = () => {
 
           // Chuyển đổi lại chuỗi ngày thành đối tượng Date hợp lệ sau khi định dạng
           let dateParts = vietnamTime.split("/"); // Chia ngày, tháng, năm
-          const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`); // Tạo đối tượng Date hợp lệ
-
+          const formattedDate = new Date(
+            `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
+          ); // Tạo đối tượng Date hợp lệ
 
           if (!dateBefore.current) {
             showDate = true;
-            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+            stringDate =
+              formattedDate.getFullYear() +
+              "/" +
+              (formattedDate.getMonth() + 1) +
+              "/" +
+              formattedDate.getDate();
           }
-          if (dateBefore.current &&
-            (
-              dateBefore.current.getDate() != createdAt.getDate() ||
+          if (
+            dateBefore.current &&
+            (dateBefore.current.getDate() != createdAt.getDate() ||
               dateBefore.current.getMonth() != createdAt.getMonth() ||
-              dateBefore.current.getFullYear() != createdAt.getFullYear()
-            )
+              dateBefore.current.getFullYear() != createdAt.getFullYear())
           ) {
             showDate = true;
-            stringDate = formattedDate.getFullYear() + "/" + (formattedDate.getMonth() + 1) + "/" + formattedDate.getDate();
+            stringDate =
+              formattedDate.getFullYear() +
+              "/" +
+              (formattedDate.getMonth() + 1) +
+              "/" +
+              formattedDate.getDate();
           }
           const isDeleted = item.status === "deleted";
           const isRecalled = item.status === "recalled";
@@ -691,15 +787,21 @@ const ChatScreen = () => {
           dateBefore.current = createdAt;
           return (
             <>
-              {showDate && <Text style={{ color: theme.colors.text, textAlign: 'center' }}>{stringDate}</Text>}
+              {showDate && (
+                <Text style={{ color: theme.colors.text, textAlign: "center" }}>
+                  {stringDate}
+                </Text>
+              )}
               <TouchableOpacity
-                onLongPress={() => !isDeleted && !isRecalled && handleLongPress(item)}
+                onLongPress={() =>
+                  !isDeleted && !isRecalled && handleLongPress(item)
+                }
                 style={[
                   styles.messageContainer,
                   item.senderId === userID1
                     ? styles.sentMessageContainer
                     : styles.receivedMessageContainer,
-                  (isDeleted || isRecalled) && styles.recalledMessageContainer
+                  (isDeleted || isRecalled) && styles.recalledMessageContainer,
                 ]}
               >
                 {/* Avatar for received messages */}
@@ -721,32 +823,45 @@ const ChatScreen = () => {
                           : theme.colors.card,
                       marginLeft: item.senderId !== userID1 ? 8 : 0,
                       marginRight: item.senderId === userID1 ? 8 : 0,
-                      opacity: isDeleted || isRecalled ? 0.7 : 1
+                      opacity: isDeleted || isRecalled ? 0.7 : 1,
                     },
                   ]}
                 >
                   {/* Render recalled/deleted message */}
-                  {(isDeleted || isRecalled) ? (
+                  {isDeleted || isRecalled ? (
                     <Text
                       style={[
                         styles.recalledMessageText,
                         {
-                          color: item.senderId === userID1 ? "#fff" : theme.colors.text,
-                          fontStyle: "italic"
-                        }
+                          color:
+                            item.senderId === userID1
+                              ? "#fff"
+                              : theme.colors.text,
+                          fontStyle: "italic",
+                        },
                       ]}
                     >
-                      {typeof item.message === "string" ? item.message : "Tin nhắn đã bị thu hồi"}
+                      {typeof item.message === "string"
+                        ? item.message
+                        : "Tin nhắn đã bị thu hồi"}
                     </Text>
                   ) : isFile ? (
-                    <FileMessage item={item} theme={theme} userID1={userID1} key={item.id} />
+                    <FileMessage
+                      item={item}
+                      theme={theme}
+                      userID1={userID1}
+                      key={item.id}
+                    />
                   ) : (
                     <Text
                       style={[
                         styles.messageText,
                         {
-                          color: item.senderId === userID1 ? "#fff" : theme.colors.text
-                        }
+                          color:
+                            item.senderId === userID1
+                              ? "#fff"
+                              : theme.colors.text,
+                        },
                       ]}
                     >
                       {typeof item.message === "string" ? item.message : ""}
@@ -757,9 +872,13 @@ const ChatScreen = () => {
                     style={[
                       styles.messageTime,
                       {
-                        color: item.senderId === userID1 ? "#fff" : theme.colors.text,
-                        alignSelf: item.senderId === userID1 ? "flex-end" : "flex-start",
-                      }
+                        color:
+                          item.senderId === userID1
+                            ? "#fff"
+                            : theme.colors.text,
+                        alignSelf:
+                          item.senderId === userID1 ? "flex-end" : "flex-start",
+                      },
                     ]}
                   >
                     {messageTime}
@@ -767,7 +886,9 @@ const ChatScreen = () => {
                       <FontAwesome
                         name={isDeleted ? "trash" : "undo"}
                         size={12}
-                        color={item.senderId === userID1 ? "#fff" : theme.colors.text}
+                        color={
+                          item.senderId === userID1 ? "#fff" : theme.colors.text
+                        }
                         style={{ marginLeft: 5 }}
                       />
                     )}
@@ -775,14 +896,24 @@ const ChatScreen = () => {
                 </View>
 
                 {/* Empty view to balance avatar space for sent messages */}
-                {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
+                {item.senderId === userID1 && (
+                  <View style={styles.avatarPlaceholder} />
+                )}
               </TouchableOpacity>
             </>
           );
         }}
         contentContainerStyle={styles.messagesContainer}
+        // inverted // Tin nhắn mới nhất ở dưới cùng
+        onScrollToIndexFailed={(info) => {
+          console.warn("Failed to scroll to index:", info);
+          // Cuộn gần đúng vị trí nếu scrollToIndex thất bại
+          flatListRef.current?.scrollToOffset({
+            offset: info.highestMeasuredFrameIndex,
+            animated: true,
+          });
+        }}
       />
-
 
       {showEmojiPicker && Platform.OS === "web" && (
         <View
@@ -812,19 +943,31 @@ const ChatScreen = () => {
           open={showEmojiPicker}
           onEmojiSelected={handleEmojiSelectMobile}
           onClose={() => setShowEmojiPicker(false)}
-        // you can customize height, columns, etc.
+          // you can customize height, columns, etc.
         />
       )}
 
       {/* Image Picker (Mobile) */}
       {showImagePicker && Platform.OS !== "web" && (
-        <View style={[styles.imagePickerContainer, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.imagePickerContainer,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
           {/* Header như cũ */}
           <View style={styles.imagePickerHeader}>
-            <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>
+            <Text
+              style={[styles.imagePickerTitle, { color: theme.colors.text }]}
+            >
               Select Images ({tempSelectedImages.length})
             </Text>
-            <TouchableOpacity onPress={() => { setShowImagePicker(false); setTempSelectedImages([]); }}>
+            <TouchableOpacity
+              onPress={() => {
+                setShowImagePicker(false);
+                setTempSelectedImages([]);
+              }}
+            >
               <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
@@ -835,70 +978,120 @@ const ChatScreen = () => {
             numColumns={3}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => {
-              const selected = !!tempSelectedImages.find(a => a.id === item.id);
+              const selected = !!tempSelectedImages.find(
+                (a) => a.id === item.id
+              );
               return (
                 <TouchableOpacity
                   onPress={() => toggleSelectImage(item)}
                   style={[
                     styles.imageItem,
-                    selected && { borderWidth: 2, borderColor: theme.colors.primary }
+                    selected && {
+                      borderWidth: 2,
+                      borderColor: theme.colors.primary,
+                    },
                   ]}
                 >
-                  <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.imageThumbnail}
+                  />
                 </TouchableOpacity>
               );
             }}
           />
 
           {/* Nút Gửi */}
-          <View style={{ padding: 10, borderTopWidth: 1, borderColor: theme.colors.border }}>
-            <Button disabled={tempSelectedImages.length === 0} onPress={sendSelectedImages}>
+          <View
+            style={{
+              padding: 10,
+              borderTopWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <Button
+              disabled={tempSelectedImages.length === 0}
+              onPress={sendSelectedImages}
+            >
               Gửi {tempSelectedImages.length} ảnh
             </Button>
           </View>
         </View>
       )}
 
-
       {/* Message Options Menu */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
+          <View
+            style={[
+              styles.menuContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Reply")}
+            >
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Reply
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Forward")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Forward")}
+            >
               <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Forward</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Forward
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Copy")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Copy")}
+            >
               <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Copy</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Copy
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Save to Cloud")}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => alert("Save to Cloud")}
+            >
               <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Cloud</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Cloud
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "red" }]}
-              onPress={() => selectedMessage && handleDeleteMessage(selectedMessage.id)}
+              onPress={() =>
+                selectedMessage && handleDeleteMessage(selectedMessage.id)
+              }
             >
               <FontAwesome name="trash" size={20} color="#fff" />
               <Text style={styles.menuText}>Remove</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { backgroundColor: "orange" }]}
-              onPress={() => selectedMessage && handleRecallMessage(selectedMessage.id)}
+              onPress={() =>
+                selectedMessage && handleRecallMessage(selectedMessage.id)
+              }
             >
               <FontAwesome name="undo" size={20} color="#fff" />
               <Text style={styles.menuText}>Recall</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.colors.border }]}
+              style={[
+                styles.closeButton,
+                { backgroundColor: theme.colors.border },
+              ]}
               onPress={closeMenu}
             >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>Close</Text>
+              <Text style={[styles.menuText, { color: theme.colors.text }]}>
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -915,8 +1108,8 @@ const ChatScreen = () => {
         isGroupChat={isGroupChat}
         conversationId={conversationId as string}
         friendName={nickname || friendName.toString()}
+        onMessageSelect={handleMessageSelect}
       />
-
 
       {/* Modal chọn nguồn file */}
       <FilePickerModal
@@ -925,8 +1118,13 @@ const ChatScreen = () => {
         onFileSelected={handleFileSelected}
       />
       {/* Input */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
-        <TouchableOpacity onPress={toggleEmojiPicker} style={styles.iconSpacing}>
+      <View
+        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
+      >
+        <TouchableOpacity
+          onPress={toggleEmojiPicker}
+          style={styles.iconSpacing}
+        >
           <FontAwesome
             name="smile-o"
             size={24}
@@ -934,7 +1132,13 @@ const ChatScreen = () => {
           />
         </TouchableOpacity>
         <TextInput
-          style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.background,
+              color: theme.colors.text,
+            },
+          ]}
           value={message}
           onChangeText={setMessage}
           placeholder="Type a message..."
@@ -942,14 +1146,26 @@ const ChatScreen = () => {
         />
         {message.trim() === "" ? (
           <>
-            <TouchableOpacity onPress={() => alert("Record")} style={styles.iconSpacing}>
-              <FontAwesome name="microphone" size={24} color={theme.colors.text} />
+            <TouchableOpacity
+              onPress={() => alert("Record")}
+              style={styles.iconSpacing}
+            >
+              <FontAwesome
+                name="microphone"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={openImagePicker} style={styles.iconSpacing}>
+            <TouchableOpacity
+              onPress={openImagePicker}
+              style={styles.iconSpacing}
+            >
               <FontAwesome
                 name="image"
                 size={24}
-                color={showImagePicker ? theme.colors.primary : theme.colors.text}
+                color={
+                  showImagePicker ? theme.colors.primary : theme.colors.text
+                }
               />
             </TouchableOpacity>
           </>
@@ -978,14 +1194,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 5 : 30,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    textAlign: 'left',
+    textAlign: "left",
     flex: 1,
-    paddingLeft: 15
+    paddingLeft: 15,
   },
   headerIcons: {
     flexDirection: "row",
@@ -1035,7 +1251,7 @@ const styles = StyleSheet.create({
   },
   recalledMessageText: {
     fontSize: 16,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   messageTime: {
     fontSize: 11,
@@ -1172,21 +1388,21 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   settingsText: {
     fontSize: 16,
     marginLeft: 15,
   },
   emojiPickerContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 0,
     right: 0,
     zIndex: 1000,
   },
   imagePickerContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 0,
     right: 0,
@@ -1194,16 +1410,16 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   imagePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: "#ccc",
   },
   imagePickerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   imageItem: {
     flex: 1,
@@ -1211,8 +1427,8 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   imageThumbnail: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 5,
   },
 });
