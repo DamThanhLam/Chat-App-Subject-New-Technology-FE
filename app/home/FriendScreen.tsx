@@ -61,7 +61,9 @@ const FriendScreen = () => {
     const fetchFriends = async () => {
       try {
         const res = await fetch(DOMAIN+`:3000/api/friends/get-friends/${user.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          method: "GET",
+          headers: { 
+            Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         const rawFriends = data.friends || [];
@@ -73,6 +75,7 @@ const FriendScreen = () => {
             const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
             try {
               const userRes = await fetch(DOMAIN+`:3000/api/user/${otherUserId}`, {
+                method: "GET",
                 headers: { Authorization: `Bearer ${token}` },
               });
               const userData = await userRes.json();
@@ -124,28 +127,47 @@ const FriendScreen = () => {
   const handleSearchByEmail = async () => {
     setSearching(true);
     setSearchResult(null);
-    setIsAlreadyFriend(false);
+    setIsAlreadyFriend(true);
+    setFriendRequestSent(false);
+  
     try {
-      const res = await fetch(DOMAIN+`:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
+      // Gọi API tìm kiếm user theo email
+      const res = await fetch(DOMAIN + `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
+  
+      if (!res.ok) throw new Error("Không thể tìm kiếm người dùng.");
+  
       const data = await res.json();
-
+  
       if (data?.users && data.users.length > 0) {
         const foundUser = data.users[0];
         setSearchResult(foundUser);
-
-        // Kiểm tra nếu người tìm được đã là bạn bè
+  
+        // Kiểm tra nếu đã là bạn bè
         const alreadyFriend = friends.some(f =>
           (f.senderId === user.id && f.receiverId === foundUser.id) ||
           (f.receiverId === user.id && f.senderId === foundUser.id)
         );
-
         setIsAlreadyFriend(alreadyFriend);
+  
+        // Nếu chưa là bạn bè thì kiểm tra xem đã gửi lời mời hay chưa
+        if (!alreadyFriend) {
+          const checkPendingRes = await fetch(DOMAIN + `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+  
+          if (!checkPendingRes.ok) throw new Error("Không thể kiểm tra trạng thái lời mời.");
+  
+          const checkPendingData = await checkPendingRes.json();
+          setFriendRequestSent(!!checkPendingData?.isPending);
+        }
       } else {
         setSearchResult(null);
       }
@@ -199,17 +221,14 @@ const FriendScreen = () => {
 
   const handleCancelFriendRequest = async (receiverId) => {
     try {
-      const res = await fetch(DOMAIN+`:3000/api/friends/cancel-request`, {
-        method: "POST",
+      const res = await fetch(`${DOMAIN}:3000/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`, {
+        method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          senderId: user.id,
-          receiverId,
-        }),
       });
+  
       if (res.ok) {
         setFriendRequestSent(false);
         alert("Đã hủy lời mời kết bạn!");
@@ -221,6 +240,7 @@ const FriendScreen = () => {
       console.error("Lỗi hủy lời mời:", err);
     }
   };
+  
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
@@ -271,7 +291,7 @@ const FriendScreen = () => {
           <View style={styles.searchContainer}>
             <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
             <TextInput
-              placeholder="Search..."
+              placeholder="Tìm kiếm..."
               placeholderTextColor="#888"
               style={[styles.searchInput, { color: theme.colors.text }]}
               value={searchTerm}
