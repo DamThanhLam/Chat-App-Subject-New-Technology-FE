@@ -50,7 +50,8 @@ const FriendRequestsScreen = () => {
 
     const fetchRequests = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/friends/requests/${user.id}`, {
+        const res = await fetch(DOMAIN+`:3000/api/friends/requests/${user.id}`, {
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -62,7 +63,7 @@ const FriendRequestsScreen = () => {
           rawRequests.map(async (request) => {
             try {
               const senderRes = await fetch(
-                `http://localhost:3000/api/user/${request.senderId}`,
+                DOMAIN+`:3000/api/user/${request.senderId}`,
                 {
                   headers: {
                     Authorization: `Bearer ${token}`,
@@ -118,8 +119,9 @@ const FriendRequestsScreen = () => {
     socketConnection.on("newFriendRequest", async (newRequest) => {
       try {
         const senderRes = await fetch(
-          `http://localhost:3000/api/user/${newRequest.senderId}`,
+          DOMAIN+`:3000/api/user/${newRequest.senderId}`,
           {
+            method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -168,6 +170,7 @@ const FriendRequestsScreen = () => {
     };
   }, [token, user.id]);
 
+  
   const sortRequests = (type: string, data: any[]) => {
     switch (type) {
       case "a-z":
@@ -189,6 +192,7 @@ const FriendRequestsScreen = () => {
       }
     });
   };
+
 
   const handleDecline = (friendRequestId: string) => {
     if (!socket || !token) return;
