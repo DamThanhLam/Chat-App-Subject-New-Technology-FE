@@ -69,12 +69,6 @@ interface Message {
   status: "recalled" | "deleted" | "readed" | "sended" | "received";
 }
 
-interface DeviceFile {
-  name: string;
-  size: number;
-  uri: string;
-  lastModified: number;
-}
 interface User {
   _id: string;
   name: string;
@@ -98,22 +92,51 @@ const ChatScreen = () => {
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorScheme = useColorScheme();
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [anotherUser, setAnotherUser] = useState<User | null>(null);
   const [nickname, setNickname] = useState<string | null>(null);
-  const [groupName, setGroupName] = useState<string | null>(null); // Tên nhóm
-  const [isGroupChat, setIsGroupChat] = useState<boolean>(false); // Kiểm tra xem có phải chat nhóm không
+  const [groupName, setGroupName] = useState<string | null>(null);
+  const [isGroupChat, setIsGroupChat] = useState<boolean>(false);
   const theme = useMemo(() => (colorScheme === "dark" ? DarkTheme : DefaultTheme), [colorScheme]);
   const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
   const [filePickerVisible, setFilePickerVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<DeviceFile | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [replyPreviewVisible, setReplyPreviewVisible] = useState(false);
 
   const { friendId, conversationId } = useLocalSearchParams();
-
   const { userID2, friendName } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const [token, setToken] = useState<string>("");
   const dateBefore = useRef<Date | null>()
+
+  const handleReply = (message: Message) => {
+    setReplyingTo(message);
+    setReplyPreviewVisible(true);
+    setMenuVisible(false);
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    setReplyPreviewVisible(false);
+  };
+
+  const sendTextMessage = () => {
+    if (!message.trim()) return;
+    
+    getSocket().emit("private-message", {
+      receiverId: userID2,
+      message,
+      messageType: "private",
+      contentType: "text",
+      parentMessage: replyingTo || undefined,
+    });
+    
+    setMessage("");
+    setShowEmojiPicker(false);
+    setReplyingTo(null);
+    setReplyPreviewVisible(false);
+  };
+
   // Lấy thông tin người dùng (dùng cho chat đôi)
   const fetchUserInfo = async () => {
     try {
@@ -139,12 +162,15 @@ const ChatScreen = () => {
       console.error("Lỗi khi lấy thông tin người dùng:", error.message);
     }
   };
+
   useEffect(() => {
     setNickname(friendName.toString())
   }, [friendName])
+
   useEffect(() => {
     fetchUserInfo()
   }, [userID2])
+
   // Lấy token khi mount
   useEffect(() => {
     const getSub = async () => {
@@ -182,13 +208,13 @@ const ChatScreen = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-
       }).then(res => res.json())
         .then(data => {
           updateConversation(data)
         })
     }
   }, [token])
+
   const updateConversation = (data: Message[]) => {
     console.log(data)
     const sort = [...data].sort((a: Message, b: Message) => {
@@ -256,7 +282,7 @@ const ChatScreen = () => {
       getSocket().emit("delete-message", messageId);
       setConversation(prev => prev.map(msg =>
         msg.id === messageId
-          ? { ...msg, status: "delete", message: "Tin nhắn đã bị xóa" }
+          ? { ...msg, status: "deleted", message: "Tin nhắn đã bị xóa" }
           : msg
       ));
       setMenuVisible(false);
@@ -271,7 +297,7 @@ const ChatScreen = () => {
       getSocket().emit("recall-message", messageId);
       setConversation(prev => prev.map(msg =>
         msg.id === messageId
-          ? { ...msg, status: "recall", message: "Tin nhắn đã bị thu hồi" }
+          ? { ...msg, status: "recalled", message: "Tin nhắn đã bị thu hồi" }
           : msg
       ));
       setMenuVisible(false);
@@ -281,19 +307,6 @@ const ChatScreen = () => {
     }
   }, []);
 
-  const sendTextMessage = () => {
-    if (!message.trim()) return;
-    getSocket().emit("private-message", {
-      receiverId: userID2,
-      message,
-      messageType: "private",
-      contentType: "text",
-    });
-    setMessage("");
-    setShowEmojiPicker(false);
-  };
-
-  // 2. Khi người dùng nhấn vào 1 ảnh thì toggle chọn / bỏ chọn
   const toggleSelectImage = (asset: MediaLibrary.Asset) => {
     setTempSelectedImages(prev => {
       const exists = prev.find(a => a.id === asset.id);
@@ -305,7 +318,6 @@ const ChatScreen = () => {
     });
   };
 
-  // 3. Nút Send sẽ gọi upload với tất cả ảnh đã chọn
   const sendSelectedImages = async () => {
     if (tempSelectedImages.length === 0) return;
     await handleMobileMultiImageSelect(tempSelectedImages);
@@ -348,28 +360,25 @@ const ChatScreen = () => {
   }, [slideAnim]);
 
   const handleLongPress = (item: Message) => {
-    if (item.status === "delete" || item.status === "recall") return;
+    if (item.status === "deleted" || item.status === "recalled") return;
     setSelectedMessage({
       id: item.id,
       message: typeof item.message === "string" ? item.message : "[File message]",
     });
     setMenuVisible(true);
   };
-  // Callback khi đổi tên gợi nhớ
+
   const handleRename = (newName: string) => {
-    setNickname(newName); // Cập nhật nickname khi tên gợi nhớ được thay đổi
+    setNickname(newName);
   };
-  // 2. Mobile: chọn nhiều ảnh rồi upload
+
   const handleMobileMultiImageSelect = async (selectedAssets: MediaLibrary.Asset[]) => {
     try {
-      // map sang định dạng cần thiết
       const files = selectedAssets.map(asset => ({
         uri: asset.uri,
         name: asset.filename,
       }));
-      // 1) upload lên server, nhận mảng URL
       const imagesUpload = await uploadFilesToServer(files);
-      // 2) emit socket cho mỗi URL hoặc gộp
       imagesUpload.forEach((image: any) => {
         getSocket().emit("private-message", {
           receiverId: userID2,
@@ -384,20 +393,18 @@ const ChatScreen = () => {
       Alert.alert("Error", error.message);
     }
   };
-  // 1. Hàm upload chung
+
   async function uploadFilesToServer(
     files: Array<{ uri: string | File; name: string }>
   ) {
     const formData = new FormData();
     files.forEach((file) => {
       if (Platform.OS === "web" && file.uri instanceof File) {
-        // Web: append trực tiếp File object
         formData.append("images", file.uri, file.name);
       } else {
-        // Mobile: sử dụng thông tin hợp lệ
         formData.append("images", {
           uri: file.uri,
-          name: file.name, // ✅ Đúng key
+          name: file.name,
           type: "application/octet-stream",
         } as any);
       }
@@ -419,7 +426,6 @@ const ChatScreen = () => {
     const data = await res.json();
     return data.images;
   }
-
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -454,12 +460,10 @@ const ChatScreen = () => {
     }
   }, [showImagePicker]);
 
-
   const openImagePicker = () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
     } else {
-
       setFilePickerVisible(true)
     }
   };
@@ -472,28 +476,25 @@ const ChatScreen = () => {
 
   const getDeviceFiles = async () => {
     try {
-      // Gọi DocumentPicker với option multiple: true (chỉ hỗ trợ nhiều file trên web)
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: true,
-        multiple: true, // Trên iOS chỉ có thể chọn 1 file
+        multiple: true,
       });
       console.log("DocumentPicker result:", result);
 
       let files: Array<{ name: string; size?: number; uri: string }> = [];
 
       if (Platform.OS === "web") {
-        // Trên web, DocumentPicker trả về đối tượng có trường assets (mảng các file)
         if (result && (result as any).assets) {
           files = (result as any).assets;
         }
       } else {
-        // Trên mobile (iOS/Android), kiểm tra xem người dùng đã chọn file thành công chưa
         if (result.type === 'success') {
-          files = [result]; // Chỉ có 1 file được chọn
+          files = [result];
         } else if (result.type === 'cancel') {
           console.log("Người dùng hủy bỏ việc chọn file.");
-          return; // Không thực hiện gì nếu hủy
+          return;
         }
       }
 
@@ -531,12 +532,13 @@ const ChatScreen = () => {
       Alert.alert("Error", "Không thể truy cập file. Vui lòng thử lại.");
     }
   };
+
   const uriToBlob = async (uri: string): Promise<Blob> => {
     const response = await fetch(uri);
     const blob = await response.blob();
     return blob;
   };
-  // Hàm upload
+
   const handleFileSelected = async (files: DeviceFile[]) => {
     console.log(files)
     if (files.length === 0) return;
@@ -546,7 +548,7 @@ const ChatScreen = () => {
         files.map(async (file) => {
           const blob = await uriToBlob(file.uri);
           return {
-            uri: file.uri, // optional
+            uri: file.uri,
             name: file.name,
             type: blob.type || "application/octet-stream",
             blob: blob,
@@ -554,9 +556,7 @@ const ChatScreen = () => {
         })
       );
 
-
-      const urls = await uploadFilesToServer(uploadFiles); // custom logic
-
+      const urls = await uploadFilesToServer(uploadFiles);
 
       urls.forEach((item: any) => {
         getSocket().emit("private-message", {
@@ -572,9 +572,7 @@ const ChatScreen = () => {
     }
   };
 
-
   const handleEmojiSelectMobile = (emoji: EmojiType) => {
-    // dùng emoji.emoji để nối vào message
     setMessage(m => {
       if (m) {
         return m + emoji.emoji
@@ -584,12 +582,10 @@ const ChatScreen = () => {
     setShowEmojiPicker(false);
   };
 
-  // 3. Web: chọn nhiều file qua input[type="file"]
   const onWebFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     try {
-      // map sang định dạng cho upload
       const uploadFiles = files.map(f => ({
         uri: f,
         name: f.name,
@@ -611,12 +607,10 @@ const ChatScreen = () => {
     }
   };
 
-
   const emojiPickerTheme: Theme = colorScheme === 'dark' ? Theme.DARK : Theme.LIGHT;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Hidden web file input */}
       {Platform.OS === "web" && (
         <input
           type="file"
@@ -627,7 +621,6 @@ const ChatScreen = () => {
         />
       )}
 
-      {/* Header */}
       <View style={[styles.customHeader, { backgroundColor: theme.colors.background }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <FontAwesome name="arrow-left" size={24} color={theme.colors.primary} />
@@ -648,7 +641,6 @@ const ChatScreen = () => {
         </View>
       </View>
 
-      {/* Messages */}
       <FlatList
         data={conversation}
         keyExtractor={(item) => item.id}
@@ -659,14 +651,12 @@ const ChatScreen = () => {
           const vietnamTime = createdAt.toLocaleString("vi-VN", {
             timeZone: "Asia/Ho_Chi_Minh",
             year: "numeric",
-            month: "2-digit", // Tháng có 2 chữ số
-            day: "2-digit", // Ngày có 2 chữ số
+            month: "2-digit",
+            day: "2-digit",
           });
 
-          // Chuyển đổi lại chuỗi ngày thành đối tượng Date hợp lệ sau khi định dạng
-          let dateParts = vietnamTime.split("/"); // Chia ngày, tháng, năm
-          const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`); // Tạo đối tượng Date hợp lệ
-
+          let dateParts = vietnamTime.split("/");
+          const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`);
 
           if (!dateBefore.current) {
             showDate = true;
@@ -702,7 +692,6 @@ const ChatScreen = () => {
                   (isDeleted || isRecalled) && styles.recalledMessageContainer
                 ]}
               >
-                {/* Avatar for received messages */}
                 {item.senderId !== userID1 && anotherUser && (
                   <Image
                     source={{ uri: anotherUser.image }}
@@ -710,7 +699,6 @@ const ChatScreen = () => {
                   />
                 )}
 
-                {/* Message bubble */}
                 <View
                   style={[
                     styles.messageBubble,
@@ -725,7 +713,37 @@ const ChatScreen = () => {
                     },
                   ]}
                 >
-                  {/* Render recalled/deleted message */}
+                  {/* Hiển thị tin nhắn đang được phản hồi nếu có */}
+                  {item.parentMessage && (
+                    <View style={[
+                      styles.replyBox, 
+                      {
+                        backgroundColor: item.senderId === userID1 
+                          ? 'rgba(255, 255, 255, 0.2)' 
+                          : 'rgba(0, 0, 0, 0.1)',
+                        borderLeftColor: theme.colors.primary
+                      }
+                    ]}>
+                      <Text style={[
+                        styles.replyAuthor,
+                        { color: item.senderId === userID1 ? '#fff' : theme.colors.text }
+                      ]}>
+                        {item.parentMessage.senderId === userID1 ? "Bạn" : anotherUser?.name || "Unknown"}
+                      </Text>
+                      <Text 
+                        style={[
+                          styles.replyContent,
+                          { color: item.senderId === userID1 ? '#fff' : theme.colors.text }
+                        ]} 
+                        numberOfLines={1}
+                      >
+                        {typeof item.parentMessage.message === "string"
+                          ? item.parentMessage.message
+                          : "[File]"}
+                      </Text>
+                    </View>
+                  )}
+
                   {(isDeleted || isRecalled) ? (
                     <Text
                       style={[
@@ -774,7 +792,6 @@ const ChatScreen = () => {
                   </Text>
                 </View>
 
-                {/* Empty view to balance avatar space for sent messages */}
                 {item.senderId === userID1 && <View style={styles.avatarPlaceholder} />}
               </TouchableOpacity>
             </>
@@ -783,6 +800,42 @@ const ChatScreen = () => {
         contentContainerStyle={styles.messagesContainer}
       />
 
+      {replyPreviewVisible && replyingTo && (
+        <View style={[styles.replyPreviewContainer, { 
+          backgroundColor: theme.colors.card,
+          borderTopWidth: 1,
+          borderTopColor: theme.colors.border,
+        }]}>
+          <View style={styles.replyPreviewContent}>
+            <View style={[styles.replyPreviewLine, { backgroundColor: theme.colors.primary }]} />
+            <View style={styles.replyPreviewDetails}>
+              <Text style={[styles.replyPreviewName, { color: theme.colors.primary }]}>
+                {replyingTo.senderId === userID1 ? "You" : anotherUser?.name}
+              </Text>
+              {replyingTo.contentType === "text" ? (
+                <Text 
+                  style={[styles.replyPreviewText, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {typeof replyingTo.message === "string" ? replyingTo.message : ""}
+                </Text>
+              ) : replyingTo.contentType === "file" ? (
+                <Text 
+                  style={[styles.replyPreviewText, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  <FontAwesome name="file" size={14} color={theme.colors.text} /> File
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity onPress={handleCancelReply}>
+              <FontAwesome name="close" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {showEmojiPicker && Platform.OS === "web" && (
         <View
@@ -812,14 +865,11 @@ const ChatScreen = () => {
           open={showEmojiPicker}
           onEmojiSelected={handleEmojiSelectMobile}
           onClose={() => setShowEmojiPicker(false)}
-        // you can customize height, columns, etc.
         />
       )}
 
-      {/* Image Picker (Mobile) */}
       {showImagePicker && Platform.OS !== "web" && (
         <View style={[styles.imagePickerContainer, { backgroundColor: theme.colors.card }]}>
-          {/* Header như cũ */}
           <View style={styles.imagePickerHeader}>
             <Text style={[styles.imagePickerTitle, { color: theme.colors.text }]}>
               Select Images ({tempSelectedImages.length})
@@ -829,7 +879,6 @@ const ChatScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Grid ảnh */}
           <FlatList
             data={deviceImages}
             numColumns={3}
@@ -850,7 +899,6 @@ const ChatScreen = () => {
             }}
           />
 
-          {/* Nút Gửi */}
           <View style={{ padding: 10, borderTopWidth: 1, borderColor: theme.colors.border }}>
             <Button disabled={tempSelectedImages.length === 0} onPress={sendSelectedImages}>
               Gửi {tempSelectedImages.length} ảnh
@@ -859,12 +907,13 @@ const ChatScreen = () => {
         </View>
       )}
 
-
-      {/* Message Options Menu */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
           <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Reply")}>
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              onPress={() => selectedMessage && handleReply(conversation.find(m => m.id === selectedMessage.id)!)}
+            >
               <FontAwesome name="reply" size={20} color={theme.colors.text} />
               <Text style={[styles.menuText, { color: theme.colors.text }]}>Reply</Text>
             </TouchableOpacity>
@@ -903,7 +952,7 @@ const ChatScreen = () => {
           </View>
         </View>
       </Modal>
-      {/* Sử dụng SettingsPanel */}
+
       <SettingsPanel
         visible={settingsVisible}
         onClose={closeSettings}
@@ -917,14 +966,12 @@ const ChatScreen = () => {
         friendName={nickname || friendName.toString()}
       />
 
-
-      {/* Modal chọn nguồn file */}
       <FilePickerModal
         visible={filePickerVisible}
         onClose={() => setFilePickerVisible(false)}
         onFileSelected={handleFileSelected}
       />
-      {/* Input */}
+
       <View style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}>
         <TouchableOpacity onPress={toggleEmojiPicker} style={styles.iconSpacing}>
           <FontAwesome
@@ -1098,15 +1145,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 10,
     width: "100%",
-    alignItems: "center",
     borderBottomWidth: 1,
     borderColor: "#ddd",
   },
   menuText: {
     fontSize: 16,
     fontWeight: "bold",
+    marginLeft: 10,
   },
   closeButton: {
     marginTop: 10,
@@ -1215,4 +1264,47 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 5,
   },
+  replyBox: {
+    borderLeftWidth: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginBottom: 4,
+    borderRadius: 4,
+  },
+  replyAuthor: {
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  replyContent: {
+    fontStyle: "italic",
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  replyPreviewContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+  },
+  replyPreviewContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  replyPreviewLine: {
+    width: 3,
+    height: 40,
+    marginRight: 10,
+    borderRadius: 2,
+  },
+  replyPreviewDetails: {
+    flex: 1,
+  },
+  replyPreviewName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  replyPreviewText: {
+    fontSize: 14,
+    opacity: 0.8,
+  },
 });
+
