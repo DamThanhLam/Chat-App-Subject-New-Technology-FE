@@ -140,9 +140,10 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPr
 
 const styles = {
   fileContainer: {
-    flexDirection: 'row',
+    flexDirection: "column",
     alignItems: 'center',
     marginVertical: 10,
+
   },
   imagePreview: {
     width: 100,

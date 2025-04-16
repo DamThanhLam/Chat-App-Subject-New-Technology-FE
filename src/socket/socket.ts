@@ -6,7 +6,7 @@ import { store } from "../redux/store";
 import { addMessage, updateMessageStatus } from "../redux/slices/MessageSlice";
 
 const SOCKET_SERVER = DOMAIN + ":3000";
-let socket: Socket;
+var socket: Socket;
 
 export const initSocket = (token: string) => {
   if (!socket) {

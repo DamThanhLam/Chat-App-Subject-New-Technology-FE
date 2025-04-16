@@ -20,6 +20,7 @@ import { Auth } from "aws-amplify";
 import { useDispatch } from "react-redux";
 import { setUser } from "@/src/redux/slices/UserSlice";
 import { router } from "expo-router";
+import { getSocket } from "@/src/socket/socket";
 
 export default function SettingsScreen({ navigation }: any) {
   const [searchText, setSearchText] = useState("");
@@ -60,6 +61,9 @@ export default function SettingsScreen({ navigation }: any) {
       await Auth.signOut();
       dispatch(setUser({ id: "", name: "", phoneNumber: "", email: null }));
       router.replace("/"); // hoặc navigation.navigate nếu bạn dùng navigation
+      if(getSocket()){
+        getSocket().disconnect()
+      }
     } catch (error) {
       console.error("Error signing out:", error);
       if (Platform.OS === "web") {

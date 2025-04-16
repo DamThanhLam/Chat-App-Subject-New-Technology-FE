@@ -105,7 +105,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     fetchConversations();
-    // connectSocket();
+    connectSocket();
   }, []);
 
   // Hàm tính số tin nhắn chưa đọc

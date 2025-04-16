@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -21,6 +20,8 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
 import Toast from "react-native-toast-message";
 import { DOMAIN } from "@/src/configs/base_url";
+import { router } from "expo-router";
+import { getNickname } from "@/src/apis/nickName";
 
 const FriendScreen = () => {
   const colorScheme = useColorScheme();
@@ -60,10 +61,11 @@ const FriendScreen = () => {
 
     const fetchFriends = async () => {
       try {
-        const res = await fetch(DOMAIN+`:3000/api/friends/get-friends/${user.id}`, {
+        const res = await fetch(DOMAIN + `:3000/api/friends/get-friends/${user.id}`, {
           method: "GET",
-          headers: { 
-            Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
         });
         const data = await res.json();
         const rawFriends = data.friends || [];
@@ -74,14 +76,16 @@ const FriendScreen = () => {
           acceptedFriends.map(async (friend) => {
             const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
             try {
-              const userRes = await fetch(DOMAIN+`:3000/api/user/${otherUserId}`, {
+              const userRes = await fetch(DOMAIN + `:3000/api/user/${otherUserId}`, {
                 method: "GET",
                 headers: { Authorization: `Bearer ${token}` },
               });
               const userData = await userRes.json();
+              const resultNickname = await getNickname(otherUserId);
+
               return {
                 ...friend,
-                name: userData.username || "Unknown",
+                name: resultNickname && resultNickname.nickname? resultNickname.nickname : userData.username || "Unknown",
                 avatarUrl:
                   userData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
               };
@@ -129,7 +133,7 @@ const FriendScreen = () => {
     setSearchResult(null);
     setIsAlreadyFriend(true);
     setFriendRequestSent(false);
-  
+
     try {
       // Gọi API tìm kiếm user theo email
       const res = await fetch(DOMAIN + `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
@@ -138,22 +142,22 @@ const FriendScreen = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-  
+
       if (!res.ok) throw new Error("Không thể tìm kiếm người dùng.");
-  
+
       const data = await res.json();
-  
+
       if (data?.users && data.users.length > 0) {
         const foundUser = data.users[0];
         setSearchResult(foundUser);
-  
+
         // Kiểm tra nếu đã là bạn bè
         const alreadyFriend = friends.some(f =>
           (f.senderId === user.id && f.receiverId === foundUser.id) ||
           (f.receiverId === user.id && f.senderId === foundUser.id)
         );
         setIsAlreadyFriend(alreadyFriend);
-  
+
         // Nếu chưa là bạn bè thì kiểm tra xem đã gửi lời mời hay chưa
         if (!alreadyFriend) {
           const checkPendingRes = await fetch(DOMAIN + `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`, {
@@ -162,9 +166,9 @@ const FriendScreen = () => {
               Authorization: `Bearer ${token}`,
             },
           });
-  
+
           if (!checkPendingRes.ok) throw new Error("Không thể kiểm tra trạng thái lời mời.");
-  
+
           const checkPendingData = await checkPendingRes.json();
           setFriendRequestSent(!!checkPendingData?.isPending);
         }
@@ -178,9 +182,9 @@ const FriendScreen = () => {
     }
   };
 
-  useEffect(()=>{
+  useEffect(() => {
     connectSocket()
-  },[])
+  }, [])
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
 
@@ -228,7 +232,7 @@ const FriendScreen = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-  
+
       if (res.ok) {
         setFriendRequestSent(false);
         alert("Đã hủy lời mời kết bạn!");
@@ -240,10 +244,11 @@ const FriendScreen = () => {
       console.error("Lỗi hủy lời mời:", err);
     }
   };
-  
+
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
+    console.log(grouped)
     return grouped.map(([letter, items]) => (
       <View key={letter}>
         <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
@@ -260,8 +265,15 @@ const FriendScreen = () => {
                 color={theme.colors.primary}
                 style={{ marginLeft: 10 }}
                 onPress={() => {
-                  
-                  console.log("Nhấn để nhắn tin với:", item.name);
+
+                  router.push({
+                    pathname: "/ChatScreen",
+                    params: {
+                      // conversationId: item.lastMessage?.conversationId || "",
+                      userID2: user.id === item.senderId ? item.receiverId : item.senderId,
+                      friendName: item.name,
+                    },
+                  });
                 }}
               />
             </View>
@@ -278,7 +290,7 @@ const FriendScreen = () => {
     setFriendRequestSent(false); // Reset trạng thái gửi lời mời
     setShowAddFriendModal(true);
   };
-  
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
