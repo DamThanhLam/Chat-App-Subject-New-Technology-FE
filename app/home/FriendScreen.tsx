@@ -90,6 +90,52 @@ const FriendScreen = () => {
     fetchData();
   }, [token, user.id, selectedTab]);
   
+  const fetchGroups = async () => {
+    try {
+      if (!user?.id || !token) return;
+  
+      const res = await fetch(`${DOMAIN}:3000/api/conversations/my-groups/${user.id}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+  
+      if (!res.ok) throw new Error(`Failed to fetch groups: ${res.status}`);
+  
+      const groups = await res.json();
+  
+      if (!Array.isArray(groups)) throw new Error("Phản hồi không hợp lệ");
+  
+      console.log("Dữ liệu nhóm trả về:", groups);
+  
+      const processedGroups = await Promise.all(
+        groups.map(async (group) => {
+          // Tính số thành viên (ưu tiên participantsIds nếu tồn tại)
+          const memberCount = 
+            group.participantsIds?.length || 
+            group.participants?.length || 
+            0;
+      
+          return {
+            ...group,
+            memberCount, // <-- Đảm bảo trường này được truyền vào
+            isLeader: group.leaderId === user.id,
+          };
+        })
+      );
+  
+      console.log("Processed groups:", processedGroups);
+      setGroups(processedGroups);
+    } catch (error: any) {
+      console.error("Error in fetchGroups:", error);
+      setGroups([]);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi khi tải danh sách nhóm',
+        text2: error.message,
+      });
+    }
+  };
+
   const fetchFriends = async () => {
     try {
       // 1. Fetch danh sách bạn bè
@@ -150,61 +196,6 @@ const FriendScreen = () => {
     }
   };
 
-  const fetchGroups = async () => {
-    try {
-      if (!user?.id || !token) return;
-  
-      const res = await fetch(`${DOMAIN}:3000/api/conversations/my-groups/${user.id}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-  
-      if (!res.ok) throw new Error(`Failed to fetch groups: ${res.status}`);
-      
-      const groups = await res.json();
-  
-      if (!Array.isArray(groups)) throw new Error("Phản hồi không hợp lệ");
-  
-      const processedGroups = await Promise.all(
-        groups.map(async (group) => {
-          let leaderName = "Không xác định";
-  
-          try {
-            if (group.leaderId) {
-              const leaderRes = await fetch(`${DOMAIN}:3000/api/user/${group.leaderId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-  
-              if (leaderRes.ok) {
-                const leaderData = await leaderRes.json();
-                leaderName = leaderData.username || "Không xác định";
-              }
-            }
-          } catch (err) {
-            console.warn(`Không thể lấy thông tin leader cho nhóm ${group.id}`);
-          }
-  
-          return {
-            ...group,
-            leaderName,
-            avatarUrl: group.avatarUrl || DEFAULT_AVATAR,
-            isLeader: group.leaderId === user.id,
-            memberCount: group.participantsIds?.length || group.participants?.length || 0,
-          };
-        })
-      );
-  
-      setGroups(processedGroups);
-    } catch (error: any) {
-      console.error("Error in fetchGroups:", error);
-      setGroups([]);
-      Toast.show({
-        type: 'error',
-        text1: 'Lỗi khi tải danh sách nhóm',
-        text2: error.message,
-      });
-    }
-  };
   
 
   useEffect(() => {
@@ -404,13 +395,10 @@ const FriendScreen = () => {
   };
 
   const renderGroupItem = ({ item }: { item: Group }) => {
-    console.log("👥 Group item:", item);
     return (
       <TouchableOpacity
         style={styles.groupItem}
-        onPress={() => {
-          // mở form chat GROUP
-        }}
+        onPress={() => { /* Mở chat nhóm */ }}
       >
         <Image 
           source={{ uri: item.avatarUrl || DEFAULT_AVATAR }} 
@@ -419,13 +407,15 @@ const FriendScreen = () => {
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{item.groupName}</Text>
           <Text style={styles.groupMembers}>
-            {item.participants.length} members • {item.leaderId === user.id ? "You are leader" : ""}
+            {item.memberCount} thành viên • 
+            {item.isLeader ? " Bạn là trưởng nhóm" : " Bạn là thành viên"}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
       </TouchableOpacity>
     );
   };
+
   
 
   const renderGroupList = () => {
@@ -464,6 +454,22 @@ const FriendScreen = () => {
     try {
       setIsCreatingGroup(true);
       
+      // Lấy danh sách ID thực tế của bạn bè được chọn
+      const actualParticipantIds = filteredFriends
+        .filter(friend => {
+          const friendId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
+          return selectedFriends.includes(friendId);
+        })
+        .map(friend => {
+          return friend.senderId === user.id ? friend.receiverId : friend.senderId;
+        });
+  
+      console.log('Selected participants:', {
+        leaderId: user.id,
+        participantIds: actualParticipantIds,
+        groupName: groupName.trim()
+      });
+  
       const res = await fetch(`${DOMAIN}:3000/api/conversations/create-group`, {
         method: 'POST',
         headers: {
@@ -472,11 +478,12 @@ const FriendScreen = () => {
         },
         body: JSON.stringify({
           groupName: groupName.trim(),
-          participantIds: selectedFriends,
+          participantIds: actualParticipantIds,
         }),
       });
   
       const data = await res.json();
+      console.log('Response from server:', data);
   
       if (!res.ok) {
         throw new Error(data.error || 'Tạo nhóm thất bại');
@@ -503,6 +510,7 @@ const FriendScreen = () => {
       setIsCreatingGroup(false);
     }
   };
+
   
   
   
@@ -673,39 +681,38 @@ const FriendScreen = () => {
             />
 
             <ScrollView style={{ flex: 1 }}>
-              {Object.entries(
-                filteredFriends
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .reduce((acc: {[key: string]: any[]}, friend) => {
-                    const firstLetter = friend.name[0].toUpperCase();
-                    if (!acc[firstLetter]) acc[firstLetter] = [];
-                    acc[firstLetter].push(friend);
-                    return acc;
-                  }, {})
-              ).map(([letter, friendsInGroup]) => (
+              {groupByFirstLetter(filteredFriends).map(([letter, items]) => (
                 <View key={letter}>
-                  <Text style={styles.groupLetter}>{letter}</Text>
-                  {friendsInGroup.map((friend) => (
-                    <TouchableOpacity
-                      key={friend.id}
-                      style={styles.selectableFriend}
-                      onPress={() => {
-                        setSelectedFriends((prev) =>
-                          prev.includes(friend.id)
-                            ? prev.filter((id) => id !== friend.id)
-                            : [...prev, friend.id]
-                        );
-                      }}
-                    >
-                      <Image source={{ uri: friend.avatarUrl }} style={styles.avatarImage} />
-                      <Text style={styles.friendName}>{friend.name}</Text>
-                      <View style={styles.checkboxCircle}>
-                        {selectedFriends.includes(friend.id) && (
-                          <View style={styles.checkboxSelected} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                  <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
+                  {items.map((item) => {
+                    // Lấy ID thực tế của bạn bè
+                    const friendId = item.senderId === user.id ? item.receiverId : item.senderId;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={friendId}
+                        style={[styles.itemContainer, { borderColor: theme.colors.border }]}
+                        onPress={() => {
+                          setSelectedFriends((prev) => {
+                            const updated = prev.includes(friendId)
+                              ? prev.filter((id) => id !== friendId)
+                              : [...prev, friendId];
+                            console.log("Selected Friends:", updated);
+                            return updated;
+                          });
+                        }}
+                      >
+                        <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+                        <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
+                        
+                        <View style={styles.checkboxCircle}>
+                          {selectedFriends.includes(friendId) && (
+                            <View style={styles.checkboxSelected} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               ))}
             </ScrollView>
