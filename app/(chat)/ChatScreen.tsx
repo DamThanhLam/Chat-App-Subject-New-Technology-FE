@@ -268,6 +268,7 @@ const ChatScreen = () => {
 
       socket.on("result", handleNew);
       socket.on("private-message", handleNew);
+      
     });
 
     return () => {

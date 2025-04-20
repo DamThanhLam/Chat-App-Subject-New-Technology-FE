@@ -16,7 +16,7 @@ import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Auth } from "aws-amplify";
-import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
+import { connectSocket, getSocket } from "@/src/socket/socket";
 import { getCurrentUserId } from "../../src/utils/config";
 import {
   fetchFriends,
@@ -28,49 +28,78 @@ import {
   Friend,
   DisplayConversation,
 } from "@/src/interface/interface";
+import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+
+interface GroupConversation {
+  id: string;
+  groupName: string;
+  participants: string[];
+  lastMessage: Message | null;
+}
+
+interface CombinedConversation {
+  type: "private" | "group";
+  id: string; // friendId (private) hoặc conversationId (group)
+  displayName: string;
+  avatar?: string;
+  lastMessage?: Message | null;
+  participantsCount?: number; // Số lượng thành viên (cho group)
+}
 
 const HomeScreen = () => {
   const [search, setSearch] = useState("");
   const [displayConversations, setDisplayConversations] = useState<
-    DisplayConversation[]
+    CombinedConversation[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string>("");
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
-  // Lấy danh sách bạn bè và tin nhắn cuối cùng
+  // Lấy danh sách bạn bè, nhóm và tin nhắn cuối cùng
   const fetchConversations = async () => {
     try {
       setLoading(true);
       const currentUserId = await getCurrentUserId();
       setUserId(currentUserId);
 
-      // Bước 1: Lấy danh sách bạn bè
+      // Bước 1: Lấy danh sách bạn bè (chat đơn)
       const friends = await fetchFriends();
       const acceptedFriends = friends.filter(
         (friend) => friend.status === "accepted"
       );
 
-      // Bước 2: Lấy thông tin bạn bè và tin nhắn cuối
-      const conversations: DisplayConversation[] = [];
+      // Bước 2: Lấy danh sách cuộc trò chuyện nhóm
+      const headers = await getAuthHeaders();
+      const groupResponse = await fetch(
+        `${API_BASE_URL}/conversations/my-groups/${currentUserId}`,
+        {
+          method: "GET",
+          headers,
+        }
+      );
+
+      if (!groupResponse.ok) {
+        throw new Error("Không thể lấy danh sách cuộc trò chuyện nhóm");
+      }
+      const groupConversations: GroupConversation[] =
+        await groupResponse.json();
+
+      // Bước 3: Lấy thông tin bạn bè và tin nhắn cuối cho chat đơn
+      const privateConversations: CombinedConversation[] = [];
       const friendIds = acceptedFriends.map((friend) =>
         friend.senderId === currentUserId ? friend.receiverId : friend.senderId
       );
 
-      // Gọi API để lấy thông tin tất cả người dùng
       const usersResponse = await Promise.all(
         friendIds.map((friendId) => fetchUserInfo(friendId))
       );
 
-      // Tạo map để tra cứu displayName và avatar nhanh
       const userMap = usersResponse.reduce((map, user) => {
         map[user.friendId] = user;
         return map;
       }, {});
-      console.log(usersResponse);
 
-      // Bước 3: Lấy tin nhắn cuối cho từng người bạn
       for (const friend of acceptedFriends) {
         const friendId =
           friend.senderId === currentUserId
@@ -83,8 +112,9 @@ const HomeScreen = () => {
           avatar: null,
         };
 
-        conversations.push({
-          friendId,
+        privateConversations.push({
+          type: "private",
+          id: friendId,
           displayName: userInfo.displayName,
           avatar:
             friend.senderId === currentUserId
@@ -95,7 +125,32 @@ const HomeScreen = () => {
         });
       }
 
-      setDisplayConversations(conversations);
+      // Bước 4: Tạo danh sách cuộc trò chuyện nhóm
+      const groupConversationsList: CombinedConversation[] =
+        groupConversations.map((group) => ({
+          type: "group",
+          id: group.id,
+          displayName: group.groupName || "Nhóm chat",
+          avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", // Avatar mặc định cho nhóm
+          lastMessage: group.lastMessage,
+          participantsCount: group.participants.length,
+        }));
+
+      // Bước 5: Kết hợp và sắp xếp danh sách theo thời gian tin nhắn cuối
+      const combinedList = [
+        ...privateConversations,
+        ...groupConversationsList,
+      ].sort((a, b) => {
+        const timeA = a.lastMessage
+          ? new Date(a.lastMessage.createdAt).getTime()
+          : 0;
+        const timeB = b.lastMessage
+          ? new Date(b.lastMessage.createdAt).getTime()
+          : 0;
+        return timeB - timeA;
+      });
+
+      setDisplayConversations(combinedList);
     } catch (error) {
       console.error("Lỗi khi lấy cuộc trò chuyện:", error);
     } finally {
@@ -105,12 +160,23 @@ const HomeScreen = () => {
 
   useEffect(() => {
     fetchConversations();
-    connectSocket();
+    connectSocket().then(socket => {
+      const handleCreated = (groupData: any) => {
+        console.log("Tạo nhóm thành công:", groupData);
+        // Điều hướng sang màn hình chat nhóm hoặc cập nhật danh sách nhóm
+        fetchConversations();
+      };
+      socket.on("group-created", handleCreated);
+      return () => {
+        socket.off("group-created", handleCreated);
+      }
+    })
+
   }, []);
 
   // Hàm tính số tin nhắn chưa đọc
   const getUnreadCount = (
-    conversation: DisplayConversation,
+    conversation: CombinedConversation,
     currentUserId: string
   ) => {
     if (
@@ -123,7 +189,7 @@ const HomeScreen = () => {
     return 1;
   };
 
-  // Hàm định dạng thời gian (đã sửa để tránh NaN)
+  // Hàm định dạng thời gian
   const formatTime = (isoTime: string) => {
     if (!isoTime || typeof isoTime !== "string") {
       return "Không rõ";
@@ -148,7 +214,7 @@ const HomeScreen = () => {
     }
   };
 
-  const renderItem = ({ item }: { item: DisplayConversation }) => {
+  const renderItem = ({ item }: { item: CombinedConversation }) => {
     const displayName = item.displayName;
     const lastMessageContent =
       item.lastMessage?.contentType === "text"
@@ -157,21 +223,31 @@ const HomeScreen = () => {
           : ""
         : item.lastMessage?.contentType === "emoji"
           ? "Emoji"
-          : item.lastMessage?.contentType === "file" ? "File" : "";
+          : item.lastMessage?.contentType === "file"
+            ? "File"
+            : "";
     const unreadCount = getUnreadCount(item, userId);
-
+    console.log("item" + JSON.stringify(item))
     return (
       <TouchableOpacity
         style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
         onPress={() => {
-          router.push({
-            pathname: "/ChatScreen",
-            params: {
-              // conversationId: item.lastMessage?.conversationId || "",
-              userID2: item.friendId,
-              friendName: item.displayName,
-            },
-          });
+          if (item.type === "private") {
+            router.push({
+              pathname: "/ChatScreen",
+              params: {
+                userID2: item.id,
+                friendName: item.displayName,
+              },
+            });
+          } else {
+            router.push({
+              pathname: "/GroupChatScreen",
+              params: {
+                conversationId: item.id,
+              },
+            });
+          }
         }}
       >
         <Image
@@ -193,6 +269,9 @@ const HomeScreen = () => {
             ]}
           >
             {lastMessageContent}
+            {item.type === "group" && item.participantsCount
+              ? ` (${item.participantsCount} thành viên)`
+              : ""}
           </Text>
         </View>
         <View style={styles.chatMeta}>
@@ -253,7 +332,7 @@ const HomeScreen = () => {
             data={displayConversations.filter((conv) =>
               conv.displayName.toLowerCase().includes(search.toLowerCase())
             )}
-            keyExtractor={(item) => item.friendId}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
             renderItem={renderItem}
             contentContainerStyle={styles.chatList}
           />

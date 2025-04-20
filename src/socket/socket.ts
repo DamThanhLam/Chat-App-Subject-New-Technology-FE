@@ -23,7 +23,7 @@ export const connectSocket = async () => {
   const socket = getSocket() //
   if (!socket || !socket.connected) { //check socket is connected before performming new connect
     const newSocket = initSocket(jwtToken) //initial socket. Prepare to authentication in the BE
-    
+
     newSocket.connect();
     newSocket.emit("join");
 
@@ -45,12 +45,17 @@ export const connectSocket = async () => {
 
       store.dispatch(updateMessageStatus({ id: messageId, status }));
     });
-// action to connect to BE
+
+    newSocket.on("group-created", (groupData) => {
+      newSocket.emit("join-group", { conversationId: groupData.id });
+    });
+
+    // action to connect to BE
     newSocket.emit("join"); //publish join, that setup socket ip with sub of the jwt before publish other
     newSocket.on("receiver-message", (data) => {
       console.log("Got message:", data);
     });
-    
+
 
     newSocket.on("error", (err) => {
       console.log("Error:", err);
