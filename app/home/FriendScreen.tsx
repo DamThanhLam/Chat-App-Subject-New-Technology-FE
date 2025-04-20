@@ -14,7 +14,11 @@ import {
   FlatList,
 } from "react-native";
 import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme, useNavigation } from "@react-navigation/native";
+import {
+  DarkTheme,
+  DefaultTheme,
+  useNavigation,
+} from "@react-navigation/native";
 import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
@@ -24,7 +28,7 @@ import Toast from "react-native-toast-message";
 import { DOMAIN } from "@/src/configs/base_url";
 import { router } from "expo-router";
 import { getNickname } from "@/src/apis/nickName";
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
 
 const FriendScreen = () => {
   const colorScheme = useColorScheme();
@@ -52,8 +56,9 @@ const FriendScreen = () => {
   const [groups, setGroups] = useState<any[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/219/219983.png";
-  
+  const DEFAULT_AVATAR =
+    "https://cdn-icons-png.flaticon.com/512/219/219983.png";
+
   useEffect(() => {
     const getToken = async () => {
       try {
@@ -67,14 +72,13 @@ const FriendScreen = () => {
     getToken();
   }, []);
 
-  
   useEffect(() => {
     if (!token || !user.id) return;
-  
+
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         if (selectedTab === "friends") {
           await fetchFriends();
         } else if (selectedTab === "groups") {
@@ -89,27 +93,33 @@ const FriendScreen = () => {
 
     fetchData();
   }, [token, user.id, selectedTab]);
-  
+
   const fetchFriends = async () => {
     try {
       // 1. Fetch danh sách bạn bè
-      const friendsRes = await fetch(`${DOMAIN}:3000/api/friends/get-friends/${user.id}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const friendsRes = await fetch(
+        `${DOMAIN}:3000/api/friends/get-friends/${user.id}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (!friendsRes.ok) {
         throw new Error(`Failed to fetch friends: ${friendsRes.status}`);
       }
 
       const { friends: rawFriends = [] } = await friendsRes.json();
-      const acceptedFriends = rawFriends.filter(friend => friend.status === "accepted");
+      const acceptedFriends = rawFriends.filter(
+        (friend) => friend.status === "accepted"
+      );
 
       // 2. Lấy thông tin chi tiết cho từng bạn bè
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend) => {
-          const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
-          
+          const otherUserId =
+            friend.senderId === user.id ? friend.receiverId : friend.senderId;
+
           try {
             // Gọi song song cả user info và nickname
             const [userRes, nicknameRes] = await Promise.all([
@@ -117,13 +127,14 @@ const FriendScreen = () => {
                 method: "GET",
                 headers: { Authorization: `Bearer ${token}` },
               }),
-              getNickname(otherUserId)
+              getNickname(otherUserId),
             ]);
 
             if (!userRes.ok) throw new Error(`User ${otherUserId} not found`);
 
             const userData = await userRes.json();
-            const nickname = nicknameRes?.nickname || userData.username || "Unknown";
+            const nickname =
+              nicknameRes?.nickname || userData.username || "Unknown";
 
             return {
               ...friend,
@@ -153,28 +164,34 @@ const FriendScreen = () => {
   const fetchGroups = async () => {
     try {
       if (!user?.id || !token) return;
-  
-      const res = await fetch(`${DOMAIN}:3000/api/conversations/my-groups/${user.id}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-  
+
+      const res = await fetch(
+        `${DOMAIN}:3000/api/conversations/my-groups/${user.id}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
       if (!res.ok) throw new Error(`Failed to fetch groups: ${res.status}`);
-      
+
       const groups = await res.json();
-  
+
       if (!Array.isArray(groups)) throw new Error("Phản hồi không hợp lệ");
-  
+
       const processedGroups = await Promise.all(
         groups.map(async (group) => {
           let leaderName = "Không xác định";
-  
+
           try {
             if (group.leaderId) {
-              const leaderRes = await fetch(`${DOMAIN}:3000/api/user/${group.leaderId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-  
+              const leaderRes = await fetch(
+                `${DOMAIN}:3000/api/user/${group.leaderId}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                }
+              );
+
               if (leaderRes.ok) {
                 const leaderData = await leaderRes.json();
                 leaderName = leaderData.username || "Không xác định";
@@ -183,32 +200,32 @@ const FriendScreen = () => {
           } catch (err) {
             console.warn(`Không thể lấy thông tin leader cho nhóm ${group.id}`);
           }
-  
+
           return {
             ...group,
             leaderName,
             avatarUrl: group.avatarUrl || DEFAULT_AVATAR,
             isLeader: group.leaderId === user.id,
-            memberCount: group.participantsIds?.length || group.participants?.length || 0,
+            memberCount:
+              group.participantsIds?.length || group.participants?.length || 0,
           };
         })
       );
-  
+
       setGroups(processedGroups);
     } catch (error: any) {
       console.error("Error in fetchGroups:", error);
       setGroups([]);
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi khi tải danh sách nhóm',
+        type: "error",
+        text1: "Lỗi khi tải danh sách nhóm",
         text2: error.message,
       });
     }
   };
-  
 
   useEffect(() => {
-    const filtered = friends.filter(friend =>
+    const filtered = friends.filter((friend) =>
       friend.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredFriends(filtered);
@@ -228,10 +245,13 @@ const FriendScreen = () => {
     // Yêu cầu quyền truy cập thư viện ảnh
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission denied", "Bạn cần cấp quyền truy cập ảnh để thay đổi avatar");
+      Alert.alert(
+        "Permission denied",
+        "Bạn cần cấp quyền truy cập ảnh để thay đổi avatar"
+      );
       return;
     }
-  
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
@@ -239,7 +259,7 @@ const FriendScreen = () => {
       aspect: [1, 1],
       base64: false,
     });
-  
+
     console.log(result);
     // Nếu người dùng không hủy việc chọn ảnh
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -256,12 +276,16 @@ const FriendScreen = () => {
 
     try {
       // Gọi API tìm kiếm user theo email
-      const res = await fetch(DOMAIN + `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        DOMAIN +
+          `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!res.ok) throw new Error("Không thể tìm kiếm người dùng.");
 
@@ -272,22 +296,28 @@ const FriendScreen = () => {
         setSearchResult(foundUser);
 
         // Kiểm tra nếu đã là bạn bè
-        const alreadyFriend = friends.some(f =>
-          (f.senderId === user.id && f.receiverId === foundUser.id) ||
-          (f.receiverId === user.id && f.senderId === foundUser.id)
+        const alreadyFriend = friends.some(
+          (f) =>
+            (f.senderId === user.id && f.receiverId === foundUser.id) ||
+            (f.receiverId === user.id && f.senderId === foundUser.id)
         );
         setIsAlreadyFriend(alreadyFriend);
 
         // Nếu chưa là bạn bè thì kiểm tra xem đã gửi lời mời hay chưa
         if (!alreadyFriend) {
-          const checkPendingRes = await fetch(DOMAIN + `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const checkPendingRes = await fetch(
+            DOMAIN +
+              `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
 
-          if (!checkPendingRes.ok) throw new Error("Không thể kiểm tra trạng thái lời mời.");
+          if (!checkPendingRes.ok)
+            throw new Error("Không thể kiểm tra trạng thái lời mời.");
 
           const checkPendingData = await checkPendingRes.json();
           setFriendRequestSent(!!checkPendingData?.isPending);
@@ -303,8 +333,8 @@ const FriendScreen = () => {
   };
 
   useEffect(() => {
-    connectSocket()
-  }, [])
+    connectSocket();
+  }, []);
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
 
@@ -345,13 +375,16 @@ const FriendScreen = () => {
 
   const handleCancelFriendRequest = async (receiverId) => {
     try {
-      const res = await fetch(`${DOMAIN}:3000/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(
+        `${DOMAIN}:3000/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (res.ok) {
         setFriendRequestSent(false);
@@ -365,32 +398,49 @@ const FriendScreen = () => {
     }
   };
 
-
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
-    console.log(grouped)
+    console.log(grouped);
     return grouped.map(([letter, items]) => (
       <View key={letter}>
-        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
+        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>
+          {letter}
+        </Text>
         {items.map((item) => (
-          <View key={item.id} style={[styles.itemContainer, { borderColor: theme.colors.border }]}>
+          <View
+            key={item.id}
+            style={[styles.itemContainer, { borderColor: theme.colors.border }]}
+          >
             <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-            <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
+            <Text style={[styles.name, { color: theme.colors.text }]}>
+              {item.name}
+            </Text>
             <View style={styles.actions}>
-              <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
-              <MaterialIcons name="video-call" size={22} color={theme.colors.primary} style={{ marginLeft: 10 }} />
+              <Ionicons
+                name="call-outline"
+                size={20}
+                color={theme.colors.primary}
+              />
+              <MaterialIcons
+                name="video-call"
+                size={22}
+                color={theme.colors.primary}
+                style={{ marginLeft: 10 }}
+              />
               <Ionicons
                 name="chatbubble-outline"
                 size={20}
                 color={theme.colors.primary}
                 style={{ marginLeft: 10 }}
                 onPress={() => {
-
                   router.push({
                     pathname: "/ChatScreen",
                     params: {
                       // conversationId: item.lastMessage?.conversationId || "",
-                      userID2: user.id === item.senderId ? item.receiverId : item.senderId,
+                      userID2:
+                        user.id === item.senderId
+                          ? item.receiverId
+                          : item.senderId,
                       friendName: item.name,
                     },
                   });
@@ -412,21 +462,21 @@ const FriendScreen = () => {
           // mở form chat GROUP
         }}
       >
-        <Image 
-          source={{ uri: item.avatarUrl || DEFAULT_AVATAR }} 
-          style={styles.groupAvatar} 
+        <Image
+          source={{ uri: item.avatarUrl || DEFAULT_AVATAR }}
+          style={styles.groupAvatar}
         />
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{item.groupName}</Text>
           <Text style={styles.groupMembers}>
-            {item.participants.length} members • {item.leaderId === user.id ? "You are leader" : ""}
+            {item.participants.length} members •{" "}
+            {item.leaderId === user.id ? "You are leader" : ""}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
       </TouchableOpacity>
     );
   };
-  
 
   const renderGroupList = () => {
     if (loading) {
@@ -454,20 +504,20 @@ const FriendScreen = () => {
   //Tao Group
   const handleCreateGroup = async () => {
     if (!groupName.trim() || selectedFriends.length === 0) {
-      Toast.show({ 
-        type: 'error', 
-        text1: 'Vui lòng nhập tên nhóm và chọn thành viên' 
+      Toast.show({
+        type: "error",
+        text1: "Vui lòng nhập tên nhóm và chọn thành viên",
       });
       return;
     }
-  
+
     try {
       setIsCreatingGroup(true);
-      
+
       const res = await fetch(`${DOMAIN}:3000/api/conversations/create-group`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -475,37 +525,33 @@ const FriendScreen = () => {
           participantIds: selectedFriends,
         }),
       });
-  
+
       const data = await res.json();
-  
+
       if (!res.ok) {
-        throw new Error(data.error || 'Tạo nhóm thất bại');
+        throw new Error(data.error || "Tạo nhóm thất bại");
       }
-  
+
       Toast.show({
-        type: 'success',
+        type: "success",
         text1: `Đã tạo nhóm "${groupName.trim()}" thành công`,
       });
-  
-      setGroupName('');
+
+      setGroupName("");
       setSelectedFriends([]);
       setCreateGroupModalVisible(false);
-      fetchGroups(); 
-      
+      fetchGroups();
     } catch (error: any) {
-      console.error('Lỗi khi tạo nhóm:', error);
+      console.error("Lỗi khi tạo nhóm:", error);
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi khi tạo nhóm',
+        type: "error",
+        text1: "Lỗi khi tạo nhóm",
         text2: error.message,
       });
     } finally {
       setIsCreatingGroup(false);
     }
   };
-  
-  
-  
 
   const handleOpenAddFriendModal = () => {
     setSearchEmail(""); // Reset ô input
@@ -514,10 +560,12 @@ const FriendScreen = () => {
     setFriendRequestSent(false); // Reset trạng thái gửi lời mời
     setShowAddFriendModal(true);
   };
-
+  console.log("selectedFriends", selectedFriends);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -525,7 +573,12 @@ const FriendScreen = () => {
       ) : (
         <ScrollView>
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#888" style={styles.searchIcon} />
+            <Ionicons
+              name="search"
+              size={20}
+              color="#888"
+              style={styles.searchIcon}
+            />
             <TextInput
               placeholder="Tìm kiếm..."
               placeholderTextColor="#888"
@@ -536,13 +589,29 @@ const FriendScreen = () => {
           </View>
 
           <View style={styles.tabContainer}>
-            <TouchableOpacity onPress={() => setSelectedTab("friends")} style={styles.tab}>
-              <Text style={[styles.tabText, selectedTab === "friends" && styles.tabActive]}>
+            <TouchableOpacity
+              onPress={() => setSelectedTab("friends")}
+              style={styles.tab}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedTab === "friends" && styles.tabActive,
+                ]}
+              >
                 Bạn bè
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setSelectedTab("groups")} style={styles.tab}>
-              <Text style={[styles.tabText, selectedTab === "groups" && styles.tabActive]}>
+            <TouchableOpacity
+              onPress={() => setSelectedTab("groups")}
+              style={styles.tab}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  selectedTab === "groups" && styles.tabActive,
+                ]}
+              >
                 Nhóm
               </Text>
             </TouchableOpacity>
@@ -550,7 +619,10 @@ const FriendScreen = () => {
 
           {selectedTab === "friends" && (
             <View style={styles.shortcuts}>
-              <TouchableOpacity onPress={handleOpenAddFriendModal} style={styles.shortcutItem}>
+              <TouchableOpacity
+                onPress={handleOpenAddFriendModal}
+                style={styles.shortcutItem}
+              >
                 <Ionicons name="person-add" size={22} color="#0066cc" />
                 <Text style={styles.shortcutText}>Thêm bạn</Text>
               </TouchableOpacity>
@@ -558,23 +630,26 @@ const FriendScreen = () => {
           )}
 
           {selectedTab === "groups" && (
-            
             <View style={styles.shortcuts}>
               <TouchableOpacity
                 onPress={() => setCreateGroupModalVisible(true)}
                 style={styles.shortcutItem}
               >
-                <Ionicons name="people-circle-outline" size={22} color="#0066cc" />
+                <Ionicons
+                  name="people-circle-outline"
+                  size={22}
+                  color="#0066cc"
+                />
                 <Text style={styles.shortcutText}>Tạo nhóm chat</Text>
               </TouchableOpacity>
             </View>
           )}
 
-
           <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-            {selectedTab === "friends" ? renderFriendGroup() : renderGroupList()}
+            {selectedTab === "friends"
+              ? renderFriendGroup()
+              : renderGroupList()}
           </View>
-
         </ScrollView>
       )}
 
@@ -592,16 +667,22 @@ const FriendScreen = () => {
             />
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => {
-                setShowAddFriendModal(false);
-                setSearchEmail("");
-                setSearchResult(null);
-                setSearching(false);
-                setFriendRequestSent(false);
-              }}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowAddFriendModal(false);
+                  setSearchEmail("");
+                  setSearchResult(null);
+                  setSearching(false);
+                  setFriendRequestSent(false);
+                }}
+              >
                 <Text style={styles.cancelText}>Hủy</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.searchBtn} onPress={handleSearchByEmail}>
+              <TouchableOpacity
+                style={styles.searchBtn}
+                onPress={handleSearchByEmail}
+              >
                 <Text style={styles.searchText}>Tìm kiếm</Text>
               </TouchableOpacity>
             </View>
@@ -609,12 +690,25 @@ const FriendScreen = () => {
             {searching && <ActivityIndicator style={{ marginTop: 10 }} />}
             {searchResult && (
               <View style={styles.searchResultContainer}>
-                <Text style={{ fontSize: 16, fontWeight: "bold" }}>{searchResult.username}</Text>
+                <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+                  {searchResult.username}
+                </Text>
                 <Text>{searchResult.email}</Text>
-                <Image source={{ uri: searchResult.avatarUrl }} style={styles.avatar} />
+                <Image
+                  source={{ uri: searchResult.avatarUrl }}
+                  style={styles.avatar}
+                />
 
                 {isAlreadyFriend ? (
-                  <Text style={{ marginTop: 10, color: "green", fontWeight: "bold" }}>Đã là bạn bè</Text>
+                  <Text
+                    style={{
+                      marginTop: 10,
+                      color: "green",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Đã là bạn bè
+                  </Text>
                 ) : friendRequestSent ? (
                   <TouchableOpacity
                     onPress={() => handleCancelFriendRequest(searchResult.id)}
@@ -642,16 +736,25 @@ const FriendScreen = () => {
           <View style={styles.groupModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Tạo nhóm</Text>
-              <TouchableOpacity onPress={() => setCreateGroupModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setCreateGroupModalVisible(false)}
+              >
                 <Feather name="x" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputGroupContainer}>
-              <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
-                <Image 
-                  source={{ uri: avatarUrl || 'https://cdn-icons-png.flaticon.com/512/219/219983.png' }} 
-                  style={styles.avatar} 
+              <TouchableOpacity
+                style={styles.avatarContainer}
+                onPress={pickAvatar}
+              >
+                <Image
+                  source={{
+                    uri:
+                      avatarUrl ||
+                      "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                  }}
+                  style={styles.avatar}
                 />
               </TouchableOpacity>
 
@@ -676,7 +779,7 @@ const FriendScreen = () => {
               {Object.entries(
                 filteredFriends
                   .sort((a, b) => a.name.localeCompare(b.name))
-                  .reduce((acc: {[key: string]: any[]}, friend) => {
+                  .reduce((acc: { [key: string]: any[] }, friend) => {
                     const firstLetter = friend.name[0].toUpperCase();
                     if (!acc[firstLetter]) acc[firstLetter] = [];
                     acc[firstLetter].push(friend);
@@ -687,20 +790,25 @@ const FriendScreen = () => {
                   <Text style={styles.groupLetter}>{letter}</Text>
                   {friendsInGroup.map((friend) => (
                     <TouchableOpacity
-                      key={friend.id}
+                      key={friend.friendId}
                       style={styles.selectableFriend}
                       onPress={() => {
                         setSelectedFriends((prev) =>
-                          prev.includes(friend.id)
-                            ? prev.filter((id) => id !== friend.id)
-                            : [...prev, friend.id]
+                          prev.includes(friend.friendId)
+                            ? prev.filter(
+                                (friendId) => friendId !== friend.friendId
+                              )
+                            : [...prev, friend.friendId]
                         );
                       }}
                     >
-                      <Image source={{ uri: friend.avatarUrl }} style={styles.avatarImage} />
+                      <Image
+                        source={{ uri: friend.avatarUrl }}
+                        style={styles.avatarImage}
+                      />
                       <Text style={styles.friendName}>{friend.name}</Text>
                       <View style={styles.checkboxCircle}>
-                        {selectedFriends.includes(friend.id) && (
+                        {selectedFriends.includes(friend.friendId) && (
                           <View style={styles.checkboxSelected} />
                         )}
                       </View>
@@ -725,7 +833,11 @@ const FriendScreen = () => {
                 disabled={selectedFriends.length === 0}
                 style={[
                   styles.createBtn,
-                  { backgroundColor: selectedFriends.length ? "#0066cc" : "#ccc" },
+                  {
+                    backgroundColor: selectedFriends.length
+                      ? "#0066cc"
+                      : "#ccc",
+                  },
                 ]}
               >
                 <Text style={styles.createText}>Tạo nhóm</Text>
@@ -737,8 +849,6 @@ const FriendScreen = () => {
     </SafeAreaView>
   );
 };
-
-
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -762,7 +872,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   tab: { paddingVertical: 12, paddingHorizontal: 20 },
-  tabText: { fontSize: 16, fontWeight: "600" },
+  tabText: { fontSize: 16, fontWeight: "600", color: "#fff" },
   tabActive: { borderBottomWidth: 3, borderBottomColor: "#0066cc" },
   shortcuts: {
     marginTop: 20,
@@ -929,7 +1039,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
-  },  
+  },
   groupItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -949,7 +1059,7 @@ const styles = StyleSheet.create({
   },
   groupName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   groupLeader: {
@@ -962,8 +1072,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   groupActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 15,
   },
   noGroupsContainer: {
@@ -975,24 +1085,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
-  
+
   groupListContainer: {
     paddingBottom: 20,
   },
   groupCard: {
-    width: '48%',
+    width: "48%",
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   groupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   groupCardAvatar: {
@@ -1003,7 +1113,7 @@ const styles = StyleSheet.create({
   },
   groupCardName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     flexShrink: 1,
   },
   groupMemberCount: {
@@ -1012,22 +1122,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   leaderBadge: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   leaderBadgeText: {
-    color: 'white',
+    color: "white",
     fontSize: 12,
   },
   deputyBadge: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginTop: 4,
   },
   noGroupsContainer: {
@@ -1040,7 +1150,7 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   deputyBadgeText: {
-    color: 'white',
+    color: "white",
     fontSize: 12,
   },
 
@@ -1050,9 +1160,7 @@ const styles = StyleSheet.create({
   groupInfo: {
     flex: 1,
   },
-  groupDeputy: {
-    
-  },
+  groupDeputy: {},
   viewButton: {
     padding: 10,
     borderRadius: 5,
