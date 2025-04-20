@@ -443,58 +443,55 @@ const FriendScreen = () => {
 
   //Tao Group
   const handleCreateGroup = async () => {
-
-    if (!groupName.trim() || selectedFriends.length === 0) {
+    const trimmedGroupName = groupName.trim();
+  
+    if (!trimmedGroupName) {
       Toast.show({
         type: 'error',
-        text1: 'Vui lòng nhập tên nhóm và chọn thành viên'
+        text1: 'Tên nhóm không được để trống'
       });
       return;
     }
-
+  
+    // Tính tổng thành viên nhóm (bạn + những người được chọn)
+    const totalMembers = new Set([user.id, ...selectedFriends]).size;
+    if (totalMembers < 3) {
+      Toast.show({
+        type: 'error',
+        text1: 'Nhóm phải có ít nhất 3 thành viên'
+      });
+      return;
+    }
+  
     try {
       setIsCreatingGroup(true);
-
-      // Lấy danh sách ID thực tế của bạn bè được chọn
+  
       const actualParticipantIds = filteredFriends
         .filter(friend => {
           const friendId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
           return selectedFriends.includes(friendId);
         })
-        .map(friend => {
-          return friend.senderId === user.id ? friend.receiverId : friend.senderId;
-        });
-      console.log(actualParticipantIds)
-      console.log('Selected participants:', {
-        leaderId: user.id,
-        participantIds: actualParticipantIds,
-        groupName: groupName.trim()
-      });
-
-
+        .map(friend => friend.senderId === user.id ? friend.receiverId : friend.senderId);
+  
       const socket = getSocket();
       if (!socket) return;
-
+  
       const data = {
-        participantIds: actualParticipantIds, // Mảng các user được chọn
-        groupName: groupName.trim(),     // Tên nhóm nhập từ input
+        participantIds: actualParticipantIds,
+        groupName: trimmedGroupName,
       };
-
+  
       socket.emit("create-group", data);
-
-      // Optionally, bạn có thể chờ phản hồi qua "group-created" hoặc "create-group-error"
-      console.log('Response from server:', data);
-
+  
       Toast.show({
         type: 'success',
-        text1: `Đã tạo nhóm "${groupName.trim()}" thành công`,
+        text1: `Đã tạo nhóm "${trimmedGroupName}" thành công`,
       });
-
+  
       setGroupName('');
       setSelectedFriends([]);
       setCreateGroupModalVisible(false);
       fetchGroups();
-
     } catch (error: any) {
       console.error('Lỗi khi tạo nhóm:', error);
       Toast.show({
@@ -506,9 +503,7 @@ const FriendScreen = () => {
       setIsCreatingGroup(false);
     }
   };
-
-
-
+  
 
 
   const handleOpenAddFriendModal = () => {
