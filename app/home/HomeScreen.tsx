@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, memo } from "react";
 import {
   View,
   Text,
@@ -10,12 +10,11 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Auth } from "aws-amplify";
 import { connectSocket, getSocket } from "@/src/socket/socket";
 import { getCurrentUserId } from "../../src/utils/config";
@@ -55,6 +54,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string>("");
   const [socketInitialized, setSocketInitialized] = useState(false);
+  const [hasFetchedInitialData, setHasFetchedInitialData] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
@@ -85,10 +85,16 @@ const HomeScreen = () => {
   }, []);
 
   const fetchConversations = async () => {
+    if (!userId || (hasFetchedInitialData && displayConversations.length > 0)) {
+      console.log(
+        "Skipping fetchConversations, data already fetched or no userId"
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      if (!userId) return;
-
       const friends = await fetchFriends();
       const acceptedFriends = friends.filter(
         (friend) => friend.status === "accepted"
@@ -169,8 +175,18 @@ const HomeScreen = () => {
         return timeB - timeA;
       });
 
-      setDisplayConversations(combinedList);
-      console.log("Fetched conversations:", combinedList);
+      setDisplayConversations((prev) => {
+        const isSameData =
+          JSON.stringify(prev) === JSON.stringify(combinedList);
+        if (isSameData) {
+          console.log("Data unchanged, skipping state update");
+          return prev;
+        }
+        console.log("Fetched conversations:", combinedList);
+        return combinedList;
+      });
+
+      setHasFetchedInitialData(true);
     } catch (error) {
       console.error("Lỗi khi lấy cuộc trò chuyện:", error);
     } finally {
@@ -184,24 +200,17 @@ const HomeScreen = () => {
     }
   }, [userId]);
 
-  // Đồng bộ dữ liệu khi ứng dụng được đưa vào trạng thái active
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === "active") {
-        console.log("App is active, fetching conversations...");
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId && !hasFetchedInitialData) {
+        console.log("HomeScreen focused, fetching conversations...");
         fetchConversations();
       }
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-
-    return () => {
-      subscription.remove();
-    };
-  }, [userId]);
+      return () => {
+        console.log("HomeScreen unfocused");
+      };
+    }, [userId, hasFetchedInitialData])
+  );
 
   useEffect(() => {
     if (!socketInitialized || !userId) return;
@@ -220,32 +229,28 @@ const HomeScreen = () => {
         );
 
         if (participants.includes(userId)) {
-          const newGroup: CombinedConversation = {
-            type: "group",
-            id: conversationId,
-            displayName: groupName || "Nhóm chat",
-            avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-            lastMessage: null,
-            participantsCount: participants.length,
-          };
-
           setDisplayConversations((prev) => {
-            if (prev.some((conv) => conv.id === conversationId)) {
-              console.log(
-                "Group already exists in displayConversations:",
-                conversationId
-              );
+            // Kiểm tra xem nhóm đã tồn tại trong danh sách chưa
+            const existingConv = prev.find(
+              (conv) => conv.id === conversationId
+            );
+            if (existingConv) {
+              console.log("Group already exists, skipping:", conversationId);
               return prev;
             }
-            const updatedList = [newGroup, ...prev].sort((a, b) => {
-              const timeA = a.lastMessage
-                ? new Date(a.lastMessage.createdAt).getTime()
-                : 0;
-              const timeB = b.lastMessage
-                ? new Date(b.lastMessage.createdAt).getTime()
-                : 0;
-              return timeB - timeA;
-            });
+
+            // Thêm nhóm mới vào danh sách
+            const newGroup: CombinedConversation = {
+              type: "group",
+              id: conversationId,
+              displayName: groupName || "Nhóm chat",
+              avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              lastMessage: null,
+              participantsCount: participants.length,
+            };
+
+            // Thêm nhóm mới vào đầu danh sách
+            const updatedList = [newGroup, ...prev];
             console.log("Updated displayConversations:", updatedList);
             return updatedList;
           });
@@ -258,12 +263,80 @@ const HomeScreen = () => {
       }
     );
 
+    // Listener mới cho group-updated
+    socket?.on(
+      "group-updated",
+      ({ conversationId, groupName, participants }) => {
+        console.log(
+          `Sự kiện group-updated nhận được cho người dùng ${userId}:`,
+          conversationId,
+          groupName,
+          participants
+        );
+
+        if (participants.includes(userId)) {
+          setDisplayConversations((prev) => {
+            const existingIndex = prev.findIndex(
+              (conv) => conv.id === conversationId
+            );
+
+            if (existingIndex !== -1) {
+              // Update existing group conversation
+              console.log("Cập nhật nhóm đã tồn tại:", conversationId);
+              const updatedList = [...prev];
+              updatedList[existingIndex] = {
+                ...updatedList[existingIndex],
+                displayName: groupName || "Nhóm chat",
+                participantsCount: participants.length,
+              };
+              console.log(
+                "Danh sách displayConversations đã cập nhật:",
+                updatedList
+              );
+              return updatedList;
+            }
+
+            // Add new group if it doesn't exist
+            const newGroup = {
+              type: "group",
+              id: conversationId,
+              displayName: groupName || "Nhóm chat",
+              avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              lastMessage: null,
+              participantsCount: participants.length,
+            };
+
+            const updatedList = [newGroup, ...prev];
+            console.log("Đã thêm nhóm mới vào danh sách:", updatedList);
+            return updatedList;
+          });
+        } else {
+          // Remove group if user is no longer a participant
+          setDisplayConversations((prev) => {
+            const existingIndex = prev.findIndex(
+              (conv) => conv.id === conversationId
+            );
+            if (existingIndex !== -1) {
+              console.log(
+                `Người dùng ${userId} đã bị xóa khỏi nhóm:`,
+                conversationId
+              );
+              const updatedList = prev.filter(
+                (conv) => conv.id !== conversationId
+              );
+              return updatedList;
+            }
+            return prev;
+          });
+        }
+      }
+    );
+
     socket?.on("group-deleted", ({ conversationId }) => {
       console.log(
         `Group deleted event received for user ${userId}:`,
         conversationId
       );
-      // Xóa nhóm khỏi displayConversations
       setDisplayConversations((prev) => {
         const updatedList = prev.filter((conv) => conv.id !== conversationId);
         console.log(
@@ -272,23 +345,14 @@ const HomeScreen = () => {
         );
         return updatedList;
       });
-      // Gọi lại fetchConversations để đồng bộ dữ liệu từ database
-      fetchConversations();
-    });
-
-    // Lắng nghe sự kiện connect của socket (phía client)
-    socket?.on("connect", () => {
-      console.log(`Socket connected for user ${userId}`);
-      // Khi socket kết nối, gọi fetchConversations để đồng bộ dữ liệu
       fetchConversations();
     });
 
     return () => {
       socket?.off("group-created");
       socket?.off("group-deleted");
-      socket?.off("connect");
     };
-  }, [socketInitialized, userId]);
+  }, [socketInitialized, userId, hasFetchedInitialData]);
 
   const getUnreadCount = (
     conversation: CombinedConversation,
@@ -328,86 +392,93 @@ const HomeScreen = () => {
     }
   };
 
-  const renderItem = ({ item }: { item: CombinedConversation }) => {
-    const displayName = item.displayName;
-    const lastMessageContent =
-      item.lastMessage?.contentType === "text"
-        ? typeof item.lastMessage.message === "string"
-          ? item.lastMessage.message
-          : ""
-        : item.lastMessage?.contentType === "emoji"
-        ? "Emoji"
-        : item.lastMessage?.contentType === "file"
-        ? "File"
-        : "";
-    const unreadCount = getUnreadCount(item, userId);
+  const RenderItem = memo(
+    ({ item }: { item: CombinedConversation }) => {
+      const displayName = item.displayName;
+      const lastMessageContent =
+        item.lastMessage?.contentType === "text"
+          ? typeof item.lastMessage.message === "string"
+            ? item.lastMessage.message
+            : ""
+          : item.lastMessage?.contentType === "emoji"
+          ? "Emoji"
+          : item.lastMessage?.contentType === "file"
+          ? "File"
+          : "";
+      const unreadCount = getUnreadCount(item, userId);
 
-    return (
-      <TouchableOpacity
-        style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
-        onPress={() => {
-          if (item.type === "private") {
-            router.push({
-              pathname: "/ChatScreen",
-              params: {
-                userID2: item.id,
-                friendName: item.displayName,
-              },
-            });
-          } else {
-            router.push({
-              pathname: "/GroupChatScreen",
-              params: {
-                conversationId: item.id,
-              },
-            });
-          }
-        }}
-      >
-        <Image
-          source={{
-            uri:
-              item.avatar ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      return (
+        <TouchableOpacity
+          style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
+          onPress={() => {
+            if (item.type === "private") {
+              router.push({
+                pathname: "/ChatScreen",
+                params: {
+                  userID2: item.id,
+                  friendName: item.displayName,
+                },
+              });
+            } else {
+              router.push({
+                pathname: "/GroupChatScreen",
+                params: {
+                  conversationId: item.id,
+                },
+              });
+            }
           }}
-          style={styles.avatar}
-        />
-        <View style={styles.chatDetails}>
-          <Text style={[styles.chatName, { color: theme.colors.text }]}>
-            {displayName}
-          </Text>
-          <Text
-            style={[
-              styles.chatMessage,
-              { color: theme.colors.text, opacity: 0.7 },
-            ]}
-          >
-            {lastMessageContent}
-            {item.type === "group" && item.participantsCount
-              ? ` (${item.participantsCount} thành viên)`
-              : ""}
-          </Text>
-        </View>
-        <View style={styles.chatMeta}>
-          <Text
-            style={[
-              styles.chatTime,
-              { color: theme.colors.text, opacity: 0.7 },
-            ]}
-          >
-            {item.lastMessage && item.lastMessage.createdAt
-              ? formatTime(item.lastMessage.createdAt)
-              : ""}
-          </Text>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{unreadCount}</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
+        >
+          <Image
+            source={{
+              uri:
+                item.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.chatDetails}>
+            <Text style={[styles.chatName, { color: theme.colors.text }]}>
+              {displayName}
+            </Text>
+            <Text
+              style={[
+                styles.chatMessage,
+                { color: theme.colors.text, opacity: 0.7 },
+              ]}
+            >
+              {lastMessageContent}
+              {item.type === "group" && item.participantsCount
+                ? ` (${item.participantsCount} thành viên)`
+                : ""}
+            </Text>
+          </View>
+          <View style={styles.chatMeta}>
+            <Text
+              style={[
+                styles.chatTime,
+                { color: theme.colors.text, opacity: 0.7 },
+              ]}
+            >
+              {item.lastMessage && item.lastMessage.createdAt
+                ? formatTime(item.lastMessage.createdAt)
+                : ""}
+            </Text>
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    (prevProps, nextProps) => prevProps.item === nextProps.item
+  );
+
+  const renderItem = (props: { item: CombinedConversation }) => (
+    <RenderItem {...props} />
+  );
 
   return (
     <SafeAreaView
@@ -447,6 +518,7 @@ const HomeScreen = () => {
             keyExtractor={(item) => `${item.type}-${item.id}`}
             renderItem={renderItem}
             contentContainerStyle={styles.chatList}
+            extraData={search}
           />
         )}
       </View>
