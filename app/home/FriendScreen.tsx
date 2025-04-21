@@ -719,10 +719,10 @@ const FriendScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateGroup}
-                disabled={selectedFriends.length === 0}
+                disabled={selectedFriends.length < 2 || !groupName.trim()}
                 style={[
                   styles.createBtn,
-                  { backgroundColor: selectedFriends.length ? "#0066cc" : "#ccc" },
+                  { backgroundColor: selectedFriends.length < 2 || !groupName.trim() ? "#ccc" : "#0066cc" },
                 ]}
               >
                 <Text style={styles.createText}>Tạo nhóm</Text>
