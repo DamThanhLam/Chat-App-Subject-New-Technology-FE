@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     },
     messageWrapper: {
         flexDirection: "row",
-        alignItems: "flex-start",
+        alignItems: "center",
         paddingHorizontal: 10,
         marginVertical: 6,
     },

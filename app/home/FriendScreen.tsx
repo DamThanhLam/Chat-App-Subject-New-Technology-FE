@@ -444,7 +444,7 @@ const FriendScreen = () => {
   //Tao Group
   const handleCreateGroup = async () => {
     const trimmedGroupName = groupName.trim();
-  
+
     if (!trimmedGroupName) {
       Toast.show({
         type: 'error',
@@ -452,7 +452,7 @@ const FriendScreen = () => {
       });
       return;
     }
-  
+
     // Tính tổng thành viên nhóm (bạn + những người được chọn)
     const totalMembers = new Set([user.id, ...selectedFriends]).size;
     if (totalMembers < 3) {
@@ -462,32 +462,31 @@ const FriendScreen = () => {
       });
       return;
     }
-  
+
     try {
       setIsCreatingGroup(true);
-  
+
       const actualParticipantIds = filteredFriends
         .filter(friend => {
           const friendId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
           return selectedFriends.includes(friendId);
         })
         .map(friend => friend.senderId === user.id ? friend.receiverId : friend.senderId);
-  
+
       const socket = getSocket();
       if (!socket) return;
-  
       const data = {
         participantIds: actualParticipantIds,
         groupName: trimmedGroupName,
       };
-  
+
       socket.emit("create-group", data);
-  
+
       Toast.show({
         type: 'success',
         text1: `Đã tạo nhóm "${trimmedGroupName}" thành công`,
       });
-  
+
       setGroupName('');
       setSelectedFriends([]);
       setCreateGroupModalVisible(false);
@@ -503,7 +502,7 @@ const FriendScreen = () => {
       setIsCreatingGroup(false);
     }
   };
-  
+
 
 
   const handleOpenAddFriendModal = () => {

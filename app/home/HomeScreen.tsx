@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
@@ -39,11 +40,11 @@ interface GroupConversation {
 
 interface CombinedConversation {
   type: "private" | "group";
-  id: string; // friendId (private) hoặc conversationId (group)
+  id: string;
   displayName: string;
   avatar?: string;
   lastMessage?: Message | null;
-  participantsCount?: number; // Số lượng thành viên (cho group)
+  participantsCount?: number;
 }
 
 const HomeScreen = () => {
@@ -53,26 +54,37 @@ const HomeScreen = () => {
   >([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string>("");
+  const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
-  // Lấy danh sách bạn bè, nhóm và tin nhắn cuối cùng
+  useEffect(() => {
+    const initializeUserId = async () => {
+      try {
+        const currentUserId = await getCurrentUserId();
+        setUserId(currentUserId);
+        console.log("User ID initialized:", currentUserId);
+      } catch (error) {
+        console.error("Error fetching userId:", error);
+      }
+    };
+    initializeUserId();
+  }, []);
+
+
   const fetchConversations = async () => {
     try {
       setLoading(true);
-      const currentUserId = await getCurrentUserId();
-      setUserId(currentUserId);
+      if (!userId) return;
 
-      // Bước 1: Lấy danh sách bạn bè (chat đơn)
       const friends = await fetchFriends();
       const acceptedFriends = friends.filter(
         (friend) => friend.status === "accepted"
       );
 
-      // Bước 2: Lấy danh sách cuộc trò chuyện nhóm
       const headers = await getAuthHeaders();
       const groupResponse = await fetch(
-        `${API_BASE_URL}/conversations/my-groups/${currentUserId}`,
+        `${API_BASE_URL}/conversations/my-groups/${userId}`,
         {
           method: "GET",
           headers,
@@ -85,10 +97,9 @@ const HomeScreen = () => {
       const groupConversations: GroupConversation[] =
         await groupResponse.json();
 
-      // Bước 3: Lấy thông tin bạn bè và tin nhắn cuối cho chat đơn
       const privateConversations: CombinedConversation[] = [];
       const friendIds = acceptedFriends.map((friend) =>
-        friend.senderId === currentUserId ? friend.receiverId : friend.senderId
+        friend.senderId === userId ? friend.receiverId : friend.senderId
       );
 
       const usersResponse = await Promise.all(
@@ -102,9 +113,7 @@ const HomeScreen = () => {
 
       for (const friend of acceptedFriends) {
         const friendId =
-          friend.senderId === currentUserId
-            ? friend.receiverId
-            : friend.senderId;
+          friend.senderId === userId ? friend.receiverId : friend.senderId;
 
         const lastMessage = await fetchLatestMessage(friendId);
         const userInfo = userMap[friendId] || {
@@ -117,7 +126,7 @@ const HomeScreen = () => {
           id: friendId,
           displayName: userInfo.displayName,
           avatar:
-            friend.senderId === currentUserId
+            friend.senderId === userId
               ? friend.senderAVT
               : userInfo.avatar ||
               "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
@@ -125,18 +134,16 @@ const HomeScreen = () => {
         });
       }
 
-      // Bước 4: Tạo danh sách cuộc trò chuyện nhóm
       const groupConversationsList: CombinedConversation[] =
         groupConversations.map((group) => ({
           type: "group",
           id: group.id,
           displayName: group.groupName || "Nhóm chat",
-          avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", // Avatar mặc định cho nhóm
+          avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage: group.lastMessage,
           participantsCount: group.participants.length,
         }));
 
-      // Bước 5: Kết hợp và sắp xếp danh sách theo thời gian tin nhắn cuối
       const combinedList = [
         ...privateConversations,
         ...groupConversationsList,
@@ -151,6 +158,7 @@ const HomeScreen = () => {
       });
 
       setDisplayConversations(combinedList);
+      console.log("Fetched conversations:", combinedList);
     } catch (error) {
       console.error("Lỗi khi lấy cuộc trò chuyện:", error);
     } finally {
@@ -159,22 +167,109 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetchConversations();
+    if (userId) {
+      fetchConversations();
+    }
+  }, [userId]);
+
+
+  useEffect(() => {
     connectSocket().then(socket => {
-      const handleCreated = (groupData: any) => {
-        console.log("Tạo nhóm thành công:", groupData);
-        // Điều hướng sang màn hình chat nhóm hoặc cập nhật danh sách nhóm
+      if (!socket) return;
+      socket.on(
+        "added-to-group",
+        ({ conversation: { id, groupName, participants, avatarUrl }, message }) => {
+          console.log(
+            `Group created event received for user ${userId}:`,
+            id,
+            groupName,
+            participants
+          );
+
+          const newGroup: CombinedConversation = {
+            type: "group",
+            id: id,
+            displayName: groupName || "Nhóm chat",
+            avatar: avatarUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            lastMessage: null,
+            participantsCount: participants.length,
+          };
+
+          setDisplayConversations((prev) => {
+            if (prev.some((conv) => conv.id === id)) {
+              console.log(
+                "Group already exists in displayConversations:",
+                id
+              );
+              return prev;
+            }
+            const updatedList = [newGroup, ...prev].sort((a, b) => {
+              const timeA = a.lastMessage
+                ? new Date(a.lastMessage.createdAt).getTime()
+                : 0;
+              const timeB = b.lastMessage
+                ? new Date(b.lastMessage.createdAt).getTime()
+                : 0;
+              return timeB - timeA;
+            });
+            console.log("Updated displayConversations:", updatedList);
+            return updatedList;
+          });
+        }
+      );
+
+      socket?.on("group-deleted", ({ conversationId }) => {
+        console.log(
+          `Group deleted event received for user ${userId}:`,
+          conversationId
+        );
+        // Xóa nhóm khỏi displayConversations
+        setDisplayConversations((prev) => {
+          const updatedList = prev.filter((conv) => conv.id !== conversationId);
+          console.log(
+            "Updated displayConversations after deletion:",
+            updatedList
+          );
+          return updatedList;
+        });
+        // Gọi lại fetchConversations để đồng bộ dữ liệu từ database
         fetchConversations();
-      };
-      socket.on("group-created", handleCreated);
-      return () => {
-        socket.off("group-created", handleCreated);
-      }
+      });
+      // Lắng nghe đổi tên nhóm
+      socket.on(
+        "group-renamed",
+        ({ conversationId, newName, leaderId }) => {
+          console.log(
+            `Group renamed event received for user ${userId}:`,
+            conversationId,
+            newName
+          );
+
+          setDisplayConversations((prevConversations) => {
+            const updatedConversations = prevConversations.map((conv) => {
+              if (conv.type === "group" && conv.id === conversationId) {
+                return {
+                  ...conv,
+                  displayName: newName,
+                };
+              }
+              return conv;
+            });
+
+            console.log("Updated conversations after rename:", updatedConversations);
+            return updatedConversations;
+          });
+        }
+      );
+
+
     })
 
+
+    return () => {
+    };
   }, []);
 
-  // Hàm tính số tin nhắn chưa đọc
   const getUnreadCount = (
     conversation: CombinedConversation,
     currentUserId: string
@@ -189,7 +284,6 @@ const HomeScreen = () => {
     return 1;
   };
 
-  // Hàm định dạng thời gian
   const formatTime = (isoTime: string) => {
     if (!isoTime || typeof isoTime !== "string") {
       return "Không rõ";
@@ -227,7 +321,7 @@ const HomeScreen = () => {
             ? "File"
             : "";
     const unreadCount = getUnreadCount(item, userId);
-    console.log("item" + JSON.stringify(item))
+
     return (
       <TouchableOpacity
         style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
@@ -245,6 +339,7 @@ const HomeScreen = () => {
               pathname: "/GroupChatScreen",
               params: {
                 conversationId: item.id,
+                groupName: item.displayName
               },
             });
           }
@@ -305,7 +400,6 @@ const HomeScreen = () => {
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        {/* Search Bar */}
         <View
           style={[
             styles.searchContainer,
@@ -322,7 +416,6 @@ const HomeScreen = () => {
           <Ionicons name="search" size={20} color={theme.colors.text} />
         </View>
 
-        {/* Chat List */}
         {loading ? (
           <Text style={{ color: theme.colors.text, textAlign: "center" }}>
             Đang tải...

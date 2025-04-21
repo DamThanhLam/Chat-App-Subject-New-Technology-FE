@@ -90,7 +90,6 @@ const GroupChatScreen = () => {
   const [deviceImages, setDeviceImages] = useState<MediaLibrary.Asset[]>([]);
   const [filePickerVisible, setFilePickerVisible] = useState(false);
   const [token, setToken] = useState("");
-  const [groupName, setGroupName] = useState<string | null>(null);
   const [groupParticipants, setGroupParticipants] = useState<User[]>([]);
   const { conversationId } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
@@ -100,7 +99,7 @@ const GroupChatScreen = () => {
   const theme = useMemo(() => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme), [colorScheme]);
   const emojiPickerTheme: Theme = colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [groupName, setGroupName] = useState("Group Chat")
   // Authentication: get userID and token
   useEffect(() => {
     const initAuth = async () => {
@@ -125,15 +124,17 @@ const GroupChatScreen = () => {
         const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, { headers });
         if (!res.ok) throw new Error("Could not fetch group info");
         const groupData: Conversation = await res.json();
-        setGroupName(groupData.groupName || "Group chat");
+        setGroupName(groupData.groupName)
         const users: User[] = await Promise.all(
           groupData.participants.map(async (p) => {
             const uid = p.id;
             try {
               const ures = await fetch(`${API_BASE_URL}/user/${uid}`, { headers });
               const udata = await ures.json();
-              return { _id: uid, name: udata.name || "Unknown", image: udata.avatarUrl || "" };
-            } catch {
+              console.log(udata)
+              return { _id: uid, name: udata.username || "Unknown", image: udata.avatarUrl || "" };
+            } catch (e) {
+              console.log(e.message)
               return { _id: uid, name: "Unknown", image: "" };
             }
           })
@@ -182,8 +183,12 @@ const GroupChatScreen = () => {
         socket?.on("message-recalled", ({ message }) => setConversation((prev) => prev.map((m) => (m.id === message.id ? { ...m, status: 'recalled' } : m))));
         socket?.on("group-message", handleNew);
         socket?.emit("join-group", conversationId);
-
-
+        socket.on(
+          "group-renamed",
+          ({ conversationId, newName, leaderId }) => {
+            setGroupName(newName)
+          }
+        );
       })
       .catch((err) => console.error("Socket connect error", err));
 
@@ -446,10 +451,6 @@ const GroupChatScreen = () => {
     }).start();
   }, [slideAnim]); // Dependencies cho useCallback
 
-  const handleRename = (newName: string) => {
-    setGroupName(newName);
-    // Có thể thêm logic gọi API để lưu tên nhóm mới ở đây
-  };
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -587,8 +588,6 @@ const GroupChatScreen = () => {
           const messageTime = format(new Date(item.createdAt), "HH:mm");
           dateBefore.current = createdAt;
           const sender = groupParticipants.find((p) => p._id === item.senderId || p.id === item.senderId);
-          console.log('groupParticipants:', groupParticipants);
-          console.log('item.senderId:', item.senderId);
 
 
           return (
@@ -786,7 +785,6 @@ const GroupChatScreen = () => {
         slideAnim={slideAnim}
         colorScheme={colorScheme || null}
         targetUserId=""
-        onRename={handleRename}
         currentUserId={userID1 || ""}
         isGroupChat={true}
         conversationId={conversationId as string}

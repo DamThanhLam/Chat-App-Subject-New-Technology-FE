@@ -54,7 +54,7 @@ export const fetchDetailFriends = async (
         const userInfo = await fetchUserInfo(friendId);
         return {
           _id: friendId,
-          name: userInfo.name || friendId,
+          name: userInfo.username || friendId,
           urlAVT:
             userInfo.urlAVT ||
             "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",

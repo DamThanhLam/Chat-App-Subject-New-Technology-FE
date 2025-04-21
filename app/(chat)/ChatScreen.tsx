@@ -134,6 +134,19 @@ const ChatScreen = () => {
   const [token, setToken] = useState<string>("");
   const dateBefore = useRef<Date | null>();
 
+  // Xác định loại chat (đơn hay nhóm)
+  useEffect(() => {
+    if (conversationId && !friendId) {
+      setIsGroupChat(true);
+    } else {
+      setIsGroupChat(false);
+    }
+  }, [conversationId, friendId]);
+
+  // Nếu là chat nhóm, chuyển sang GroupChatScreen
+  if (isGroupChat) {
+    return <GroupChatScreen />;
+  }
   // Lấy thông tin người dùng (dùng cho chat đôi)
   const fetchUserInfo = async () => {
     try {
@@ -226,9 +239,7 @@ const ChatScreen = () => {
       socket.on("message-deleted", ({ messageId }: { messageId: string }) => {
         setConversation((prev) =>
           prev
-            .filter((msg) =>
-              msg.id !== messageId
-            )
+            .filter((msg) => msg.id !== messageId)
             .sort(
               (a, b) =>
                 new Date(a.createdAt).getTime() -
@@ -241,11 +252,7 @@ const ChatScreen = () => {
       socket.on("message-recalled", ({ message }: { message: Message }) => {
         setConversation((prev) =>
           prev
-            .map((msg) =>
-              msg.id === message.id
-                ? message
-                : msg
-            )
+            .map((msg) => (msg.id === message.id ? message : msg))
             .sort(
               (a, b) =>
                 new Date(a.createdAt).getTime() -
@@ -280,7 +287,6 @@ const ChatScreen = () => {
       }
     };
   }, []);
-
 
   const sendTextMessage = () => {
     if (!message.trim()) return;
@@ -677,7 +683,11 @@ const ChatScreen = () => {
               onPress={() => alert("Call")}
               style={styles.iconSpacing}
             >
-              <FontAwesome name="phone" size={24} color={theme.colors.primary} />
+              <FontAwesome
+                name="phone"
+                size={24}
+                color={theme.colors.primary}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => alert("Video")}
@@ -760,7 +770,6 @@ const ChatScreen = () => {
                 messageTime={messageTime}
                 anotherUser={anotherUser}
               />
-
             );
           }}
           contentContainerStyle={styles.messagesContainer}
@@ -803,7 +812,7 @@ const ChatScreen = () => {
             open={showEmojiPicker}
             onEmojiSelected={handleEmojiSelectMobile}
             onClose={() => setShowEmojiPicker(false)}
-          // you can customize height, columns, etc.
+            // you can customize height, columns, etc.
           />
         )}
 
@@ -828,7 +837,11 @@ const ChatScreen = () => {
                   setTempSelectedImages([]);
                 }}
               >
-                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             </View>
 
@@ -962,7 +975,10 @@ const ChatScreen = () => {
         />
         {/* Input */}
         <View
-          style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
+          style={[
+            styles.inputContainer,
+            { backgroundColor: theme.colors.card },
+          ]}
         >
           <TouchableOpacity
             onPress={toggleEmojiPicker}
@@ -1093,7 +1109,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 10,
     borderRadius: 8,
-    maxWidth: '80%',
+    maxWidth: "80%",
     // position: 'relative',
   },
   messageText: {
