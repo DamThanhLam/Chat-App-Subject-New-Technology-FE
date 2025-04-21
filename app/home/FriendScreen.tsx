@@ -528,6 +528,14 @@ const FriendScreen = () => {
 
       const data = await res.json();
 
+      console.log("Group creation response:", data);
+
+      // Emit sự kiện group-created tới tất cả thành viên trong nhóm
+      const io = getSocket(); // Lấy instance của socket.io
+      io?.emit("group-created", {
+        conversationId: data.conversation.id,
+      });
+
       if (!res.ok) {
         throw new Error(data.error || "Tạo nhóm thất bại");
       }

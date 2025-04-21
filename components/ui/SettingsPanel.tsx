@@ -24,6 +24,7 @@ import { FriendUserDetail } from "@/src/interface/interface";
 import { router } from "expo-router";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
+import { getSocket } from "@/src/socket/socket";
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -233,23 +234,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       try {
         if (isGroupChat) {
           // Đổi tên nhóm
-          const headers = await getAuthHeaders();
-          const response = await fetch(
-            `${API_BASE_URL}/conversations/${conversationId}`,
-            {
-              method: "PUT",
-              headers: {
-                ...headers,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ groupName: newName.trim() }),
-            }
-          );
+          const socket = getSocket();
 
-          if (!response.ok) {
-            throw new Error("Không thể đổi tên nhóm");
-          }
-
+          socket?.emit("rename-group", { conversationId, newName });
           onRename(newName.trim());
         } else {
           // Đổi tên gợi nhớ (chat đơn)
@@ -258,6 +245,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         }
 
         setRenameModalVisible(false);
+        onClose();
+
         setNewName("");
       } catch (error: any) {
         console.error("Lỗi khi đổi tên:", error.message);
@@ -352,8 +341,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (!response.ok) {
         throw new Error("Không thể thêm thành viên vào nhóm");
       }
+      const socket = getSocket();
+      friendsToAdd.forEach((newUserId) => {
+        socket?.emit("invite-join-group", conversationId, newUserId);
+      });
 
       setAddMemberModalVisible(false);
+      onClose();
       setSelectedFriends([]);
       // Reload lại thông tin nhóm
       const updatedConversation = await response.json();
@@ -406,23 +400,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/conversations/leave/${conversationId}`,
-        {
-          method: "PUT",
-          headers: {
-            ...headers,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Không thể rời nhóm");
-      }
+      // Emit sự kiện leave-group để thông báo cho các thành viên khác
+      const socket = getSocket();
+      socket?.emit("leaveGroup", { conversationId, userId: currentUserId });
 
       setLeaveGroupModalVisible(false);
+      onClose();
       setSuccessModalVisible(true);
     } catch (error: any) {
       console.error("Lỗi khi rời nhóm:", error.message);
@@ -443,21 +426,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/conversations/delete/${conversationId}`,
-        {
-          method: "DELETE",
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Không thể xóa nhóm");
-      }
+      // Emit sự kiện socket để thông báo xóa nhóm
+      const socket = getSocket();
+      socket?.emit("delete-group", conversationId);
 
       setDeleteGroupModalVisible(false);
-      setSuccessModalVisible(true);
+      onClose();
+      // setSuccessModalVisible(true);
     } catch (error: any) {
       console.error("Lỗi khi xóa nhóm:", error.message);
       Alert.alert("Lỗi", "Không thể xóa nhóm.");
@@ -665,21 +640,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </View>
             )}
             <View style={styles.settingsOptions}>
-              <TouchableOpacity
-                style={styles.settingsItem}
-                onPress={() => setRenameModalVisible(true)}
-              >
-                <FontAwesome
-                  name="pencil"
-                  size={20}
-                  color={theme.colors.text}
-                />
-                <Text
-                  style={[styles.settingsText, { color: theme.colors.text }]}
+              {conversationDetails?.leaderId === currentUserId && (
+                <TouchableOpacity
+                  style={styles.settingsItem}
+                  onPress={() => setRenameModalVisible(true)}
                 >
-                  {isGroupChat ? "Đổi tên nhóm" : "Đổi tên gợi nhớ"}
-                </Text>
-              </TouchableOpacity>
+                  <FontAwesome
+                    name="pencil"
+                    size={20}
+                    color={theme.colors.text}
+                  />
+                  <Text
+                    style={[styles.settingsText, { color: theme.colors.text }]}
+                  >
+                    {isGroupChat ? "Đổi tên nhóm" : "Đổi tên gợi nhớ"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={styles.settingsItem}
                 onPress={handleFetchMedia}

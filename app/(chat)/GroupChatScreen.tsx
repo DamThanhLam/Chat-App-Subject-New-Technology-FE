@@ -29,7 +29,11 @@ import Button from "@/components/ui/Button";
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
-import { connectSocket, getSocket } from "@/src/socket/socket";
+import {
+  connectSocket,
+  disconnectSocket,
+  getSocket,
+} from "@/src/socket/socket";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
@@ -41,6 +45,7 @@ import SettingsPanel from "@/components/ui/SettingsPanel";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import FilePickerModal from "@/components/FilePickerModal";
 import MessageItem from "@/components/MessageItem";
+import { useAppDispatch } from "@/src/redux/hooks";
 
 interface FileMessage {
   data: string;
@@ -92,6 +97,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GroupChatScreen = () => {
   const [userID1, setUserID1] = useState("");
   const [conversation, setConversation] = useState<Message[]>([]);
+  const dispatch = useAppDispatch();
   const [message, setMessage] = useState("");
   const [selectedMessage, setSelectedMessage] = useState<{
     id: string;
@@ -126,7 +132,9 @@ const GroupChatScreen = () => {
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const [token, setToken] = useState<string>("");
   const dateBefore = useRef<Date | null>(null);
-
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
   // Lấy thông tin cuộc trò chuyện nhóm
   const fetchGroupInfo = async () => {
     try {
@@ -151,6 +159,117 @@ const GroupChatScreen = () => {
     }
   };
 
+  const showCustomAlert = (title: string, message: string) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalVisible(true);
+  };
+  // Xử lý socket
+  useEffect(() => {
+    let socketRef: any;
+    const initializeSocket = async () => {
+      try {
+        socketRef = await connectSocket();
+        socketRef.emit("joinGroup", { conversationId, userId: userID1 });
+
+        // Lắng nghe kết quả gửi tin nhắn
+        socketRef.on("result", (data: { code: number; message: Message }) => {
+          const { code, message } = data;
+          let status: "sended" | "failed" | "received" = "sended";
+          if (code === 200) {
+            status = "sended";
+          } else if (code === 405) {
+            status = "failed";
+          }
+          dispatch(updateMessageStatus({ id: message.id, status }));
+        });
+
+        // Lắng nghe thành viên mới tham gia nhóm
+        socketRef.on("userJoinedGroup", ({ conversationId: cid, user }) => {
+          if (cid === conversationId) {
+            fetchGroupInfo();
+            console.log("Người dùng đã tham gia nhóm:", user);
+
+            showCustomAlert("Thông báo", `${user.method} đã tham gia nhóm`);
+          }
+        });
+
+        // Lắng nghe kết quả mời tham gia nhóm
+        socketRef.on(
+          "response-invite-join-group",
+          (data: { message: string; conversationId?: string }) => {
+            if (data.conversationId === conversationId) {
+              showCustomAlert("Thông báo", data.message);
+            }
+          }
+        );
+
+        // Lắng nghe đổi tên nhóm
+        socketRef.on(
+          "group-renamed",
+          ({ conversationId: cid, newName, leaderId }) => {
+            if (cid === conversationId) {
+              setGroupName(newName);
+              // Kiểm tra xem người dùng hiện tại có phải là trưởng nhóm không
+              if (userID1 !== leaderId) {
+                showCustomAlert(
+                  "Thông báo",
+                  `Trưởng nhóm đã đổi tên nhóm thành: ${newName}`
+                );
+              }
+            }
+          }
+        );
+
+        // Lắng nghe thành viên rời nhóm
+        socketRef.on(
+          "userLeft",
+          ({ conversationId: cid, userId, username }) => {
+            if (cid === conversationId) {
+              fetchGroupInfo();
+              showCustomAlert(
+                "Thông báo",
+                `Người dùng ${username} đã rời nhóm`
+              );
+            }
+          }
+        );
+
+        // Lắng nghe nhóm bị xóa
+        socketRef.on("group-deleted", ({ conversationId: cid }) => {
+          if (cid === conversationId) {
+            showCustomAlert("Thông báo", "Nhóm đã giải tán");
+          }
+        });
+
+        // Xử lý lỗi socket
+        socketRef.on("error", (err: { error: string; code: number }) => {
+          console.log("Socket error:", err);
+          Alert.alert("Lỗi", err.error || "Đã có lỗi xảy ra.");
+        });
+      } catch (error) {
+        console.error("Error connecting socket:", error);
+      }
+    };
+
+    if (userID1 && token) {
+      initializeSocket();
+    }
+
+    // Ngắt kết nối socket khi rời màn hình
+    return () => {
+      if (socketRef) {
+        socketRef.off("result");
+        socketRef.off("userJoinedGroup");
+        socketRef.off("group-deleted");
+        socketRef.off("response-invite-join-group");
+        socketRef.off("userLeft");
+        socketRef.off("group-renamed");
+        socketRef.off("error");
+      }
+      disconnectSocket();
+    };
+  }, [userID1, token, conversationId, dispatch]);
   // Lấy token và ID người dùng
   useEffect(() => {
     const getSub = async () => {
@@ -178,25 +297,25 @@ const GroupChatScreen = () => {
     fetchToken();
   }, []);
 
-  // Lấy tin nhắn của cuộc trò chuyện nhóm
-  useEffect(() => {
-    if (token && conversationId) {
-      fetch(
-        `${DOMAIN}:3000/api/message/group?conversationId=${conversationId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          updateConversation(data);
-        });
-    }
-  }, [token, conversationId]);
+  // // Lấy tin nhắn của cuộc trò chuyện nhóm
+  // useEffect(() => {
+  //   if (token && conversationId) {
+  //     fetch(
+  //       `${DOMAIN}:3000/api/message/group?conversationId=${conversationId}`,
+  //       {
+  //         method: "GET",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //       }
+  //     )
+  //       .then((res) => res.json())
+  //       .then((data) => {
+  //         updateConversation(data);
+  //       });
+  //   }
+  // }, [token, conversationId]);
 
   const updateConversation = (data: Message[]) => {
     const sort = [...data].sort((a: Message, b: Message) => {
@@ -904,7 +1023,43 @@ const GroupChatScreen = () => {
             </View>
           </View>
         </Modal>
-
+        {/* Modal thông báo tùy chỉnh */}
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalBackground}>
+            <View
+              style={[
+                styles.alertContainer,
+                { backgroundColor: theme.colors.card },
+              ]}
+            >
+              <Text style={[styles.alertTitle, { color: theme.colors.text }]}>
+                {modalTitle}
+              </Text>
+              <Text style={[styles.alertMessage, { color: theme.colors.text }]}>
+                {modalMessage}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.alertButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={() => {
+                  setModalVisible(false);
+                  if (modalMessage === "Nhóm đã giải tán") {
+                    router.replace("/home/HomeScreen");
+                  }
+                }}
+              >
+                <Text style={styles.alertButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
         <SettingsPanel
           visible={settingsVisible}
           onClose={closeSettings}
@@ -1240,6 +1395,32 @@ const styles = StyleSheet.create({
   },
   imagePickerTitle: {
     fontSize: 18,
+    fontWeight: "bold",
+  },
+  alertContainer: {
+    width: 300,
+    padding: 20,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  alertMessage: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  alertButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  },
+  alertButtonText: {
+    color: "white",
+    fontSize: 16,
     fontWeight: "bold",
   },
   imageItem: {
