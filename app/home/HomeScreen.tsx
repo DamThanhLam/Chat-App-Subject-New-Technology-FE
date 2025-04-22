@@ -71,7 +71,6 @@ const HomeScreen = () => {
     initializeUserId();
   }, []);
 
-
   const fetchConversations = async () => {
     try {
       setLoading(true);
@@ -129,7 +128,7 @@ const HomeScreen = () => {
             friend.senderId === userId
               ? friend.senderAVT
               : userInfo.avatar ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
@@ -172,13 +171,15 @@ const HomeScreen = () => {
     }
   }, [userId]);
 
-
   useEffect(() => {
-    connectSocket().then(socket => {
+    connectSocket().then((socket) => {
       if (!socket) return;
       socket.on(
         "added-to-group",
-        ({ conversation: { id, groupName, participants, avatarUrl }, message }) => {
+        ({
+          conversation: { id, groupName, participants, avatarUrl },
+          message,
+        }) => {
           console.log(
             `Group created event received for user ${userId}:`,
             id,
@@ -190,17 +191,16 @@ const HomeScreen = () => {
             type: "group",
             id: id,
             displayName: groupName || "Nhóm chat",
-            avatar: avatarUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            avatar:
+              avatarUrl ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
             lastMessage: null,
             participantsCount: participants.length,
           };
 
           setDisplayConversations((prev) => {
             if (prev.some((conv) => conv.id === id)) {
-              console.log(
-                "Group already exists in displayConversations:",
-                id
-              );
+              console.log("Group already exists in displayConversations:", id);
               return prev;
             }
             const updatedList = [newGroup, ...prev].sort((a, b) => {
@@ -235,38 +235,56 @@ const HomeScreen = () => {
         // Gọi lại fetchConversations để đồng bộ dữ liệu từ database
         fetchConversations();
       });
-      // Lắng nghe đổi tên nhóm
-      socket.on(
-        "group-renamed",
-        ({ conversationId, newName, leaderId }) => {
+
+      socket.on("removed-from-group", ({ conversationId, message }) => {
+        console.log(
+          `Removed from group event received for user ${userId}:`,
+          conversationId,
+          message
+        );
+        setDisplayConversations((prev) => {
+          const updatedList = prev.filter((conv) => conv.id !== conversationId);
           console.log(
-            `Group renamed event received for user ${userId}:`,
-            conversationId,
-            newName
+            "Updated displayConversations after being removed:",
+            updatedList
           );
+          return updatedList;
+        });
+        fetchConversations();
+      });
+      // Lắng nghe đổi tên nhóm
+      socket.on("group-renamed", ({ conversationId, newName, leaderId }) => {
+        console.log(
+          `Group renamed event received for user ${userId}:`,
+          conversationId,
+          newName
+        );
 
-          setDisplayConversations((prevConversations) => {
-            const updatedConversations = prevConversations.map((conv) => {
-              if (conv.type === "group" && conv.id === conversationId) {
-                return {
-                  ...conv,
-                  displayName: newName,
-                };
-              }
-              return conv;
-            });
-
-            console.log("Updated conversations after rename:", updatedConversations);
-            return updatedConversations;
+        setDisplayConversations((prevConversations) => {
+          const updatedConversations = prevConversations.map((conv) => {
+            if (conv.type === "group" && conv.id === conversationId) {
+              return {
+                ...conv,
+                displayName: newName,
+              };
+            }
+            return conv;
           });
-        }
-      );
 
-
-    })
-
-
+          console.log(
+            "Updated conversations after rename:",
+            updatedConversations
+          );
+          return updatedConversations;
+        });
+      });
+    });
     return () => {
+      const socket = getSocket();
+      if (socket) {
+        socket.off("removed-from-group");
+        socket.off("group-renamed");
+      }
     };
   }, []);
 
@@ -316,10 +334,10 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-          ? "Emoji"
-          : item.lastMessage?.contentType === "file"
-            ? "File"
-            : "";
+        ? "Emoji"
+        : item.lastMessage?.contentType === "file"
+        ? "File"
+        : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (
@@ -339,7 +357,7 @@ const HomeScreen = () => {
               pathname: "/GroupChatScreen",
               params: {
                 conversationId: item.id,
-                groupName: item.displayName
+                groupName: item.displayName,
               },
             });
           }

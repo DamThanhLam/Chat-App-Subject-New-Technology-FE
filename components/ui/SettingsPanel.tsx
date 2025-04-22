@@ -12,6 +12,9 @@ import {
   Alert,
   Image,
   Linking,
+  useWindowDimensions,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
@@ -103,7 +106,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [searchResults, setSearchResults] = useState<SearchMessage[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
-
+  const [showAllImages, setShowAllImages] = useState(false);
+  const [showAllFiles, setShowAllFiles] = useState(false);
+  const [showAllLinks, setShowAllLinks] = useState(false);
+  //remove user
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [removeMemberModalVisible, setRemoveMemberModalVisible] =
+    useState(false);
+  const [userToRemove, setUserToRemove] = useState<string | null>(null);
   // Lấy thông tin nhóm và thành viên nhóm
   useEffect(() => {
     if (visible && isGroupChat && conversationId) {
@@ -237,11 +249,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           const socket = getSocket();
 
           socket?.emit("rename-group", { conversationId, newName });
-          onRename &&onRename(newName.trim());
+          onRename && onRename(newName.trim());
         } else {
           // Đổi tên gợi nhớ (chat đơn)
           await setNickname(targetUserId, newName.trim());
-          onRename&&onRename(newName.trim());
+          onRename && onRename(newName.trim());
         }
 
         setRenameModalVisible(false);
@@ -439,17 +451,37 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  // Xử lý xóa lịch sử trò chuyện (chat đơn)
+  // Xử lý xóa lịch sử trò chuyện (cả chat đơn và chat nhóm)
   const handleDeleteConversation = async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${DOMAIN}:3000/api/message/mark-deleted-single-chat?friendId=${targetUserId}`,
-        {
-          method: "DELETE",
-          headers,
+      let response;
+
+      if (isGroupChat) {
+        // Xóa lịch sử trò chuyện nhóm
+        if (!conversationId) {
+          throw new Error("ID cuộc trò chuyện không hợp lệ.");
         }
-      );
+        response = await fetch(
+          `${DOMAIN}:3000/api/message/mark-deleted-group-chat?conversationId=${conversationId}`,
+          {
+            method: "DELETE",
+            headers,
+          }
+        );
+      } else {
+        // Xóa lịch sử trò chuyện chat đơn
+        if (!targetUserId) {
+          throw new Error("ID người bạn không hợp lệ.");
+        }
+        response = await fetch(
+          `${DOMAIN}:3000/api/message/mark-deleted-single-chat?friendId=${targetUserId}`,
+          {
+            method: "DELETE",
+            headers,
+          }
+        );
+      }
 
       if (!response.ok) {
         throw new Error("Không thể xóa lịch sử trò chuyện");
@@ -487,15 +519,30 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${DOMAIN}:3000/api/message/search-private?friendId=${targetUserId}&keyword=${encodeURIComponent(
-          searchKeyword
-        )}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
+      let response;
+      if (isGroupChat) {
+        // Tìm kiếm tin nhắn trong nhóm
+        response = await fetch(
+          `${API_BASE_URL}/message/search-group?conversationId=${conversationId}&keyword=${encodeURIComponent(
+            searchKeyword
+          )}`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+      } else {
+        // Tìm kiếm tin nhắn trong chat đơn
+        response = await fetch(
+          `${DOMAIN}:3000/api/message/search-private?friendId=${targetUserId}&keyword=${encodeURIComponent(
+            searchKeyword
+          )}`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+      }
 
       if (!response.ok) {
         throw new Error("Không thể tìm kiếm tin nhắn");
@@ -532,13 +579,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleFetchMedia = async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${DOMAIN}:3000/api/message/media?friendId=${targetUserId}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
+      let response;
+      if (isGroupChat) {
+        // Lấy media trong nhóm
+        response = await fetch(
+          `${DOMAIN}:3000/api/message/media-group?conversationId=${conversationId}`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+      } else {
+        // Lấy media trong chat đơn
+        response = await fetch(
+          `${DOMAIN}:3000/api/message/media?friendId=${targetUserId}`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+      }
 
       if (!response.ok) {
         throw new Error("Không thể lấy danh sách media");
@@ -567,7 +627,97 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       Alert.alert("Lỗi", "Không thể mở liên kết.");
     }
   };
-  console.log("groupMember", groupMembers);
+
+  // Xử lý xóa thành viên khỏi nhóm
+  const handleRemoveMember = async () => {
+    if (!conversationId || !currentUserId || !userToRemove) {
+      Alert.alert("Lỗi", "Thông tin không hợp lệ.");
+      return;
+    }
+
+    try {
+      const socket = getSocket();
+      if (!socket) {
+        throw new Error("Không thể kết nối đến server");
+      }
+
+      // Emit sự kiện remove-user-from-group qua socket
+      socket.emit("remove-user-from-group", {
+        conversationId,
+        userIdToRemove: userToRemove,
+      });
+
+      // Lắng nghe phản hồi từ socket
+      socket.on("response-remove-user", ({ code, message, userId }) => {
+        if (code === 200) {
+          // Cập nhật danh sách thành viên
+          setGroupMembers((prev) =>
+            prev.filter((member) => member._id !== userId)
+          );
+        } else {
+          Alert.alert("Lỗi", message || "Không thể xóa thành viên khỏi nhóm.");
+        }
+      });
+
+      setRemoveMemberModalVisible(false);
+      onClose();
+      setUserToRemove(null);
+      setMenuVisible(false);
+      setSelectedUserId(null);
+    } catch (error: any) {
+      console.error("Lỗi khi xóa thành viên:", error.message);
+      Alert.alert("Lỗi", "Không thể xóa thành viên khỏi nhóm.");
+    }
+  };
+
+  // Hàm xử lý khi giữ chuột (long press) trên một thành viên
+  const handleLongPress = (event: any, userId: string) => {
+    // Chỉ hiển thị menu nếu người dùng hiện tại là trưởng nhóm và không phải chính họ
+    if (
+      conversationDetails?.leaderId === currentUserId &&
+      userId !== currentUserId
+    ) {
+      const { pageX, pageY } = event.nativeEvent;
+      setMenuPosition({ x: pageX, y: pageY });
+      setSelectedUserId(userId);
+      setMenuVisible(true);
+    }
+  };
+
+  // Hàm xử lý khi chọn "Xóa khỏi nhóm" từ menu
+  const handleRemoveFromGroup = () => {
+    if (selectedUserId) {
+      setUserToRemove(selectedUserId);
+      setRemoveMemberModalVisible(true);
+    }
+  };
+  // Chia mediaItems thành 3 danh sách: images, files, links
+  const images = mediaItems.filter((item) => {
+    if (item.type === "file") {
+      return item.filename && /\.(jpg|jpeg|png|gif)$/i.test(item.filename);
+    }
+    return false;
+  });
+  const files = mediaItems.filter((item) => {
+    if (item.type === "file") {
+      // Kiểm tra nếu filename tồn tại và không phải là file ảnh
+      return item.filename && !/\.(jpg|jpeg|png|gif)$/i.test(item.filename);
+    }
+    return false;
+  });
+
+  const links = mediaItems.filter((item) => item.type === "link");
+
+  const displayedImages = showAllImages ? images : images.slice(0, 4);
+  const displayedFiles = showAllFiles ? files : files.slice(0, 3);
+  const displayedLinks = showAllLinks ? links : links.slice(0, 3);
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return "0 KB";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
   return (
     <>
@@ -617,29 +767,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   data={groupMembers}
                   keyExtractor={(item) => item._id}
                   renderItem={({ item }) => (
-                    <View style={styles.memberItem}>
+                    <TouchableOpacity
+                      onLongPress={(event) => handleLongPress(event, item._id)}
+                      style={styles.memberItem}
+                    >
                       <Image
                         source={{
                           uri: item.urlAVT,
                         }}
                         style={styles.memberAvatar}
                       />
-                      <Text
-                        style={[
-                          styles.memberName,
-                          { color: theme.colors.text },
-                        ]}
-                      >
-                        {item.name}
-                        {item._id === conversationDetails?.leaderId &&
-                          " (Trưởng nhóm)"}
-                      </Text>
-                    </View>
+                      <View style={styles.memberInfo}>
+                        <Text
+                          style={[
+                            styles.memberName,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {item.name}
+                          {item._id === conversationDetails?.leaderId &&
+                            " (Trưởng nhóm)"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
                   )}
                 />
               </View>
             )}
-            <View style={styles.settingsOptions}>
+            <ScrollView style={styles.settingsOptions}>
               {conversationDetails?.leaderId === currentUserId && (
                 <TouchableOpacity
                   style={styles.settingsItem}
@@ -684,12 +839,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   Tìm tin nhắn
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsItem}>
-                <FontAwesome name="bell" size={20} color={theme.colors.text} />
+
+              <TouchableOpacity
+                style={[styles.settingsItem]}
+                onPress={() => setDeleteModalVisible(true)}
+              >
+                <FontAwesome name="trash" size={20} color={theme.colors.text} />
                 <Text
                   style={[styles.settingsText, { color: theme.colors.text }]}
                 >
-                  Tắt thông báo
+                  Xóa lịch sử trò chuyện
                 </Text>
               </TouchableOpacity>
               {!isGroupChat && (
@@ -747,6 +906,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       Rời nhóm
                     </Text>
                   </TouchableOpacity>
+
                   {conversationDetails?.leaderId === currentUserId && (
                     <TouchableOpacity
                       style={styles.settingsItem}
@@ -801,29 +961,46 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       Xem nhóm chung
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.settingsItem]}
-                    onPress={() => setDeleteModalVisible(true)}
-                  >
-                    <FontAwesome
-                      name="trash"
-                      size={20}
-                      color={theme.colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
-                      Xóa lịch sử trò chuyện
-                    </Text>
-                  </TouchableOpacity>
                 </>
               )}
-            </View>
+            </ScrollView>
           </Animated.View>
         </View>
+      </Modal>
+
+      {/* Modal menu tùy chọn khi giữ chuột */}
+      <Modal visible={menuVisible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          onPress={() => {
+            setMenuVisible(false);
+            setSelectedUserId(null);
+          }}
+        >
+          <View
+            style={[
+              styles.menuContainer,
+              {
+                position: "absolute",
+                left: menuPosition.x,
+                top: menuPosition.y,
+                backgroundColor: theme.colors.card,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleRemoveFromGroup}
+            >
+              <FontAwesome
+                name="user-times"
+                size={20}
+                color={theme.colors.text}
+              />
+              <Text style={[styles.menuText]}>Xóa khỏi nhóm</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Modal đổi tên gợi nhớ hoặc đổi tên nhóm */}
@@ -1073,6 +1250,48 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </View>
       </Modal>
 
+      <Modal
+        visible={removeMemberModalVisible}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalBackground}>
+          <View
+            style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              Xác nhận xóa thành viên
+            </Text>
+            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
+              Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm? Hành động này
+              không thể hoàn tác.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: theme.colors.border },
+                ]}
+                onPress={() => {
+                  setRemoveMemberModalVisible(false);
+                  setUserToRemove(null);
+                }}
+              >
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                  Hủy bỏ
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: "red" }]}
+                onPress={handleRemoveMember}
+              >
+                <Text style={[styles.buttonText, { color: "#fff" }]}>Xóa</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal xác nhận xóa nhóm */}
       <Modal visible={deleteGroupModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
@@ -1269,81 +1488,203 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
               Ảnh, file, link
             </Text>
-            <FlatList
-              data={mediaItems}
-              keyExtractor={(item) => item.id}
-              style={styles.mediaList}
-              renderItem={({ item }) => (
-                <View style={styles.mediaItem}>
-                  {item.type === "image" && (
-                    <TouchableOpacity onPress={() => handleOpenLink(item.url)}>
-                      <Image
-                        source={{ uri: item.url }}
-                        style={styles.mediaImage}
-                        resizeMode="cover"
-                      />
-                      <Text
-                        style={[styles.mediaTime, { color: theme.colors.text }]}
-                      >
-                        {formatMessageTime(item.createdAt)}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {item.type === "file" && (
-                    <TouchableOpacity
-                      style={styles.fileItem}
-                      onPress={() => handleOpenLink(item.url)}
+            <ScrollView style={styles.mediaContent}>
+              {/* Phần ảnh/video */}
+              {images.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        { color: theme.colors.text },
+                      ]}
                     >
-                      <FontAwesome
-                        name="file"
-                        size={20}
-                        color={theme.colors.text}
-                      />
-                      <Text
-                        style={[styles.fileName, { color: theme.colors.text }]}
+                      Ảnh/Video
+                    </Text>
+                    {images.length > 4 && !showAllImages && (
+                      <TouchableOpacity onPress={() => setShowAllImages(true)}>
+                        <Text
+                          style={[
+                            styles.seeAllText,
+                            { color: theme.colors.primary },
+                          ]}
+                        >
+                          Xem tất cả
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <FlatList
+                    data={displayedImages}
+                    keyExtractor={(item) => item.id}
+                    numColumns={4}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.imageItem}
+                        onPress={() => handleOpenLink(item.url)}
                       >
-                        {item.filename || "Tệp không tên"}
-                      </Text>
-                      <Text
-                        style={[styles.mediaTime, { color: theme.colors.text }]}
-                      >
-                        {formatMessageTime(item.createdAt)}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {item.type === "link" && (
-                    <TouchableOpacity
-                      style={styles.linkItem}
-                      onPress={() => handleOpenLink(item.url)}
-                    >
-                      <FontAwesome
-                        name="link"
-                        size={20}
-                        color={theme.colors.text}
-                      />
-                      <Text
-                        style={[styles.linkText, { color: theme.colors.text }]}
-                        numberOfLines={1}
-                      >
-                        {item.url}
-                      </Text>
-                      <Text
-                        style={[styles.mediaTime, { color: theme.colors.text }]}
-                      >
-                        {formatMessageTime(item.createdAt)}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                        <Image
+                          source={{ uri: item.url }}
+                          style={styles.mediaImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={false}
+                  />
                 </View>
               )}
-              ListEmptyComponent={
-                <Text
-                  style={[styles.noResultsText, { color: theme.colors.text }]}
-                >
-                  Không tìm thấy ảnh, file hoặc link nào.
-                </Text>
-              }
-            />
+
+              {/* Phần file */}
+              {files.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      File
+                    </Text>
+                    {files.length > 3 && !showAllFiles && (
+                      <TouchableOpacity onPress={() => setShowAllFiles(true)}>
+                        <Text
+                          style={[
+                            styles.seeAllText,
+                            { color: theme.colors.primary },
+                          ]}
+                        >
+                          Xem tất cả
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <FlatList
+                    data={displayedFiles}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.fileItem}
+                        onPress={() => handleOpenLink(item.url)}
+                      >
+                        <FontAwesome
+                          name="file"
+                          size={20}
+                          color={theme.colors.text}
+                        />
+                        <View style={styles.fileInfo}>
+                          <Text
+                            style={[
+                              styles.fileName,
+                              { color: theme.colors.text },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.filename || "Tệp không tên"}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.fileSize,
+                              { color: theme.colors.text },
+                            ]}
+                          >
+                            {formatFileSize(item.size)}{" "}
+                            <FontAwesome
+                              name="cloud"
+                              size={12}
+                              color={theme.colors.text}
+                            />
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.mediaTime,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {formatMessageTime(item.createdAt)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={false}
+                  />
+                </View>
+              )}
+
+              {/* Phần link */}
+              {links.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      Link
+                    </Text>
+                    {links.length > 3 && !showAllLinks && (
+                      <TouchableOpacity onPress={() => setShowAllLinks(true)}>
+                        <Text
+                          style={[
+                            styles.seeAllText,
+                            { color: theme.colors.primary },
+                          ]}
+                        >
+                          Xem tất cả
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <FlatList
+                    data={displayedLinks}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.linkItem}
+                        onPress={() => handleOpenLink(item.url)}
+                      >
+                        <FontAwesome
+                          name="link"
+                          size={20}
+                          color={theme.colors.text}
+                        />
+                        <Text
+                          style={[
+                            styles.linkText,
+                            { color: theme.colors.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.url}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.mediaTime,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {formatMessageTime(item.createdAt)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={false}
+                  />
+                </View>
+              )}
+
+              {/* Thông báo nếu không có nội dung */}
+              {images.length === 0 &&
+                files.length === 0 &&
+                links.length === 0 && (
+                  <Text
+                    style={[styles.noResultsText, { color: theme.colors.text }]}
+                  >
+                    Không tìm thấy ảnh, file hoặc link nào.
+                  </Text>
+                )}
+            </ScrollView>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[
@@ -1353,6 +1694,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 onPress={() => {
                   setMediaModalVisible(false);
                   setMediaItems([]);
+                  setShowAllImages(false);
+                  setShowAllFiles(false);
+                  setShowAllLinks(false);
                 }}
               >
                 <Text style={[styles.buttonText, { color: theme.colors.text }]}>
@@ -1403,6 +1747,10 @@ const styles = StyleSheet.create({
   },
   settingsOptions: {
     flex: 1,
+    maxHeight: 430,
+  },
+  settingsOptionsContent: {
+    paddingBottom: 20,
   },
   settingsItem: {
     flexDirection: "row",
@@ -1437,8 +1785,50 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     marginRight: 10,
   },
+  memberInfo: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   memberName: {
     fontSize: 16,
+  },
+  removeButton: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: "red",
+    borderRadius: 5,
+  },
+  removeButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  menuContainer: {
+    width: 150,
+    borderRadius: 5,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  menuItem: {
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  menuText: {
+    fontSize: 14,
+    marginLeft: 10,
+    color: "#ff0000",
   },
   modalBackground: {
     flex: 1,
@@ -1577,44 +1967,70 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
   },
-  mediaList: {
+  mediaContent: {
     width: "100%",
-    maxHeight: 250,
-    marginBottom: 15,
   },
-  mediaItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  imageItem: {
+    flex: 1,
+    margin: 2,
+    aspectRatio: 1,
   },
   mediaImage: {
-    width: 100,
-    height: 100,
+    width: "100%",
+    height: "100%",
     borderRadius: 5,
-    marginBottom: 5,
-  },
-  mediaTime: {
-    fontSize: 12,
-    marginTop: 5,
   },
   fileItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  fileInfo: {
+    flex: 1,
+    marginLeft: 10,
   },
   fileName: {
-    fontSize: 16,
-    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  fileSize: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  mediaTime: {
+    fontSize: 12,
+    opacity: 0.7,
     marginLeft: 10,
   },
   linkItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
   },
   linkText: {
-    fontSize: 16,
+    fontSize: 14,
     flex: 1,
     marginLeft: 10,
   },

@@ -1,6 +1,16 @@
 // @ts-nocheck
-import { Provider as PaperProvider, DefaultTheme as PaperDefaultTheme, DarkTheme as PaperDarkTheme } from "react-native-paper";
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import {
+  Provider as PaperProvider,
+  DefaultTheme as PaperDefaultTheme,
+  MD2DarkTheme as PaperDarkTheme,
+} from "react-native-paper";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import EmojiPickerMobile from "rn-emoji-keyboard";
 import {
   View,
@@ -86,7 +96,9 @@ const GroupChatScreen = () => {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
-  const [tempSelectedImages, setTempSelectedImages] = useState<MediaLibrary.Asset[]>([]);
+  const [tempSelectedImages, setTempSelectedImages] = useState<
+    MediaLibrary.Asset[]
+  >([]);
   const [deviceImages, setDeviceImages] = useState<MediaLibrary.Asset[]>([]);
   const [filePickerVisible, setFilePickerVisible] = useState(false);
   const [token, setToken] = useState("");
@@ -96,10 +108,14 @@ const GroupChatScreen = () => {
   const flatListRef = useRef<FlatList>(null);
   const dateBefore = useRef<Date | null>(null);
   const colorScheme = useColorScheme();
-  const theme = useMemo(() => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme), [colorScheme]);
-  const emojiPickerTheme: Theme = colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
+  const theme = useMemo(
+    () => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme),
+    [colorScheme]
+  );
+  const emojiPickerTheme: Theme =
+    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [groupName, setGroupName] = useState("Group Chat")
+  const [groupName, setGroupName] = useState("Group Chat");
   // Authentication: get userID and token
   useEffect(() => {
     const initAuth = async () => {
@@ -121,20 +137,29 @@ const GroupChatScreen = () => {
       if (!conversationId || !token) return;
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, { headers });
+        const res = await fetch(
+          `${API_BASE_URL}/conversations/${conversationId}`,
+          { headers }
+        );
         if (!res.ok) throw new Error("Could not fetch group info");
         const groupData: Conversation = await res.json();
-        setGroupName(groupData.groupName)
+        setGroupName(groupData.groupName);
         const users: User[] = await Promise.all(
           groupData.participants.map(async (p) => {
             const uid = p.id;
             try {
-              const ures = await fetch(`${API_BASE_URL}/user/${uid}`, { headers });
+              const ures = await fetch(`${API_BASE_URL}/user/${uid}`, {
+                headers,
+              });
               const udata = await ures.json();
-              console.log(udata)
-              return { _id: uid, name: udata.username || "Unknown", image: udata.avatarUrl || "" };
+              console.log(udata);
+              return {
+                _id: uid,
+                name: udata.username || "Unknown",
+                image: udata.avatarUrl || "",
+              };
             } catch (e) {
-              console.log(e.message)
+              console.log(e.message);
               return { _id: uid, name: "Unknown", image: "" };
             }
           })
@@ -156,9 +181,15 @@ const GroupChatScreen = () => {
     })
       .then((r) => (r.ok ? r.json() : Promise.reject("Fetch messages failed")))
       .then((msgs: Message[]) => {
-        const sorted = msgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        const sorted = msgs.sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
         setConversation(sorted);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+        setTimeout(
+          () => flatListRef.current?.scrollToEnd({ animated: false }),
+          100
+        );
       })
       .catch((err) => console.error("fetch messages error", err));
   }, [conversationId, token]);
@@ -166,29 +197,103 @@ const GroupChatScreen = () => {
   // Socket.IO for group chat
   useEffect(() => {
     let socket: any;
-    const handleNew = ({ message: newMsg }: { message: Message & { tempId?: string } }) => {
+    let isRemoved = false;
+    const handleNew = ({
+      message: newMsg,
+    }: {
+      message: Message & { tempId?: string };
+    }) => {
       setConversation((prev) => {
         let list = [...prev];
         if (newMsg.tempId) list = list.filter((m) => m.id !== newMsg.tempId);
         if (!list.some((m) => m.id === newMsg.id)) list.push(newMsg);
-        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        list.sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setTimeout(
+          () => flatListRef.current?.scrollToEnd({ animated: true }),
+          100
+        );
         return list;
       });
+    };
+    // Handle group deletion
+    const handleGroupDeleted = ({
+      conversationId: cid,
+    }: {
+      conversationId: string;
+    }) => {
+      if (cid === conversationId) {
+        const alertMessage =
+          "Nhóm đã giải tán. Bạn sẽ được chuyển về trang chính.";
+        Platform.OS === "web"
+          ? window.alert(alertMessage)
+          : Alert.alert("Thông báo", alertMessage);
+        router.replace("/home/HomeScreen");
+      }
+    };
+    const handleRemovedFromGroup = ({
+      conversationId: cid,
+      message,
+    }: {
+      conversationId: string;
+      message: string;
+    }) => {
+      if (cid === conversationId) {
+        Platform.OS === "web"
+          ? window.alert(message)
+          : Alert.alert("Thông báo", message);
+
+        // Navigate back to home screen
+        router.replace("/home/HomeScreen");
+      }
+    };
+    const handleUserLeft = ({
+      userId,
+      username,
+      conversationId: cid,
+    }: {
+      userId: string;
+      username: string;
+      conversationId: string;
+    }) => {
+      if (cid === conversationId) {
+        // Update participants list
+        setGroupParticipants((prev) => prev.filter((p) => p._id !== userId));
+
+        // Show alert for the user who left
+        Platform.OS === "web"
+          ? window.alert(`${username} đã rời khỏi nhóm`)
+          : Alert.alert("Thông báo", `${username} đã rời khỏi nhóm`);
+
+        // If the current user left, navigate back
+        if (userId === userID1) {
+          router.back();
+        }
+      }
     };
     connectSocket()
       .then(() => {
         socket = getSocket();
-        socket?.on("message-deleted", ({ messageId }) => setConversation((prev) => prev.filter((m) => m.id !== messageId)));
-        socket?.on("message-recalled", ({ message }) => setConversation((prev) => prev.map((m) => (m.id === message.id ? { ...m, status: 'recalled' } : m))));
-        socket?.on("group-message", handleNew);
-        socket?.emit("join-group", conversationId);
-        socket.on(
-          "group-renamed",
-          ({ conversationId, newName, leaderId }) => {
-            setGroupName(newName)
-          }
+        socket?.on("message-deleted", ({ messageId }) =>
+          setConversation((prev) => prev.filter((m) => m.id !== messageId))
         );
+        socket?.on("message-recalled", ({ message }) =>
+          setConversation((prev) =>
+            prev.map((m) =>
+              m.id === message.id ? { ...m, status: "recalled" } : m
+            )
+          )
+        );
+        socket?.on("group-message", handleNew);
+        socket?.on("userLeft", handleUserLeft);
+        socket?.on("group-deleted", handleGroupDeleted);
+        socket?.on("removed-from-group", handleRemovedFromGroup);
+        socket?.emit("join-group", conversationId);
+        socket.on("group-renamed", ({ conversationId, newName, leaderId }) => {
+          setGroupName(newName);
+        });
       })
       .catch((err) => console.error("Socket connect error", err));
 
@@ -196,7 +301,10 @@ const GroupChatScreen = () => {
       socket?.emit("leave-group", conversationId);
       socket?.off("message-deleted");
       socket?.off("message-recalled");
+      socket?.off("group-deleted", handleGroupDeleted);
+      socket?.off("removed-from-group", handleRemovedFromGroup);
       socket?.off("group-message", handleNew);
+      socket?.off("userLeft", handleUserLeft);
     };
   }, [conversationId]);
 
@@ -226,14 +334,20 @@ const GroupChatScreen = () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       readed: [],
-      messageType: 'group',
-      contentType: 'text',
-      status: 'sended',
+      messageType: "group",
+      contentType: "text",
+      status: "sended",
     };
     setConversation((prev) => [...prev, optimistic]);
     setMessage("");
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    socket.emit("group-message", { conversationId, message: optimistic.message, messageType: 'group', contentType: 'text', tempId });
+    socket.emit("group-message", {
+      conversationId,
+      message: optimistic.message,
+      messageType: "group",
+      contentType: "text",
+      tempId,
+    });
   };
   // 2. Mobile: chọn nhiều ảnh rồi upload
   const handleMobileMultiImageSelect = async (
@@ -249,13 +363,16 @@ const GroupChatScreen = () => {
       const imagesUpload = await uploadFilesToServer(files);
       setConversation((prev) => [...prev, optimistic]);
       setMessage("");
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
       // 2) emit socket cho mỗi URL hoặc gộp
       imagesUpload.forEach((image: any) => {
         getSocket().emit("group-message", {
           conversationId: conversationId,
           message: { data: image.url, filename: image.filename },
-          messageType: 'group',
+          messageType: "group",
           contentType: "file",
         });
       });
@@ -309,7 +426,7 @@ const GroupChatScreen = () => {
     });
   };
   const sendSelectedImages = async () => {
-    console.log(tempSelectedImages.length)
+    console.log(tempSelectedImages.length);
     if (tempSelectedImages.length === 0) return;
     await handleMobileMultiImageSelect(tempSelectedImages);
   };
@@ -393,11 +510,19 @@ const GroupChatScreen = () => {
     setShowFilePicker(true);
     getDeviceFiles();
   };
-  useEffect(() => { if (showImagePicker && Platform.OS !== 'web') loadDeviceImages(); }, [showImagePicker]);
+  useEffect(() => {
+    if (showImagePicker && Platform.OS !== "web") loadDeviceImages();
+  }, [showImagePicker]);
 
   // Toggles
-  const toggleEmojiPicker = () => { setShowEmojiPicker((v) => !v); setShowImagePicker(false); setFilePickerVisible(false); if (showEmojiPicker) Keyboard.dismiss(); };
-  const handleEmojiClick = (e: EmojiClickData) => setMessage((m) => m + e.emoji);
+  const toggleEmojiPicker = () => {
+    setShowEmojiPicker((v) => !v);
+    setShowImagePicker(false);
+    setFilePickerVisible(false);
+    if (showEmojiPicker) Keyboard.dismiss();
+  };
+  const handleEmojiClick = (e: EmojiClickData) =>
+    setMessage((m) => m + e.emoji);
   const openImagePicker = () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
@@ -422,14 +547,14 @@ const GroupChatScreen = () => {
           };
         })
       );
-      console.log(uploadFiles)
+      console.log(uploadFiles);
       const urls = await uploadFilesToServer(uploadFiles); // custom logic
 
       urls.forEach((image: any) => {
         getSocket().emit("group-message", {
           conversationId: conversationId,
           message: { data: image.url, filename: image.filename },
-          messageType: 'group',
+          messageType: "group",
           contentType: "file",
         });
       });
@@ -440,7 +565,12 @@ const GroupChatScreen = () => {
   };
   const handleMessageSelect = (msgId: string) => {
     const idx = conversation.findIndex((m) => m.id === msgId);
-    if (idx >= 0) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+    if (idx >= 0)
+      flatListRef.current?.scrollToIndex({
+        index: idx,
+        animated: true,
+        viewPosition: 0.5,
+      });
   };
   const closeSettings = useCallback(() => {
     setSettingsVisible(false);
@@ -450,7 +580,6 @@ const GroupChatScreen = () => {
       useNativeDriver: true,
     }).start();
   }, [slideAnim]); // Dependencies cho useCallback
-
 
   const closeMenu = () => {
     setMenuVisible(false);
@@ -472,7 +601,7 @@ const GroupChatScreen = () => {
         getSocket().emit("group-message", {
           conversationId: conversationId,
           message: { data: image.url, filename: image.filename },
-          messageType: 'group',
+          messageType: "group",
           contentType: "file",
         });
       });
@@ -486,8 +615,14 @@ const GroupChatScreen = () => {
   return (
     <PaperProvider theme={theme}>
       {/* Hidden web file input */}
-      {Platform.OS === 'web' && (
-        <input id="fileInput" type="file" multiple style={{ display: 'none' }} onChange={() => { }} />
+      {Platform.OS === "web" && (
+        <input
+          id="fileInput"
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={() => {}}
+        />
       )}
 
       {/* Header */}
@@ -508,9 +643,7 @@ const GroupChatScreen = () => {
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
             {groupName || "Nhóm chat"}
           </Text>
-          <Text
-            style={[styles.participantsText, { color: theme.colors.text }]}
-          >
+          <Text style={[styles.participantsText, { color: theme.colors.text }]}>
             {groupParticipants.length} thành viên
           </Text>
         </View>
@@ -519,11 +652,7 @@ const GroupChatScreen = () => {
             onPress={() => alert("Call")}
             style={styles.iconSpacing}
           >
-            <FontAwesome
-              name="phone"
-              size={24}
-              color={theme.colors.primary}
-            />
+            <FontAwesome name="phone" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => alert("Video")}
@@ -587,8 +716,9 @@ const GroupChatScreen = () => {
           const isFile = item.contentType === "file";
           const messageTime = format(new Date(item.createdAt), "HH:mm");
           dateBefore.current = createdAt;
-          const sender = groupParticipants.find((p) => p._id === item.senderId || p.id === item.senderId);
-
+          const sender = groupParticipants.find(
+            (p) => p._id === item.senderId || p.id === item.senderId
+          );
 
           return (
             <MessageItem
@@ -604,7 +734,6 @@ const GroupChatScreen = () => {
               anotherUser={sender}
               isGroupChat={true}
             />
-
           );
         }}
         contentContainerStyle={styles.messagesContainer}
@@ -668,11 +797,7 @@ const GroupChatScreen = () => {
                 setTempSelectedImages([]);
               }}
             >
-              <MaterialIcons
-                name="close"
-                size={24}
-                color={theme.colors.text}
-              />
+              <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -799,10 +924,7 @@ const GroupChatScreen = () => {
       />
 
       <View
-        style={[
-          styles.inputContainer,
-          { backgroundColor: theme.colors.card },
-        ]}
+        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
       >
         <TouchableOpacity
           onPress={toggleEmojiPicker}
@@ -872,8 +994,6 @@ const GroupChatScreen = () => {
 };
 
 export default GroupChatScreen;
-
-
 
 const styles = StyleSheet.create({
   container: {
