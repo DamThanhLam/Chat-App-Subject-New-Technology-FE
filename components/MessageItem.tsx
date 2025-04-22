@@ -92,53 +92,53 @@ const MessageItem = ({
                     {stringDate}
                 </Text>
             )}
-
-            <TouchableOpacity
-                onLongPress={() => {
-                    // Nếu tin nhắn chưa bị thu hồi, xóa,... thì mở dialog
-                    if (!isDeleted && !isRecalled) {
-                        openDialog();
-                    }
-                }}
+    
+            <View
                 style={[
-                    styles.messageContainer,
-                    isSender ? styles.sentMessageContainer : styles.receivedMessageContainer,
+                    styles.messageWrapper,
+                    isSender ? styles.sentWrapper : styles.receivedWrapper,
                 ]}
             >
-                {/* Avatar bên trái nếu người gửi không phải là bạn */}
+                {/* Avatar + nội dung tin nhắn */}
                 {!isSender && anotherUser && (
                     <Image source={{ uri: anotherUser.image }} style={styles.avatar} />
                 )}
-
-                <View
-                    style={[
-                        styles.messageBubble,
-                        {
-                            backgroundColor: isSender ? theme.colors.primary : theme.colors.card,
-                            opacity: isDeleted || isRecalled ? 0.7 : 1,
-                        },
-                    ]}
+    
+                <TouchableOpacity
+                    onLongPress={() => {
+                        if (!isDeleted && !isRecalled) openDialog();
+                    }}
+                    activeOpacity={0.8}
+                    style={styles.bubbleContainer}
                 >
-                    {/* Nội dung tin nhắn */}
-                    {isFile ? (
-                        <FileMessage item={item} theme={theme} userID1={userID1} onLongPress={openDialog} />
-                    ) : (
-                        <Text style={{ color: isSender ? "#FFF" : theme.colors.text }}>
-                            {item.message}
-                        </Text>
+                    {!isSender && anotherUser && (
+                        <Text style={styles.senderName}>{anotherUser.name}</Text>
                     )}
-
-                    {/* Thời gian */}
-                    <Text style={{ fontSize: 11, color: isSender ? "#FFF" : theme.colors.text }}>
-                        {messageTime}
-                    </Text>
-                </View>
-
-                {/* Nếu là bạn, avatar placeholder */}
+                    <View
+                        style={[
+                            styles.messageBubble,
+                            {
+                                backgroundColor: isSender ? theme.colors.primary : theme.colors.card,
+                                opacity: isDeleted || isRecalled ? 0.7 : 1,
+                            },
+                        ]}
+                    >
+                        {isFile ? (
+                            <FileMessage item={item} theme={theme} userID1={userID1} onLongPress={openDialog} />
+                        ) : (
+                            <Text style={{ color: isSender ? "#FFF" : theme.colors.text }}>
+                                {item.message}
+                            </Text>
+                        )}
+                        <Text style={[styles.messageTime, { color: isSender ? "#FFF" : theme.colors.text }]}>
+                            {messageTime}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+    
                 {isSender && <View style={{ width: 32, height: 32 }} />}
-            </TouchableOpacity>
-
-            {/* Dialog hiển thị menu tùy chọn */}
+            </View>
+    
             <ContextMenuDialog
                 visible={dialogVisible}
                 onDismiss={closeDialog}
@@ -153,6 +153,7 @@ const MessageItem = ({
             />
         </>
     );
+    
 };
 
 const styles = StyleSheet.create({
@@ -168,18 +169,51 @@ const styles = StyleSheet.create({
     receivedMessageContainer: {
         justifyContent: "flex-start",
     },
+    messageWrapper: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 10,
+        marginVertical: 6,
+    },
+    
+    sentWrapper: {
+        justifyContent: "flex-end",
+    },
+    
+    receivedWrapper: {
+        justifyContent: "flex-start",
+    },
     avatar: {
         width: 32,
         height: 32,
         borderRadius: 16,
+        marginRight: 6,
+        marginTop: 4,
     },
+    
+    bubbleContainer: {
+        flexShrink: 1,
+        maxWidth: "80%",
+    },
+    
+    senderName: {
+        fontSize: 12,
+        color: "#888",
+        marginBottom: 2,
+    },
+    
     messageBubble: {
-        maxWidth: "75%",
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 12,
-        marginHorizontal: 8,
     },
+    
+    messageTime: {
+        fontSize: 11,
+        textAlign: "right",
+        marginTop: 4,
+    },
+    
 });
 
 export default MessageItem;

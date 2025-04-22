@@ -30,9 +30,9 @@ function BottomNavBar() {
       return <Redirect href="/(auth)/LoginScreen" />;
     }
   }, [user.id]);
-  useEffect(()=>{
+  useEffect(() => {
     router.push("/home/HomeScreen")
-  },[])
+  }, [])
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={() => router.push("/home/HomeScreen")} style={styles.tab}>
