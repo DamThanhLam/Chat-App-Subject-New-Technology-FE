@@ -26,6 +26,7 @@ import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 import { getSocket } from "@/src/socket/socket";
 
+
 interface SettingsPanelProps {
   visible: boolean;
   onClose: () => void;
@@ -103,6 +104,132 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [searchResults, setSearchResults] = useState<SearchMessage[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
+  const [approvalRequests, setApprovalRequests] = useState<FriendUserDetail[]>([]);
+  const [approvalRequestsModalVisible, setApprovalRequestsModalVisible] = useState(false);
+  const [isApprovalRequired, setIsApprovalRequired] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !conversationId) return;
+  
+    const socket = getSocket();
+    if (!socket) {
+      console.error("Socket chưa sẵn sàng.");
+      return;
+    }
+  
+    // Gửi yêu cầu lấy trạng thái xét duyệt
+    console.log("Gửi sự kiện get-approval-status với conversationId:", conversationId);
+    socket.emit("get-approval-status", conversationId);
+  
+    // Lắng nghe phản hồi từ server
+    const handleApprovalStatus = (data: { conversationId: string; isApprovalRequired: boolean }) => {
+      if (data.conversationId === conversationId) {
+        console.log("Nhận trạng thái xét duyệt từ server:", data.isApprovalRequired);
+        setIsApprovalRequired(data.isApprovalRequired); // Cập nhật trạng thái từ server
+      }
+    };
+  
+    socket.on("approval-status", handleApprovalStatus);
+  
+    // Cleanup listener khi component unmount
+    return () => {
+      socket.off("approval-status", handleApprovalStatus);
+    };
+  }, [visible, conversationId]);
+
+  // 2. Hàm toggle riêng biệt
+  const toggleApproval = () => {
+    if (!conversationId) return;
+  
+    const socket = getSocket();
+    if (!socket) {
+      console.error("Socket chưa sẵn sàng.");
+      return;
+    }
+  
+    // Tính toán trạng thái mới dựa trên giá trị hiện tại
+    setIsApprovalRequired((prevState) => {
+      const newApprovalStatus = prevState;
+      console.log("Gửi sự kiện toggle-approval với trạng thái mới:", newApprovalStatus);
+  
+      // Gửi yêu cầu bật/tắt trạng thái xét duyệt
+      socket.emit("toggle-approval", { conversationId, isApprovalRequired: newApprovalStatus });
+  
+      return newApprovalStatus; // Cập nhật state
+    });
+  
+    // Lắng nghe phản hồi cập nhật từ server
+    const handleApprovalStatusUpdated = (data: { conversationId: string; isApprovalRequired: boolean }) => {
+      if (data.conversationId === conversationId) {
+        console.log("Nhận trạng thái xét duyệt được cập nhật từ server:", data.isApprovalRequired);
+        setIsApprovalRequired(data.isApprovalRequired); // Đồng bộ lại với server
+      }
+    };
+  
+    socket.on("approval-status-updated", handleApprovalStatusUpdated);
+  
+    // Cleanup listener khi component unmount
+    return () => {
+      socket.off("approval-status-updated", handleApprovalStatusUpdated);
+    };
+  };
+
+  useEffect(() => {
+    if (approvalRequestsModalVisible) {
+      fetchApprovalRequests();
+    }
+  }, [approvalRequestsModalVisible]);
+
+  // Hàm tải danh sách yêu cầu tham gia
+  const fetchApprovalRequests = async () => {
+    if (!conversationId) return;
+  
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${DOMAIN}:3000/api/conversations/${conversationId}/approval-requests`,
+        { method: "GET", headers }
+      );
+  
+      if (!response.ok) {
+        throw new Error("Không thể tải danh sách yêu cầu tham gia");
+      }
+  
+      const data = await response.json();
+      setApprovalRequests(data.requests || []);
+    } catch (error: any) {
+      console.error("Lỗi khi tải danh sách yêu cầu tham gia:", error.message);
+    }
+  };
+
+  // // Hàm xử lý phê duyệt hoặc từ chối yêu cầu
+  // const handleApprovalAction = async (userId: string, action: "approve" | "reject") => {
+  //   try {
+  //     const headers = await getAuthHeaders();
+  //     const response = await fetch(
+  //       `${API_BASE_URL}/conversations/${conversationId}/approval-requests`,
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           ...headers,
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({ userId, action }),
+  //       }
+  //     );
+  
+  //     if (!response.ok) {
+  //       throw new Error("Không thể xử lý yêu cầu");
+  //     }
+  
+  //     // Cập nhật danh sách yêu cầu sau khi xử lý
+  //     setApprovalRequests((prev) => prev.filter((request) => request._id !== userId));
+  //     Alert.alert("Thành công", action === "approve" ? "Đã phê duyệt yêu cầu" : "Đã từ chối yêu cầu");
+  //   } catch (error: any) {
+  //     console.error("Lỗi khi xử lý yêu cầu:", error.message);
+  //     Alert.alert("Lỗi", "Không thể xử lý yêu cầu.");
+  //   }
+  // };
 
   // Lấy thông tin nhóm và thành viên nhóm
   useEffect(() => {
@@ -669,6 +796,36 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   Ảnh, file, link
                 </Text>
               </TouchableOpacity>
+              <View style={styles.settingsItem}>
+                {conversationDetails?.leaderId === currentUserId ? (
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                    onPress={() => {
+                      fetchApprovalRequests();
+                      setApprovalRequestsModalVisible(true);
+                    }}
+                  >
+                    <Text style={[styles.settingsText, { color: theme.colors.text }]}>
+                      Phê duyệt tham gia
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                    <Text style={[styles.settingsText, { color: "gray" }]}>
+                      Phê duyệt tham gia (Chỉ trưởng nhóm)
+                    </Text>
+                  </View>
+                )}
+                {conversationDetails?.leaderId === currentUserId && (
+                  <TouchableOpacity onPress={toggleApproval}>
+                    <FontAwesome
+                      name={isApprovalRequired ? "toggle-off" : "toggle-on"}
+                      size={24}
+                      color={isApprovalRequired ? "gray" : "green"}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity
                 style={styles.settingsItem}
                 onPress={() => setSearchModalVisible(true)}
@@ -1358,6 +1515,61 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <Text style={[styles.buttonText, { color: theme.colors.text }]}>
                   Đóng
                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Modal phê duyệt */}
+      <Modal visible={approvalRequestsModalVisible} transparent animationType="fade">
+        <View style={styles.modalBackground}>
+          <View style={[styles.createGroupModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              Phê duyệt tham gia
+            </Text>
+            <FlatList
+              data={approvalRequests}
+              keyExtractor={(item) => item._id}
+              style={styles.friendList}
+              renderItem={({ item }) => (
+                <View style={styles.friendItem}>
+                  <View style={styles.friendInfo}>
+                    <Image
+                      source={{ uri: item.urlAVT }}
+                      style={styles.friendAvatar}
+                    />
+                    <Text style={[styles.friendName, { color: theme.colors.text }]}>
+                      {item.name}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row" }}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: "green" }]}
+                      onPress={() => handleApprovalAction(item._id, "approve")}
+                    >
+                      <Text style={[styles.buttonText, { color: "#fff" }]}>Phê duyệt</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: "red" }]}
+                      onPress={() => handleApprovalAction(item._id, "reject")}
+                    >
+                      <Text style={[styles.buttonText, { color: "#fff" }]}>Từ chối</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={[styles.noResultsText, { color: theme.colors.text }]}>
+                  Không có yêu cầu nào.
+                </Text>
+              }
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
+                onPress={() => setApprovalRequestsModalVisible(false)}
+              >
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Đóng</Text>
               </TouchableOpacity>
             </View>
           </View>
