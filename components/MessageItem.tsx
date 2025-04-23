@@ -109,8 +109,8 @@ const MessageItem = ({
                     ]}
                 >
                     {/* Avatar + nội dung tin nhắn */}
-                    {!isSender && anotherUser && (
-                        <Image source={{ uri: anotherUser.image }} style={styles.avatar} />
+                    {!isSender && item && (
+                        <Image source={{ uri: item.avatarUrl||"https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }} style={styles.avatar} />
                     )}
 
                     <TouchableOpacity
@@ -120,8 +120,8 @@ const MessageItem = ({
                         activeOpacity={0.8}
                         style={styles.bubbleContainer}
                     >
-                        {!isSender && anotherUser && (
-                            <Text style={styles.senderName}>{anotherUser.name}</Text>
+                        {!isSender && item && (
+                            <Text style={styles.senderName}>{item.userName}</Text>
                         )}
                         <View
                             style={[

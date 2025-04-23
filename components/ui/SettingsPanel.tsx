@@ -120,6 +120,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [approvalRequestsModalVisible, setApprovalRequestsModalVisible] = useState(false);
   const [isApprovalRequired, setIsApprovalRequired] = useState(false);
   const [modalVisible, setModalVisible] = useState(false)
+  const [isChatting, setIsChatting] = useState(false)
   useEffect(() => {
     if (!visible || !conversationId) return;
 
@@ -293,28 +294,62 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           : Alert.alert("Thông báo", message);
       });
       socket?.on("approval-status-updated", handleApprovalStatusUpdated);
-      socket.on("userJoinedGroup", ({ message, userJoin }) => {
-        userJoin && setGroupMembers(pre => [...pre, {
-          _id: userJoin.id,
-          name: userJoin.name || "Unknown",
-          urlAVT: userJoin.urlAVT || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-        }])
+      socket.on("userJoinedGroup", ({ message, userJoin, conversationId: cid }) => {
+        if (cid === conversationId && userJoin) {
+          setGroupMembers(prev => [
+            ...prev,
+            {
+              _id: userJoin.id,
+              name: userJoin.name || "Unknown",
+              urlAVT:
+                userJoin.urlAVT ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            },
+          ]);
+        }
+      });
+
+      socket.on("reponse-approve-into-group", ({ message, userJoin,conversationId:cid }) => {
+        if(cid===conversationId){
+          userJoin && setGroupMembers(pre => [...pre, {
+            _id: userJoin.id,
+            name: userJoin.name || "Unknown",
+            urlAVT: userJoin.urlAVT || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          }])
+        }
+        
       })
-      socket.on("reponse-approve-into-group", ({ message, userJoin }) => {
-        userJoin && setGroupMembers(pre => [...pre, {
-          _id: userJoin.id,
-          name: userJoin.name || "Unknown",
-          urlAVT: userJoin.urlAVT || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-        }])
+      socket.on("userLeft", ({ userId, conversationId:cid }) => {
+        if(cid === conversationId){
+          setGroupMembers(pre => {
+            return pre.filter(item => item._id != userId)
+          })
+        }
       })
-      socket.on("userLeft", ({ userId }) => {
-        setGroupMembers(pre => {
-          return pre.filter(item => item._id != userId)
-        })
-      })
+
     })
 
   }, [])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(DOMAIN + ":3000/api/conversations/" + conversationId, {
+          method: "GET",
+          headers
+        });
+
+        const data = await response.json();
+        setIsChatting(data.permission.chat)
+      } catch (error) {
+        console.error("Lỗi khi fetch dữ liệu:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   // Hàm tải danh sách yêu cầu tham gia
   const fetchApprovalRequests = async () => {
     if (!conversationId) return;
@@ -780,6 +815,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         setApprovalRequestsModalVisible(false)
       })
   }
+  const blockChatting = () => {
+    connectSocket().then(socket => {
+      socket.emit("block-chatting", { conversationId, isChatting: !isChatting })
+    })
+    setIsChatting(!isChatting)
+  }
   return (
     <>
       <Modal visible={visible} transparent animationType="none">
@@ -943,6 +984,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </TouchableOpacity>
                 :
                 ""}
+              <View style={styles.settingsItem}>
+                {conversationDetails?.leaderId === currentUserId ? (
+                  <>
+                    <TouchableOpacity
+                      style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                      onPress={() => {
+                      }}
+                    >
+                      <Text style={[styles.settingsText, { color: theme.colors.text }]}>
+                        Khóa nhắn tin
+                      </Text>
+                    </TouchableOpacity>
+
+                  </>
+                ) : (
+                  <></>
+                )}
+
+                {conversationDetails?.leaderId === currentUserId && (
+                  <TouchableOpacity onPress={blockChatting}>
+                    <FontAwesome
+                      name={isChatting ? "toggle-off" : "toggle-on"}
+                      size={24}
+                      color={isChatting ? "gray" : "green"}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity
                 style={styles.settingsItem}
                 onPress={() => setSearchModalVisible(true)}

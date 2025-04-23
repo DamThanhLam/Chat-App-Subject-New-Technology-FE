@@ -69,9 +69,16 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme, onLongP
     };
 
     handleResize(); // Lấy kích thước khi load lần đầu
-    window.addEventListener('resize', handleResize); // Cập nhật khi resize
-
-    return () => window.removeEventListener('resize', handleResize);
+    Platform.OS === "web"
+      ? window.addEventListener('resize', handleResize)
+      : "";
+    return () => {
+      handleResize(); // Lấy kích thước khi load lần đầu
+    Platform.OS === "web"
+      ? window.removeEventListener('resize', handleResize)
+      : "";
+      
+    };
   }, []);
 
 
@@ -159,7 +166,7 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme, onLongP
                     width: windowDimensions.width > 0 ? windowDimensions.width : "100%",
                     maxWidth: windowDimensions.width > 0 ? windowDimensions.width : "100%",
                     maxHeight: windowDimensions.height > 0 ? windowDimensions.height : "100%",
-                    
+
                   }
                 ]}
                 resizeMode="contain"

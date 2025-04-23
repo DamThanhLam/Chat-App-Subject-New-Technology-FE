@@ -342,6 +342,68 @@ const HomeScreen = () => {
           });
         })
       });
+      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
+
+        const newGroup: CombinedConversation = {
+          type: "group",
+          id: id,
+          displayName: groupName || "Nhóm chat",
+          avatar:
+            avatarUrl ||
+            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          lastMessage: null,
+          participantsCount: participants.length,
+        };
+
+        setDisplayConversations((prev) => {
+          if (prev.some((conv) => conv.id === id)) {
+            console.log("Group already exists in displayConversations:", id);
+            return prev;
+          }
+          const updatedList = [newGroup, ...prev].sort((a, b) => {
+            const timeA = a.lastMessage
+              ? new Date(a.lastMessage.createdAt).getTime()
+              : 0;
+            const timeB = b.lastMessage
+              ? new Date(b.lastMessage.createdAt).getTime()
+              : 0;
+            return timeB - timeA;
+          });
+          console.log("Updated displayConversations:", updatedList);
+          return updatedList;
+        });
+        socket.on("userJoinedGroup", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
+          if (reject) return
+          const newGroup: CombinedConversation = {
+            type: "group",
+            id: id,
+            displayName: groupName || "Nhóm chat",
+            avatar:
+              avatarUrl ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            lastMessage: null,
+            participantsCount: participants.length,
+          };
+
+          setDisplayConversations((prev) => {
+            if (prev.some((conv) => conv.id === id)) {
+              console.log("Group already exists in displayConversations:", id);
+              return prev;
+            }
+            const updatedList = [newGroup, ...prev].sort((a, b) => {
+              const timeA = a.lastMessage
+                ? new Date(a.lastMessage.createdAt).getTime()
+                : 0;
+              const timeB = b.lastMessage
+                ? new Date(b.lastMessage.createdAt).getTime()
+                : 0;
+              return timeB - timeA;
+            });
+            console.log("Updated displayConversations:", updatedList);
+            return updatedList;
+          });
+        })
+      });
       return () => {
         const socket = getSocket();
         if (socket) {

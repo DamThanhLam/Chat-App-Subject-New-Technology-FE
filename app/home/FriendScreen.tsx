@@ -316,7 +316,7 @@ const FriendScreen = () => {
 
   useEffect(() => {
     connectSocket().then(socket => {
-      const handleNewGroup = ({conversation}:any) => {
+      const handleNewGroup = ({ conversation }: any) => {
         const memberCount = conversation.participants?.length || 0;
         setGroups(prev => [
           ...prev,
@@ -457,7 +457,13 @@ const FriendScreen = () => {
       <TouchableOpacity
         style={styles.groupItem}
         onPress={() => {
-          /* Mở chat nhóm */
+          router.push({
+            pathname: "/GroupChatScreen",
+            params: {
+              conversationId: item.id,
+              groupName: item.displayName,
+            },
+          });
         }}
       >
         <Image
@@ -607,6 +613,7 @@ const FriendScreen = () => {
                 style={[
                   styles.tabText,
                   selectedTab === "friends" && styles.tabActive,
+                   {color:"black"}
                 ]}
               >
                 Bạn bè
@@ -620,6 +627,7 @@ const FriendScreen = () => {
                 style={[
                   styles.tabText,
                   selectedTab === "groups" && styles.tabActive,
+                  {color:"black"}
                 ]}
               >
                 Nhóm
