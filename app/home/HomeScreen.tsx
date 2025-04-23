@@ -30,6 +30,7 @@ import {
   DisplayConversation,
 } from "@/src/interface/interface";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+import { DOMAIN } from "@/src/configs/base_url";
 
 interface GroupConversation {
   id: string;
@@ -70,7 +71,9 @@ const HomeScreen = () => {
     };
     initializeUserId();
   }, []);
-
+  useEffect(() => {
+    connectSocket()
+  })
   const fetchConversations = async () => {
     try {
       setLoading(true);
@@ -119,7 +122,6 @@ const HomeScreen = () => {
           displayName: friendId,
           avatar: null,
         };
-
         privateConversations.push({
           type: "private",
           id: friendId,
@@ -128,7 +130,7 @@ const HomeScreen = () => {
             friend.senderId === userId
               ? friend.senderAVT
               : userInfo.avatar ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
@@ -278,14 +280,76 @@ const HomeScreen = () => {
           return updatedConversations;
         });
       });
-    });
-    return () => {
-      const socket = getSocket();
-      if (socket) {
-        socket.off("removed-from-group");
-        socket.off("group-renamed");
-      }
-    };
+      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
+
+        const newGroup: CombinedConversation = {
+          type: "group",
+          id: id,
+          displayName: groupName || "Nhóm chat",
+          avatar:
+            avatarUrl ||
+            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          lastMessage: null,
+          participantsCount: participants.length,
+        };
+
+        setDisplayConversations((prev) => {
+          if (prev.some((conv) => conv.id === id)) {
+            console.log("Group already exists in displayConversations:", id);
+            return prev;
+          }
+          const updatedList = [newGroup, ...prev].sort((a, b) => {
+            const timeA = a.lastMessage
+              ? new Date(a.lastMessage.createdAt).getTime()
+              : 0;
+            const timeB = b.lastMessage
+              ? new Date(b.lastMessage.createdAt).getTime()
+              : 0;
+            return timeB - timeA;
+          });
+          console.log("Updated displayConversations:", updatedList);
+          return updatedList;
+        });
+        socket.on("reponse-approve-into-group", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
+          if (reject) return
+          const newGroup: CombinedConversation = {
+            type: "group",
+            id: id,
+            displayName: groupName || "Nhóm chat",
+            avatar:
+              avatarUrl ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            lastMessage: null,
+            participantsCount: participants.length,
+          };
+
+          setDisplayConversations((prev) => {
+            if (prev.some((conv) => conv.id === id)) {
+              console.log("Group already exists in displayConversations:", id);
+              return prev;
+            }
+            const updatedList = [newGroup, ...prev].sort((a, b) => {
+              const timeA = a.lastMessage
+                ? new Date(a.lastMessage.createdAt).getTime()
+                : 0;
+              const timeB = b.lastMessage
+                ? new Date(b.lastMessage.createdAt).getTime()
+                : 0;
+              return timeB - timeA;
+            });
+            console.log("Updated displayConversations:", updatedList);
+            return updatedList;
+          });
+        })
+      });
+      return () => {
+        const socket = getSocket();
+        if (socket) {
+          socket.off("removed-from-group");
+          socket.off("group-renamed");
+        }
+      };
+    })
   }, []);
 
   const getUnreadCount = (
@@ -334,10 +398,10 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-        ? "Emoji"
-        : item.lastMessage?.contentType === "file"
-        ? "File"
-        : "";
+          ? "Emoji"
+          : item.lastMessage?.contentType === "file"
+            ? "File"
+            : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (

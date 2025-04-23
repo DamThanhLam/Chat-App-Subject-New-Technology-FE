@@ -253,6 +253,7 @@ const GroupChatScreen = () => {
       userId,
       username,
       conversationId: cid,
+      message
     }: {
       userId: string;
       username: string;
@@ -261,16 +262,14 @@ const GroupChatScreen = () => {
       if (cid === conversationId) {
         // Update participants list
         setGroupParticipants((prev) => prev.filter((p) => p._id !== userId));
-
-        // Show alert for the user who left
-        Platform.OS === "web"
-          ? window.alert(`${username} đã rời khỏi nhóm`)
-          : Alert.alert("Thông báo", `${username} đã rời khỏi nhóm`);
-
-        // If the current user left, navigate back
+        setConversation(pre => [...pre, message])
+        setGroupParticipants((pre) => {
+          return pre.filter(item => item._id != userId)
+        })
         if (userId === userID1) {
           router.back();
         }
+
       }
     };
     connectSocket()
@@ -279,13 +278,15 @@ const GroupChatScreen = () => {
         socket?.on("message-deleted", ({ messageId }) =>
           setConversation((prev) => prev.filter((m) => m.id !== messageId))
         );
-        socket?.on("message-recalled", ({ message }) =>
+        socket?.on("message-recalled", ({ message }) => {
+          console.log("message-recalled")
+          console.log(message)
           setConversation((prev) =>
             prev.map((m) =>
-              m.id === message.id ? { ...m, status: "recalled" } : m
+              m.id === message.id ? message : m
             )
           )
-        );
+        });
         socket?.on("group-message", handleNew);
         socket?.on("userLeft", handleUserLeft);
         socket?.on("group-deleted", handleGroupDeleted);
@@ -294,6 +295,27 @@ const GroupChatScreen = () => {
         socket.on("group-renamed", ({ conversationId, newName, leaderId }) => {
           setGroupName(newName);
         });
+        socket.on("userJoinedGroup", ({ message, userJoin }) => {
+          setConversation(pre => [...pre, message])
+          userJoin && setGroupParticipants(pre => [...pre, {
+            _id: userJoin.id,
+            name: userJoin.name || "Unknown",
+            image: userJoin.urlAVT || "",
+          }])
+        })
+        socket.on("reponse-approve-into-group", ({ message, userJoin }) => {
+          setConversation(pre => [...pre, message])
+          userJoin && setGroupParticipants(pre => [...pre, {
+            _id: userJoin.id,
+            name: userJoin.name || "Unknown",
+            image: userJoin.urlAVT || "",
+          }])
+        })
+        socket.on("response-invite-join-group", (response) => {
+          console.log("response-invite-join-group")
+          console.log(response)
+
+        })
       })
       .catch((err) => console.error("Socket connect error", err));
 
@@ -621,7 +643,7 @@ const GroupChatScreen = () => {
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={() => {}}
+          onChange={() => { }}
         />
       )}
 

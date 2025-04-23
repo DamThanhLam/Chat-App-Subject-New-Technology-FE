@@ -29,9 +29,8 @@ export const initSocket = (token: string) => {
 export const connectSocket = async () => {
   const session = await Auth.currentSession();
   const jwtToken = session.getIdToken().getJwtToken();
-  const currentSocket = getSocket();
 
-  if (!currentSocket || !currentSocket.connected) {
+  if (!socket || !socket.connected) {
     const newSocket = initSocket(jwtToken);
     newSocket.connect();
     newSocket.emit("join");
@@ -142,7 +141,7 @@ export const connectSocket = async () => {
     setSocket(newSocket);
     return newSocket
   }else{
-    return getSocket();
+    return socket;
   }
 
 };

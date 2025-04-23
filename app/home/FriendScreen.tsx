@@ -112,13 +112,11 @@ const FriendScreen = () => {
 
       if (!Array.isArray(groups)) throw new Error("Phản hồi không hợp lệ");
 
-      console.log("Dữ liệu nhóm trả về:", groups);
 
       const processedGroups = await Promise.all(
         groups.map(async (group) => {
           // Tính số thành viên (ưu tiên participantsIds nếu tồn tại)
-          const memberCount =
-            group.participantsIds?.length || group.participants?.length || 0;
+          const memberCount = group.participants?.length || 0;
 
           return {
             ...group,
@@ -262,7 +260,7 @@ const FriendScreen = () => {
       // Gọi API tìm kiếm user theo email
       const res = await fetch(
         DOMAIN +
-          `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`,
+        `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`,
         {
           method: "GET",
           headers: {
@@ -291,7 +289,7 @@ const FriendScreen = () => {
         if (!alreadyFriend) {
           const checkPendingRes = await fetch(
             DOMAIN +
-              `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`,
+            `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`,
             {
               method: "GET",
               headers: {
@@ -317,7 +315,24 @@ const FriendScreen = () => {
   };
 
   useEffect(() => {
-    connectSocket();
+    connectSocket().then(socket => {
+      const handleNewGroup = ({conversation}:any) => {
+        const memberCount = conversation.participants?.length || 0;
+        setGroups(prev => [
+          ...prev,
+          {
+            ...conversation,
+            memberCount,
+            isLeader: conversation.leaderId === user.id,
+          },
+        ]);
+        console.log([...groups])
+      };
+      socket?.on("group-created", handleNewGroup)
+      socket?.on(
+        "added-to-group",
+        handleNewGroup)
+    });
   }, []);
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();

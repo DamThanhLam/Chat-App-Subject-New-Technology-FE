@@ -25,9 +25,9 @@ import {
 } from "@/src/apis/conversation";
 import { FriendUserDetail } from "@/src/interface/interface";
 import { router } from "expo-router";
-import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
+import { API_BASE_URL, getAuthHeaders, getCurrentUserId } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
-import { getSocket } from "@/src/socket/socket";
+import { connectSocket, getSocket } from "@/src/socket/socket";
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -67,7 +67,7 @@ interface MediaItem {
 interface ConversationDetails {
   id: string;
   groupName: string;
-  participantsIds: string[];
+  participants: { id: string, method: string }[];
   leaderId?: string;
 }
 
@@ -116,6 +116,39 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [removeMemberModalVisible, setRemoveMemberModalVisible] =
     useState(false);
   const [userToRemove, setUserToRemove] = useState<string | null>(null);
+  const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
+  const [approvalRequestsModalVisible, setApprovalRequestsModalVisible] = useState(false);
+  const [isApprovalRequired, setIsApprovalRequired] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false)
+  useEffect(() => {
+    if (!visible || !conversationId) return;
+
+    const socket = getSocket();
+    if (!socket) {
+      console.error("Socket chưa sẵn sàng.");
+      return;
+    }
+
+    // Gửi yêu cầu lấy trạng thái xét duyệt
+    console.log("Gửi sự kiện get-approval-status với conversationId:", conversationId);
+    socket.emit("get-approval-status", conversationId);
+
+    // Lắng nghe phản hồi từ server
+    const handleApprovalStatus = (data: { conversationId: string; isApprovalRequired: boolean }) => {
+      if (data.conversationId === conversationId) {
+        console.log("Nhận trạng thái xét duyệt từ server:", data.isApprovalRequired);
+        setIsApprovalRequired(data.isApprovalRequired); // Cập nhật trạng thái từ server
+      }
+    };
+
+    socket.on("approval-status", handleApprovalStatus);
+
+    // Cleanup listener khi component unmount
+    return () => {
+      socket.off("approval-status", handleApprovalStatus);
+    };
+  }, [visible, conversationId]);
+
   // Lấy thông tin nhóm và thành viên nhóm
   useEffect(() => {
     if (visible && isGroupChat && conversationId) {
@@ -135,16 +168,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
           setConversationDetails(conversationData);
 
-          const participants = conversationData.participantsIds || [];
+          const participants = conversationData.participants || [];
           console.log("participants", participants);
 
           const members = await Promise.all(
-            participants.map(async (participantsId: any) => {
+            participants.map(async (item) => {
               try {
                 const headers = await getAuthHeaders();
 
                 const response = await fetch(
-                  `${API_BASE_URL}/user/${participantsId}`,
+                  `${API_BASE_URL}/user/${item.id}`,
                   {
                     method: "GET",
                     headers,
@@ -158,14 +191,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 const userData = await response.json();
 
                 return {
-                  _id: participantsId,
-                  name: userData.username || participantsId,
+                  _id: item.id,
+                  name: userData.username || item.id,
                   urlAVT:
                     userData.urlAVT ||
                     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
                 };
               } catch (error: any) {
-                const userId = participantsId;
+                const userId = item.id;
                 console.error(
                   "Lỗi khi lấy thông tin thành viên:",
                   error.message
@@ -195,9 +228,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Load danh sách bạn bè khi mở modal thêm thành viên hoặc tạo nhóm
   useEffect(() => {
     if (createGroupModalVisible || addMemberModalVisible) {
-      const loadFriends = async () => {
-        try {
-          const friendList = await fetchDetailFriends(currentUserId);
+      fetchDetailFriends(currentUserId)
+        .then((friendList: any) => {
           console.log("friendList", friendList);
 
           let filteredFriends: any = friendList;
@@ -215,7 +247,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }
           } else if (addMemberModalVisible && isGroupChat) {
             // Thêm thành viên vào nhóm: loại bỏ các thành viên đã có trong nhóm
-
             const memberIds = groupMembers.map((member) => member._id);
             filteredFriends = friendList.filter(
               (friend: any) => !memberIds.includes(friend._id)
@@ -224,12 +255,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           }
 
           setFriends(filteredFriends);
-        } catch (error: any) {
+        })
+        .catch((error: any) => {
           console.error("Lỗi khi lấy danh sách bạn bè:", error.message);
           Alert.alert("Lỗi", "Không thể lấy danh sách bạn bè.");
-        }
-      };
-      loadFriends();
+        });
+
+
     }
   }, [
     createGroupModalVisible,
@@ -239,6 +271,91 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     isGroupChat,
     groupMembers,
   ]);
+
+  useEffect(() => {
+    if (approvalRequestsModalVisible) {
+      fetchApprovalRequests();
+    }
+  }, [approvalRequestsModalVisible]);
+  useEffect(() => {
+    connectSocket().then((socket) => {
+      // Lắng nghe phản hồi cập nhật từ server
+      const handleApprovalStatusUpdated = (data: { conversationId: string; isApprovalRequired: boolean }) => {
+        if (data.conversationId === conversationId) {
+          console.log("Nhận trạng thái xét duyệt được cập nhật từ server:", data.isApprovalRequired);
+          setIsApprovalRequired(data.isApprovalRequired); // Đồng bộ lại với server
+        }
+      };
+
+      socket?.on("error", ({ message }) => {
+        Platform.OS === "web"
+          ? window.alert(message)
+          : Alert.alert("Thông báo", message);
+      });
+      socket?.on("approval-status-updated", handleApprovalStatusUpdated);
+      socket.on("userJoinedGroup", ({ message, userJoin }) => {
+        userJoin && setGroupMembers(pre => [...pre, {
+          _id: userJoin.id,
+          name: userJoin.name || "Unknown",
+          urlAVT: userJoin.urlAVT || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+        }])
+      })
+      socket.on("reponse-approve-into-group", ({ message, userJoin }) => {
+        userJoin && setGroupMembers(pre => [...pre, {
+          _id: userJoin.id,
+          name: userJoin.name || "Unknown",
+          urlAVT: userJoin.urlAVT || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+        }])
+      })
+      socket.on("userLeft", ({ userId }) => {
+        setGroupMembers(pre => {
+          return pre.filter(item => item._id != userId)
+        })
+      })
+    })
+
+  }, [])
+  // Hàm tải danh sách yêu cầu tham gia
+  const fetchApprovalRequests = async () => {
+    if (!conversationId) return;
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${DOMAIN}:3000/api/conversations/${conversationId}/approval-requests`,
+        { method: "GET", headers }
+      );
+
+      if (!response.ok) {
+        throw new Error("Không thể tải danh sách yêu cầu tham gia");
+      }
+
+      const data = await response.json();
+      setApprovalRequests(data.requests || []);
+    } catch (error: any) {
+      console.error("Lỗi khi tải danh sách yêu cầu tham gia:", error.message);
+    }
+  };
+
+  // 2. Hàm toggle 
+  const toggleApproval = async () => {
+    if (!conversationId) return;
+
+    // Tính toán trạng thái mới dựa trên giá trị hiện tại
+    await connectSocket().then(socket => {
+      setIsApprovalRequired((prevState) => {
+        const newApprovalStatus = prevState;
+        console.log("Gửi sự kiện toggle-approval với trạng thái mới:", newApprovalStatus);
+
+        // Gửi yêu cầu bật/tắt trạng thái xét duyệt
+        socket?.emit("toggle-approval", { conversationId, isApprovalRequired: newApprovalStatus });
+
+        return newApprovalStatus; // Cập nhật state
+      });
+    })
+
+
+  };
 
   // Xử lý đổi tên gợi nhớ (chat đơn) hoặc đổi tên nhóm (chat nhóm)
   const handleRename = async () => {
@@ -335,24 +452,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/conversations/add-users/${conversationId}`,
-        {
-          method: "PUT",
-          headers: {
-            ...headers,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            newUserIds: friendsToAdd, // Gửi danh sách newUserIds thay vì participants
-          }),
-        }
-      );
 
-      if (!response.ok) {
-        throw new Error("Không thể thêm thành viên vào nhóm");
-      }
       const socket = getSocket();
       friendsToAdd.forEach((newUserId) => {
         socket?.emit("invite-join-group", conversationId, newUserId);
@@ -361,42 +461,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setAddMemberModalVisible(false);
       onClose();
       setSelectedFriends([]);
-      // Reload lại thông tin nhóm
-      const updatedConversation = await response.json();
-      setConversationDetails(updatedConversation);
-      const participants = updatedConversation.participants || [];
-      const updatedMembers = await Promise.all(
-        participants.map(async (userId: string) => {
-          try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_BASE_URL}/user/${userId}`, {
-              method: "GET",
-              headers,
-            });
 
-            if (!response.ok) {
-              throw new Error("Không thể lấy thông tin người dùng");
-            }
-
-            const userData = await response.json();
-            return {
-              _id: userId,
-              name: userData.username || userId,
-              urlAVT:
-                userData.urlAVT ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-            };
-          } catch (error: any) {
-            console.error("Lỗi khi lấy thông tin thành viên:", error.message);
-            return {
-              _id: userId,
-              name: userId,
-              urlAVT: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-            };
-          }
-        })
-      );
-      setGroupMembers(updatedMembers);
       Alert.alert("Thành công", "Đã thêm thành viên vào nhóm.");
     } catch (error: any) {
       console.error("Lỗi khi thêm thành viên:", error.message);
@@ -647,18 +712,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         userIdToRemove: userToRemove,
       });
 
-      // Lắng nghe phản hồi từ socket
-      socket.on("response-remove-user", ({ code, message, userId }) => {
-        if (code === 200) {
-          // Cập nhật danh sách thành viên
-          setGroupMembers((prev) =>
-            prev.filter((member) => member._id !== userId)
-          );
-        } else {
-          Alert.alert("Lỗi", message || "Không thể xóa thành viên khỏi nhóm.");
-        }
-      });
-
       setRemoveMemberModalVisible(false);
       onClose();
       setUserToRemove(null);
@@ -718,7 +771,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
-
+  const handleApprovalAction = (id: string, decision: boolean) => {
+    console.log(decision)
+    connectSocket()
+      .then(socket => {
+        socket.emit("approve-into-group", { conversationId: conversationId, userId: id, decision: decision })
+      }).then(() => {
+        setApprovalRequestsModalVisible(false)
+      })
+  }
   return (
     <>
       <Modal visible={visible} transparent animationType="none">
@@ -824,6 +885,64 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   Ảnh, file, link
                 </Text>
               </TouchableOpacity>
+              <View style={styles.settingsItem}>
+                {conversationDetails?.leaderId === currentUserId ? (
+                  <>
+                    <TouchableOpacity
+                      style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                      onPress={() => {
+                        fetchApprovalRequests();
+                        setApprovalRequestsModalVisible(true);
+                      }}
+                    >
+                      <Text style={[styles.settingsText, { color: theme.colors.text }]}>
+                        Phê duyệt tham gia
+                      </Text>
+                    </TouchableOpacity>
+
+                  </>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                    <Text style={[styles.settingsText, { color: "gray" }]}>
+                      Phê duyệt tham gia (Chỉ trưởng nhóm)
+                    </Text>
+                  </View>
+                )}
+
+                {conversationDetails?.leaderId === currentUserId && (
+                  <TouchableOpacity onPress={toggleApproval}>
+                    <FontAwesome
+                      name={isApprovalRequired ? "toggle-off" : "toggle-on"}
+                      size={24}
+                      color={isApprovalRequired ? "gray" : "green"}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {conversationDetails?.leaderId === currentUserId ?
+                <TouchableOpacity
+                  style={styles.settingsItem}
+                  onPress={() => {
+                    fetchApprovalRequests();
+                    setApprovalRequestsModalVisible(true)
+                  }}
+                >
+                  <FontAwesome
+                    name="user-plus"
+                    size={20}
+                    color={theme.colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.settingsText,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    Danh sách yêu cầu
+                  </Text>
+                </TouchableOpacity>
+                :
+                ""}
               <TouchableOpacity
                 style={styles.settingsItem}
                 onPress={() => setSearchModalVisible(true)}
@@ -870,6 +989,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               )}
               {isGroupChat && (
                 <>
+
                   <TouchableOpacity
                     style={styles.settingsItem}
                     onPress={() => setAddMemberModalVisible(true)}
@@ -888,6 +1008,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       Thêm thành viên
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={styles.settingsItem}
                     onPress={() => setLeaveGroupModalVisible(true)}
@@ -1153,40 +1274,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               data={friends}
               keyExtractor={(item) => item._id}
               style={styles.friendList}
-              renderItem={({ item }) => (
-                <Pressable
-                  key={item._id}
-                  style={styles.friendItem}
-                  onPress={() => toggleFriendSelection(item._id)}
-                >
-                  <View style={styles.friendInfo}>
-                    <Image
-                      source={{
-                        uri: item.urlAVT,
-                      }}
-                      style={styles.friendAvatar}
+              renderItem={({ item }) => {
+                return (
+                  <Pressable
+                    key={item._id}
+                    style={styles.friendItem}
+                    onPress={() => toggleFriendSelection(item._id)}
+                  >
+                    <View style={styles.friendInfo}>
+                      <Image
+                        source={{
+                          uri: item.urlAVT,
+                        }}
+                        style={styles.friendAvatar}
+                      />
+                      <Text
+                        style={[styles.friendName, { color: theme.colors.text }]}
+                      >
+                        {item?.name}
+                      </Text>
+                    </View>
+                    <FontAwesome
+                      name={
+                        selectedFriends.includes(item._id)
+                          ? "check-square-o"
+                          : "square-o"
+                      }
+                      size={24}
+                      color={
+                        selectedFriends.includes(item._id)
+                          ? theme.colors.primary
+                          : theme.colors.text
+                      }
                     />
-                    <Text
-                      style={[styles.friendName, { color: theme.colors.text }]}
-                    >
-                      {item?.name}
-                    </Text>
-                  </View>
-                  <FontAwesome
-                    name={
-                      selectedFriends.includes(item._id)
-                        ? "check-square-o"
-                        : "square-o"
-                    }
-                    size={24}
-                    color={
-                      selectedFriends.includes(item._id)
-                        ? theme.colors.primary
-                        : theme.colors.text
-                    }
-                  />
-                </Pressable>
-              )}
+                  </Pressable>
+                )
+              }}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1380,8 +1503,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {deleteModalVisible
                 ? "Lịch sử trò chuyện đã được xóa"
                 : deleteGroupModalVisible
-                ? "Nhóm đã được xóa"
-                : "Bạn đã rời nhóm"}
+                  ? "Nhóm đã được xóa"
+                  : "Bạn đã rời nhóm"}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1478,6 +1601,162 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </View>
         </View>
       </Modal>
+      {/* Modal phê duyệt */}
+      {/* Modal phê duyệt */}
+      <Modal
+        visible={approvalRequestsModalVisible}
+        transparent
+        animationType="fade"
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.4)",
+          }}
+        >
+          <View
+            style={{
+              width: "95%",
+              maxHeight: "85%",
+              backgroundColor: theme.colors.card,
+              borderRadius: 16,
+              padding: 24,
+            }}
+          >
+            {/* Tiêu đề */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "600",
+                textAlign: "center",
+                marginBottom: 16,
+                color: theme.colors.text,
+              }}
+            >
+              Phê duyệt tham gia
+            </Text>
+
+            {/* Danh sách yêu cầu */}
+            <FlatList
+              data={approvalRequests}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              style={{ marginBottom: 16 }}
+              renderItem={({ item }) => (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
+                  {/* Avatar + tên */}
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Image
+                      source={{ uri: item.avatarUrl }}
+                      style={{
+                        width: 50,
+                        height: 50,
+                        borderRadius: 25,
+                        backgroundColor: "#eee",
+                        marginRight: 12,
+                      }}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "500",
+                        color: theme.colors.text,
+                      }}
+                    >
+                      {item.username}
+                    </Text>
+                  </View>
+
+                  {/* Nút phê duyệt / từ chối */}
+                  <View style={{ flexDirection: "row" }}>
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                        borderRadius: 8,
+                        backgroundColor: "#28a745",
+                        marginRight: 8,
+                      }}
+                      onPress={() => handleApprovalAction(item.id, true)}
+                    >
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Phê duyệt
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                        borderRadius: 8,
+                        backgroundColor: "#dc3545",
+                      }}
+                      onPress={() => handleApprovalAction(item.id, false)}
+                    >
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Từ chối
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text
+                  style={{
+                    textAlign: "center",
+                    color: "#666",
+                    paddingVertical: 20,
+                  }}
+                >
+                  Không có yêu cầu nào.
+                </Text>
+              }
+            />
+
+            {/* Nút Đóng */}
+            <TouchableOpacity
+              style={{
+                alignSelf: "center",
+                marginTop: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                borderRadius: 8,
+                backgroundColor: "#ccc",
+              }}
+              onPress={() => setApprovalRequestsModalVisible(false)}
+            >
+              <Text
+                style={{
+                  fontWeight: "600",
+                  color: "#333",
+                }}
+              >
+                Đóng
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
 
       {/* Modal hiển thị danh sách media (ảnh, file, link) */}
       <Modal visible={mediaModalVisible} transparent animationType="fade">

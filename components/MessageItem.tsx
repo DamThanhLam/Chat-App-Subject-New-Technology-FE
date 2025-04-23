@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import ContextMenuDialog from "./ContextMenuDialog";
-import FileMessage from "./FileMessage"; // file dummy hoặc thực
 import { connectSocket, getSocket } from "@/src/socket/socket";
+import FileMessage from "./FileMessage";
 
 const MessageItem = ({
     item,
@@ -62,7 +62,7 @@ const MessageItem = ({
         console.log("Các tùy chọn khác:", item.message);
     };
 
-    const handleDeleteLocal =  () => {
+    const handleDeleteLocal = () => {
         closeDialog();
         try {
             console.log("handleDeleteLocal")
@@ -76,84 +76,93 @@ const MessageItem = ({
     const handleRecall = useCallback(async () => {
         closeDialog();
         try {
-            getSocket().emit("recall-message", item.id);
+            connectSocket().then(socket => {
+                socket?.emit("recall-message", item.id);
+            })
         } catch (error) {
             console.error("Error recalling message:", error);
             Alert.alert("Error", "Failed to recall message");
         }
     }, []);
-    useEffect(()=>{
+    useEffect(() => {
         connectSocket()
-    },[])
+    }, [])
     return (
-        <>
-            {showDate && (
-                <Text style={{ textAlign: "center", color: theme.colors.text }}>
-                    {stringDate}
+        item && item.contentType == 'notification' ?
+            <>
+                <Text style={{ color: isSender ? "#FFF" : theme.colors.text, margin:20, textAlign:'center' }}>
+                    {item.message}
                 </Text>
-            )}
-    
-            <View
-                style={[
-                    styles.messageWrapper,
-                    isSender ? styles.sentWrapper : styles.receivedWrapper,
-                ]}
-            >
-                {/* Avatar + nội dung tin nhắn */}
-                {!isSender && anotherUser && (
-                    <Image source={{ uri: anotherUser.image }} style={styles.avatar} />
+            </>
+            :
+            <View>
+                {showDate && (
+                    <Text style={{ textAlign: "center", color: theme.colors.text }}>
+                        {stringDate}
+                    </Text>
                 )}
-    
-                <TouchableOpacity
-                    onLongPress={() => {
-                        if (!isDeleted && !isRecalled) openDialog();
-                    }}
-                    activeOpacity={0.8}
-                    style={styles.bubbleContainer}
+
+                <View
+                    style={[
+                        styles.messageWrapper,
+                        isSender ? styles.sentWrapper : styles.receivedWrapper,
+                    ]}
                 >
+                    {/* Avatar + nội dung tin nhắn */}
                     {!isSender && anotherUser && (
-                        <Text style={styles.senderName}>{anotherUser.name}</Text>
+                        <Image source={{ uri: anotherUser.image }} style={styles.avatar} />
                     )}
-                    <View
-                        style={[
-                            styles.messageBubble,
-                            {
-                                backgroundColor: isSender ? theme.colors.primary : theme.colors.card,
-                                opacity: isDeleted || isRecalled ? 0.7 : 1,
-                            },
-                        ]}
+
+                    <TouchableOpacity
+                        onLongPress={() => {
+                            if (!isDeleted && !isRecalled) openDialog();
+                        }}
+                        activeOpacity={0.8}
+                        style={styles.bubbleContainer}
                     >
-                        {isFile ? (
-                            <FileMessage item={item} theme={theme} userID1={userID1} onLongPress={openDialog} />
-                        ) : (
-                            <Text style={{ color: isSender ? "#FFF" : theme.colors.text }}>
-                                {item.message}
-                            </Text>
+                        {!isSender && anotherUser && (
+                            <Text style={styles.senderName}>{anotherUser.name}</Text>
                         )}
-                        <Text style={[styles.messageTime, { color: isSender ? "#FFF" : theme.colors.text }]}>
-                            {messageTime}
-                        </Text>
-                    </View>
-                </TouchableOpacity>
-    
-                {isSender && <View style={{ width: 32, height: 32 }} />}
+                        <View
+                            style={[
+                                styles.messageBubble,
+                                {
+                                    backgroundColor: isSender ? theme.colors.primary : theme.colors.card,
+                                    opacity: isDeleted || isRecalled ? 0.7 : 1,
+                                },
+                            ]}
+                        >
+                            {isFile ? (
+                                <FileMessage item={item} theme={theme} userID1={userID1} onLongPress={openDialog} />
+                            ) : (
+                                <Text style={{ color: isSender ? "#FFF" : theme.colors.text }}>
+                                    {item.message}
+                                </Text>
+                            )}
+                            <Text style={[styles.messageTime, { color: isSender ? "#FFF" : theme.colors.text }]}>
+                                {messageTime}
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    {isSender && <View style={{ width: 32, height: 32 }} />}
+                </View>
+
+                <ContextMenuDialog
+                    visible={dialogVisible}
+                    onDismiss={closeDialog}
+                    onCopy={handleCopy}
+                    onPin={handlePin}
+                    onMark={handleMark}
+                    onMultiSelect={handleMultiSelect}
+                    onDetails={handleDetails}
+                    onOther={handleOther}
+                    onDeleteLocal={handleDeleteLocal}
+                    onRecall={isSender ? handleRecall : undefined}
+                />
             </View>
-    
-            <ContextMenuDialog
-                visible={dialogVisible}
-                onDismiss={closeDialog}
-                onCopy={handleCopy}
-                onPin={handlePin}
-                onMark={handleMark}
-                onMultiSelect={handleMultiSelect}
-                onDetails={handleDetails}
-                onOther={handleOther}
-                onDeleteLocal={handleDeleteLocal}
-                onRecall={isSender ? handleRecall : undefined}
-            />
-        </>
     );
-    
+
 };
 
 const styles = StyleSheet.create({
@@ -175,11 +184,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         marginVertical: 6,
     },
-    
+
     sentWrapper: {
         justifyContent: "flex-end",
     },
-    
+
     receivedWrapper: {
         justifyContent: "flex-start",
     },
@@ -190,30 +199,30 @@ const styles = StyleSheet.create({
         marginRight: 6,
         marginTop: 4,
     },
-    
+
     bubbleContainer: {
         flexShrink: 1,
         maxWidth: "80%",
     },
-    
+
     senderName: {
         fontSize: 12,
         color: "#888",
         marginBottom: 2,
     },
-    
+
     messageBubble: {
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 12,
     },
-    
+
     messageTime: {
         fontSize: 11,
         textAlign: "right",
         marginTop: 4,
     },
-    
+
 });
 
 export default MessageItem;
