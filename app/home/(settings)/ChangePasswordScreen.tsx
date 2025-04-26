@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Auth } from "aws-amplify"; // ✅ Import Auth từ Amplify
+import { Auth } from "aws-amplify";
 
 const ChangePasswordScreen = () => {
   const navigation = useNavigation();
@@ -74,7 +74,7 @@ const ChangePasswordScreen = () => {
         <Text style={[styles.label, { color: theme.colors.text }]}>Current password</Text>
         <TextInput
           style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="password...."
+          placeholder="Enter current password"
           placeholderTextColor={theme.colors.text}
           secureTextEntry
           value={currentPassword}
@@ -84,7 +84,7 @@ const ChangePasswordScreen = () => {
         <Text style={[styles.label, { color: theme.colors.text }]}>New password</Text>
         <TextInput
           style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="new password...."
+          placeholder="Enter new password"
           placeholderTextColor={theme.colors.text}
           secureTextEntry
           value={newPassword}
@@ -94,7 +94,7 @@ const ChangePasswordScreen = () => {
         <Text style={[styles.label, { color: theme.colors.text }]}>Confirm password</Text>
         <TextInput
           style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="confirm password...."
+          placeholder="Re-enter new password"
           placeholderTextColor={theme.colors.text}
           secureTextEntry
           value={confirmPassword}
@@ -139,57 +139,76 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingTop: 20,
   },
   header: {
-    height: 60,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 15,
+    fontSize: 16,
+    fontWeight: "500",
+    marginTop: 20,
+    marginBottom: 8,
   },
   input: {
-    borderBottomWidth: 1,
-    paddingVertical: 8,
     fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: "transparent",
+    fontStyle: "italic", 
   },
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 30,
+    marginTop: 40,
+    gap: 16,
   },
   cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    marginRight: 10,
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FF4D4D",
+    backgroundColor: "transparent",
+    alignItems: "center",
   },
   cancelText: {
-    color: "white",
+    color: "#f0f0f0",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   changeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   changeText: {
-    color: "white",
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
 });
 

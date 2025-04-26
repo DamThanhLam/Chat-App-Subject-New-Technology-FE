@@ -73,6 +73,7 @@ export default function SettingsScreen({ navigation }: any) {
       }
     }
   };
+
   const settingsOptions = [
     {
       id: "1",
@@ -109,39 +110,41 @@ export default function SettingsScreen({ navigation }: any) {
       ]}
     >
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View
-          style={[styles.searchContainer, { borderColor: theme.colors.border }]}
-        >
-          <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholder="Search..."
-            placeholderTextColor={theme.colors.text}
-            value={searchText}
-            onChangeText={setSearchText}
-          />
+        {/* Thanh tìm kiếm */}
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
           <Ionicons
             name="search"
             size={20}
             color={theme.colors.text}
             style={styles.searchIcon}
           />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.text }]}
+            placeholder="Tìm kiếm..."
+            placeholderTextColor="#888"
+            value={searchText}
+            onChangeText={setSearchText}
+          />
         </View>
+
+        {/* Danh sách cài đặt */}
         <FlatList
           data={filteredOptions}
           keyExtractor={(item) => item.id}
-          numColumns={1}
           contentContainerStyle={styles.listContainer}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
-                styles.card,
+                styles.listItem,
                 { backgroundColor: theme.colors.card },
+                item.name === "Logout" && styles.logoutItem, // Tùy chỉnh cho Logout
               ]}
+              activeOpacity={0.7} // Hiệu ứng nhấn
               onPress={() => {
                 if (item.name === "Logout") {
                   handleLogout();
                 } else {
-                  router.push(item.screen)
+                  router.push(item.screen);
                 }
               }}
             >
@@ -149,16 +152,20 @@ export default function SettingsScreen({ navigation }: any) {
                 <Ionicons
                   name={item.icon}
                   size={24}
-                  color={theme.colors.text}
+                  color={item.name === "Logout" ? "#FF4D4D" : theme.colors.text}
+                  style={styles.itemIcon}
                 />
               ) : (
                 <Image
                   source={{ uri: item.image }}
-                  style={[styles.icon]}
+                  style={[styles.itemIcon, styles.imageIcon]}
                 />
               )}
               <Text
-                style={[styles.cardText, { color: theme.colors.text }]}
+                style={[
+                  styles.itemText,
+                  { color: item.name === "Logout" ? "#FF4D4D" : theme.colors.text },
+                ]}
               >
                 {item.name}
               </Text>
@@ -177,49 +184,63 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 20,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
+    borderColor: "#ddd",
+    backgroundColor: "transparent",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: 40,
-  },
-  searchIcon: {
-    marginLeft: 10,
+    fontSize: 16,
+    paddingVertical: 0,
   },
   listContainer: {
-    // Nếu cần canh chỉnh thêm
+    paddingBottom: 20,
   },
-  card: {
-    marginLeft: "5%",
-    width: "90%",
-    height: 50,
-    borderRadius: 10,
+  listItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 10,
-    margin: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    elevation: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  icon: {
+  logoutItem: {
+    borderColor: "#FF4D4D",
+    borderWidth: 1,
+    backgroundColor: "transparent",
+  },
+  itemIcon: {
+    marginRight: 12,
+  },
+  imageIcon: {
     width: 24,
     height: 24,
-    marginRight: 10,
   },
-  cardText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    padding: 10,
+  itemText: {
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

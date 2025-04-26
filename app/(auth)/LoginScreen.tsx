@@ -119,7 +119,7 @@ export default function LoginScreen() {
         {/* Nội dung Login */}
         <View style={[styles.content, { paddingHorizontal: isLargeScreen ? 100 : 20 }]}>
           <TextInput
-            placeholder="email"
+            placeholder="Email"
             style={[
               styles.input,
               { color: colors.text, fontSize: isLargeScreen ? 18 : 16 },

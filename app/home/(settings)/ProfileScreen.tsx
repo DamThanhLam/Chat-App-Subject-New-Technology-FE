@@ -33,9 +33,8 @@ const ProfileScreen = () => {
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [originalAvatar, setOriginalAvatar] = useState<string | null>(null); // lưu avatar ban đầu
+  const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
   const [token, setToken] = useState<string>("");
-
   const [form, setForm] = useState({
     name: "",
     dob: "",
@@ -43,7 +42,6 @@ const ProfileScreen = () => {
     phone: "",
     email: "",
   });
-
   const [editable, setEditable] = useState({
     name: false,
     dob: false,
@@ -51,10 +49,8 @@ const ProfileScreen = () => {
     phone: false,
     email: false,
   });
-
   const [loading, setLoading] = useState(false);
 
-  // Lấy token khi mount
   useEffect(() => {
     const fetchToken = async () => {
       try {
@@ -68,10 +64,8 @@ const ProfileScreen = () => {
     fetchToken();
   }, []);
 
-  // Gọi API khi token đã có và user.id tồn tại
   useEffect(() => {
     if (!token || !user.id) return;
-
     const fetchUser = async () => {
       try {
         const res = await fetch(DOMAIN+`:3000/api/user`, {
@@ -87,11 +81,9 @@ const ProfileScreen = () => {
         console.error(err);
       }
     };
-
     fetchUser();
   }, [token, user.id]);
 
-  // Khi mount, set giá trị ban đầu từ redux và lưu avatar ban đầu
   useEffect(() => {
     setForm({
       name: user.name || "",
@@ -101,7 +93,7 @@ const ProfileScreen = () => {
       email: user.email || "",
     });
     setAvatarUrl(user.avatarUrl || null);
-    setOriginalAvatar(user.avatarUrl || null); // lưu avatar ban đầu
+    setOriginalAvatar(user.avatarUrl || null);
   }, [user]);
 
   const toggleEdit = (field: keyof typeof editable) => {
@@ -113,7 +105,6 @@ const ProfileScreen = () => {
   };
 
   const handleReset = () => {
-    // Reset lại các thông tin profile
     setForm({
       name: user.name || "",
       dob: user.dob || "",
@@ -128,18 +119,15 @@ const ProfileScreen = () => {
       phone: false,
       email: false,
     });
-    // Reset avatar về giá trị ban đầu
     setAvatarUrl(originalAvatar);
   };
 
   const pickAvatar = async () => {
-    // Yêu cầu quyền truy cập thư viện ảnh
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission denied", "Bạn cần cấp quyền truy cập ảnh để thay đổi avatar");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
@@ -147,49 +135,33 @@ const ProfileScreen = () => {
       aspect: [1, 1],
       base64: false,
     });
-    console.log(result)
-    // Nếu người dùng không hủy việc chọn ảnh
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      // Lấy ảnh đầu tiên từ mảng assets
       const asset = result.assets[0];
-      // Cập nhật uri của ảnh vào state
       setAvatarUrl(asset.uri);
     }
   };
+
   const handleSave = async () => {
     setLoading(true);
     try {
-      let newAvatarUrl = avatarUrl; // sử dụng biến này để cập nhật profile
-
-      // Nếu URL avatar thay đổi, upload ảnh mới
+      let newAvatarUrl = avatarUrl;
       if (avatarUrl && avatarUrl !== originalAvatar) {
-        // Chuyển đổi data URI thành Blob
         const response = await fetch(avatarUrl);
         const blob = await response.blob();
-
         const formData = new FormData();
-        // Khi sử dụng Blob, bạn có thể truyền tên file ở tham số thứ ba
         formData.append("image", blob, `avatar_${user.id}.jpg`);
-
         const uploadResp = await fetch(
           `${DOMAIN}:3000/api/user/avatar`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              // Không cần set "Content-Type"
-            },
+            headers: { Authorization: `Bearer ${token}` },
             body: formData,
           }
         );
         if (!uploadResp.ok) throw new Error("Avatar upload failed");
         const { avatar } = await uploadResp.json();
-
-        // Gán URL mới trả về từ server
         newAvatarUrl = avatar;
       }
-
-      // Gửi PUT cập nhật profile với avatar URL mới
       const resp = await fetch(`${DOMAIN}:3000/api/user`, {
         method: "PUT",
         headers: {
@@ -203,7 +175,6 @@ const ProfileScreen = () => {
       dispatch(updateUser(updated.user));
       Alert.alert("Success", "Cập nhật thông tin thành công");
       setEditable({ name: false, dob: false, gender: false, phone: false, email: false });
-      // Sau khi lưu thành công, cập nhật lại giá trị avatar gốc
       setOriginalAvatar(newAvatarUrl);
     } catch (err) {
       console.error(err);
@@ -213,12 +184,10 @@ const ProfileScreen = () => {
     }
   };
 
-
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
@@ -232,37 +201,38 @@ const ProfileScreen = () => {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
           {/* Avatar */}
-          <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
+          <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar} activeOpacity={0.7}>
             <Image
               source={{ uri: avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png" }}
               style={styles.avatar}
             />
-            <View style={styles.editOverlay}>
+            <View style={[styles.editOverlay, { backgroundColor: theme.colors.primary + "80" }]}>
               <Ionicons name="camera" size={20} color="#fff" />
             </View>
           </TouchableOpacity>
 
           {/* Thông tin cá nhân */}
           <View style={styles.infoContainer}>
-            {(["name", "dob", "gender", "phone", "email"] as Array<keyof typeof form>).map(field => (
+            {(["name", "dob", "gender", "phone", "email"] as Array<keyof typeof form>).map((field, index) => (
               <ProfileItem
-                key={field}
-                label={
-                  field === "name"
-                    ? "Full name"
-                    : field === "dob"
-                      ? "Birth day"
-                      : field === "phone"
-                        ? "Phone number"
-                        : field === "email"
-                          ? "Email"
-                          : "Gender"
-                }
+              key={field}
+              label={
+                field === "name"
+                  ? "Full name"
+                  : field === "dob"
+                    ? "Birth day"
+                    : field === "phone"
+                      ? "Phone number"
+                      : field === "email"
+                        ? "Email"
+                        : "Gender"
+              }
                 value={form[field]}
-                onChange={val => handleChange(field, val)}
+                onChange={(val) => handleChange(field, val)}
                 isEditable={editable[field] && !loading}
                 onEdit={() => toggleEdit(field)}
                 theme={theme}
+                isLast={index === 4} // Đánh dấu item cuối để bỏ divider
               />
             ))}
           </View>
@@ -270,17 +240,18 @@ const ProfileScreen = () => {
           {/* Nút hành động */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.resetButton, { backgroundColor: "red" }]}
+              style={[styles.resetButton, { borderColor: "#FF4D4D" }]}
               onPress={handleReset}
               disabled={loading}
+              activeOpacity={0.7}
             >
-              <Text style={styles.resetText}>Reset</Text>
+              <Text style={[styles.resetText, { color: "#FF4D4D" }]}>Reset</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
               onPress={handleSave}
               disabled={loading}
+              activeOpacity={0.7}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -302,6 +273,7 @@ const ProfileItem = ({
   isEditable,
   onEdit,
   theme,
+  isLast,
 }: {
   label: string;
   value: string;
@@ -309,15 +281,15 @@ const ProfileItem = ({
   isEditable: boolean;
   onEdit: () => void;
   theme: typeof DarkTheme | typeof DefaultTheme;
+  isLast?: boolean;
 }) => (
-  <View style={styles.itemContainer}>
-    <Text style={[styles.itemLabel, { color: theme.colors.text }]}>{label} :</Text>
+  <View style={[styles.itemContainer, !isLast && { borderBottomColor: theme.colors.border }]}>
+    <Text style={[styles.itemLabel, { color: theme.colors.text }]}>{label}</Text>
     <TextInput
       style={[
         styles.itemValue,
         {
           color: theme.colors.text,
-          borderBottomColor: theme.colors.border,
           backgroundColor: isEditable ? theme.colors.card : "transparent",
         },
       ]}
@@ -325,43 +297,125 @@ const ProfileItem = ({
       onChangeText={onChange}
       editable={isEditable}
     />
-    <TouchableOpacity onPress={onEdit}>
-      <Ionicons name="pencil" size={18} color={theme.colors.text} />
+    <TouchableOpacity onPress={onEdit} style={styles.editButton}>
+      <Ionicons name="pencil" size={20} color={theme.colors.text} />
     </TouchableOpacity>
   </View>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
+  // Header
   header: {
-    height: 60,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  headerTitle: { fontSize: 18, fontWeight: "bold" },
-  scrollContainer: { flexGrow: 1, paddingBottom: 30 },
-  avatarContainer: { alignItems: "center", marginVertical: 15 },
-  avatar: { width: 90, height: 90, borderRadius: 45 },
-  infoContainer: { marginHorizontal: 20, marginBottom: 20 },
-  itemContainer: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
-  itemLabel: { flex: 1, fontSize: 14, fontWeight: "bold" },
-  itemValue: { flex: 4, fontSize: 14, borderBottomWidth: 1, paddingBottom: 5 },
-  buttonContainer: { flexDirection: "row", justifyContent: "center", marginTop: 10 },
-  resetButton: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 5, marginRight: 10 },
-  resetText: { color: "white", fontSize: 16, fontWeight: "bold" },
-  saveButton: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 5 },
-  saveText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  // ScrollView
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+  },
+  // Avatar
+  avatarContainer: {
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#fff",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
   editOverlay: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: "#0008",
-    padding: 6,
+    padding: 8,
+    borderRadius: 16,
+  },
+  // Thông tin cá nhân
+  infoContainer: {
+    backgroundColor: "transparent",
     borderRadius: 12,
+    marginBottom: 20,
+  },
+  itemContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  itemLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  itemValue: {
+    flex: 2,
+    fontSize: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  editButton: {
+    padding: 8,
+  },
+  // Nút hành động
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+    gap: 16,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  resetText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  saveButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  saveText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 
