@@ -231,12 +231,31 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             </Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.passwordRules}>
-          <Text style={{ color: theme.colors.text }}>{passwordRules.minLength ? "✔" : "─"} At least 8 characters</Text>
-          <Text style={{ color: theme.colors.text }}>{passwordRules.lowercase ? "✔" : "─"} Lowercase letter</Text>
-          <Text style={{ color: theme.colors.text }}>{passwordRules.uppercase ? "✔" : "─"} Uppercase letter</Text>
-          <Text style={{ color: theme.colors.text }}>{passwordRules.symbol ? "✔" : "─"} Symbol</Text>
-        </View>
+        {/* Chỉ hiển thị quy tắc nếu có nhập password và có ít nhất 1 quy tắc không thỏa mãn */}
+        {form.password && !Object.values(passwordRules).every(Boolean) && (
+          <View style={styles.passwordRules}>
+            {!passwordRules.minLength && (
+              <Text style={{ color: theme.colors.text }}>
+                ─ At least 8 characters
+              </Text>
+            )}
+            {!passwordRules.lowercase && (
+              <Text style={{ color: theme.colors.text }}>
+                ─ Lowercase letter
+              </Text>
+            )}
+            {!passwordRules.uppercase && (
+              <Text style={{ color: theme.colors.text }}>
+                ─ Uppercase letter
+              </Text>
+            )}
+            {!passwordRules.symbol && (
+              <Text style={{ color: theme.colors.text }}>
+                ─ Symbol
+              </Text>
+            )}
+          </View>
+        )}
         {errors.password && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.password}</Text>}
       </View>
 
@@ -275,55 +294,69 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputContainer: {
-    marginBottom: 15,
+    marginBottom: 20,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
-    marginTop: 5,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    backgroundColor: "transparent",
   },
   phoneInputContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 8,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    marginRight: 10,
+    borderRadius: 8,
+    marginRight: 12,
     overflow: "hidden",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   picker: {
-    height: 50,
+    height: 48,
     width: 120,
   },
   phoneInput: {
     borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
     flex: 1,
+    backgroundColor: "transparent",
   },
   errorText: {
-    fontSize: 12,
-    marginTop: 5,
+    fontSize: 14,
+    marginTop: 8,
+    color: "#FF4D4D",
   },
   passwordRules: {
-    marginTop: 5,
+    marginTop: 8,
+    gap: 4,
   },
   signInText: {
     textAlign: "center",
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
+    fontWeight: "500",
   },
 });
 

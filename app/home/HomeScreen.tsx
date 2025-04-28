@@ -502,17 +502,22 @@ const HomeScreen = () => {
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <View
-          style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}
-        >
+
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
+          <Ionicons
+            name="search"
+            size={20}
+            color={theme.colors.text}
+            style={styles.searchIcon}
+          />
+
           <TextInput
             placeholder="Tìm kiếm..."
             style={[styles.searchInput, { color: theme.colors.text }]}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor={theme.colors.text}
+            placeholderTextColor="#888"
           />
-          <Ionicons name="search" size={20} color={theme.colors.text} />
         </View>
 
         {loading ? (
@@ -547,57 +552,75 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    margin: 10,
-    borderRadius: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    margin: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "transparent",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
     fontSize: 16,
+    paddingVertical: 0,
   },
   chatList: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 12,
   },
   chatDetails: {
     flex: 1,
   },
   chatName: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
+    color: "#000",
   },
   chatMessage: {
     fontSize: 14,
+    opacity: 0.7,
+    color: "#666",
   },
   chatMeta: {
     alignItems: "flex-end",
+    gap: 6,
   },
   chatTime: {
     fontSize: 12,
+    opacity: 0.7,
+    color: "#666",
   },
   unreadBadge: {
-    backgroundColor: "red",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
+    backgroundColor: "#FF3B30",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   unreadText: {
     color: "white",
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
 });
