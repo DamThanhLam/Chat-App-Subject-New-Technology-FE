@@ -14,10 +14,10 @@ export interface Message {
   conversationId: string | null;
   senderId: string;
   message:
-    | string
-    | { data: string; filename: string; mimetype: string; size: number };
-  createAt: string;
-  updateAt: string;
+  | string
+  | { data: string; filename: string; mimetype: string; size: number };
+  createdAt: string;
+  updatedAt: string;
   parentMessage?: Message;
   readed: string[];
   messageType: "group" | "private";

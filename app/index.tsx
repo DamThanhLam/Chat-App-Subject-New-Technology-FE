@@ -15,7 +15,7 @@ const Index = () => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const router = useRouter();
-
+  
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Image

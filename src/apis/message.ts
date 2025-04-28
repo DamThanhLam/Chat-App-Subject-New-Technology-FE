@@ -39,7 +39,7 @@ export const fetchUserInfo = async (friendId: string): Promise<UserInfo> => {
   const resultNickname = await getNickname(friendId);
   return {
     friendId,
-    displayName: resultNickname && resultNickname.nickname? resultNickname.nickname : userData.username || friendId,
+    displayName: resultNickname && resultNickname.nickname? resultNickname.nickname : userData.name || friendId,
     avatar: userData.urlAVT || null,
   };
 };

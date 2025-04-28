@@ -1,22 +1,24 @@
-import { configureStore } from '@reduxjs/toolkit';
-import messageReducer from './slices/MessageSlice';
-import { persistStore, persistReducer } from 'redux-persist';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import storage from 'redux-persist/lib/storage'; // Local storage for web
-import { combineReducers } from 'redux';
+import { configureStore } from "@reduxjs/toolkit";
+import messageReducer from "./slices/MessageSlice";
+import conversationReducer from "./slices/ConversationSlice";
+import { persistStore, persistReducer } from "redux-persist";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import storage from "redux-persist/lib/storage"; // Local storage for web
+import { combineReducers } from "redux";
 
-import userReducer from './slices/UserSlice';
+import userReducer from "./slices/UserSlice";
 
 const persistConfig = {
-  key: 'root',
+  key: "root",
   // Dùng storage phù hợp với môi trường: nếu có window (web) thì dùng localStorage, nếu không dùng AsyncStorage
-  storage: typeof window !== 'undefined' ? storage : AsyncStorage,
-  whitelist: ['user'],
+  storage: typeof window !== "undefined" ? storage : AsyncStorage,
+  whitelist: ["user"],
 };
 
 const rootReducer = combineReducers({
   user: userReducer,
   messages: messageReducer,
+  conversation: conversationReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

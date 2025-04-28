@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+"use client"
+
+import React, { useEffect, useState } from 'react';
 import {
   Text,
   TouchableOpacity,
@@ -10,7 +12,6 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { Video } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import * as WebBrowser from 'expo-web-browser';
 
 interface Message {
@@ -47,18 +48,45 @@ interface FileMessageProps {
 
 // Helpers
 const isImage = (filename: string) => /\.(jpeg|jpg|gif|png)$/i.test(filename);
-const isVideo = (filename: string) => /\.(mp4|mov|avi)$/i.test(filename);
+const isVideo = (filename: string) => /\.(mp4|mov|avi|webm)$/i.test(filename);
 const isDocument = (filename: string) => /\.(pdf|docx|xlsx|pptx)$/i.test(filename);
 
-const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPress }) => {
+const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme, onLongPress }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [viewingVideo, setViewingVideo] = useState(false);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(16 / 9);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    handleResize(); // Lấy kích thước khi load lần đầu
+    Platform.OS === "web"
+      ? window.addEventListener('resize', handleResize)
+      : "";
+    return () => {
+      handleResize(); // Lấy kích thước khi load lần đầu
+    Platform.OS === "web"
+      ? window.removeEventListener('resize', handleResize)
+      : "";
+      
+    };
+  }, []);
+
+
   const file = item.message;
 
   const openFile = async (url: string) => {
     try {
       if (Platform.OS === 'web') {
-        // Web: Tải trực tiếp
         const link = document.createElement('a');
         link.href = url;
         link.download = file.filename;
@@ -67,7 +95,6 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPr
         link.click();
         document.body.removeChild(link);
       } else {
-        // Mobile: Mở trình duyệt để tải file
         await WebBrowser.openBrowserAsync(url);
       }
     } catch (err) {
@@ -111,24 +138,47 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPr
         </View>
       </TouchableOpacity>
 
-      {/* Modal xem ảnh hoặc video */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <TouchableOpacity
-            onPress={() => setModalVisible(false)}
-            style={styles.closeButton}
-          >
+          <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
             <FontAwesome name="close" size={28} color="#fff" />
           </TouchableOpacity>
 
           {viewingVideo ? (
-            <Video
-              source={{ uri: file.data }}
-              style={styles.modalVideo}
-              useNativeControls
-              resizeMode="contain"
-              shouldPlay
-            />
+            <View style={[styles.modalContent,
+            {
+
+              width: windowDimensions.width > 0 ? windowDimensions.width : "100%",
+              maxWidth: windowDimensions.width > 0 ? windowDimensions.width : "100%"
+            }]}>
+              <Video
+                source={{ uri: file.data }}
+                style={[
+                  {
+                    aspectRatio: videoAspectRatio,
+                    width: windowDimensions.width > 0 ? windowDimensions.width : "100%",
+                    maxWidth: windowDimensions.width > 0 ? windowDimensions.width : "100%",
+                    maxHeight: windowDimensions.height > 0 ? windowDimensions.height : "100%",
+                  }
+                ]}
+                videoStyle={[
+                  {
+                    width: windowDimensions.width > 0 ? windowDimensions.width : "100%",
+                    maxWidth: windowDimensions.width > 0 ? windowDimensions.width : "100%",
+                    maxHeight: windowDimensions.height > 0 ? windowDimensions.height : "100%",
+
+                  }
+                ]}
+                resizeMode="contain"
+                useNativeControls
+                shouldPlay
+                onLoad={({ naturalSize }) => {
+                  if (naturalSize && naturalSize.width && naturalSize.height) {
+                    setVideoAspectRatio(naturalSize.width / naturalSize.height);
+                  }
+                }}
+              />
+            </View>
           ) : (
             <Image source={{ uri: file.data }} style={styles.modalImage} resizeMode="contain" />
           )}
@@ -140,10 +190,9 @@ const FileMessage: React.FC<FileMessageProps> = ({ item, userID1, theme,onLongPr
 
 const styles = {
   fileContainer: {
-    flexDirection: "column",
+    flexDirection: 'column',
     alignItems: 'center',
     marginVertical: 10,
-
   },
   imagePreview: {
     width: 100,
@@ -169,9 +218,15 @@ const styles = {
     width: '100%',
     height: '80%',
   },
-  modalVideo: {
+  modalContent: {
     width: '100%',
-    height: '80%',
+    maxHeight: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  responsiveVideo: {
+    width: '100%',
+    backgroundColor: 'black',
   },
   closeButton: {
     position: 'absolute',
