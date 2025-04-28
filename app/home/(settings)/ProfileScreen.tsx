@@ -24,6 +24,7 @@ import { Auth } from "aws-amplify";
 import { updateUser } from "@/src/redux/slices/UserSlice";
 import * as ImagePicker from 'expo-image-picker';
 import { DOMAIN } from "@/src/configs/base_url";
+import * as FileSystem from "expo-file-system";
 
 const ProfileScreen = () => {
   const dispatch = useDispatch();
@@ -144,24 +145,42 @@ const ProfileScreen = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      let newAvatarUrl = avatarUrl;
+      let newAvatarUrl = avatarUrl; // mặc định
+
       if (avatarUrl && avatarUrl !== originalAvatar) {
-        const response = await fetch(avatarUrl);
-        const blob = await response.blob();
         const formData = new FormData();
-        formData.append("image", blob, `avatar_${user.id}.jpg`);
-        const uploadResp = await fetch(
-          `${DOMAIN}:3000/api/user/avatar`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          }
-        );
+
+        if (Platform.OS === "web") {
+          // Xử lý cho web
+          const response = await fetch(avatarUrl);
+          const blob = await response.blob();
+          formData.append("image", blob, `avatar_${user.id}.jpg`);
+        } else {
+          // Xử lý cho mobile
+          const fileInfo = await FileSystem.getInfoAsync(avatarUrl);
+          if (!fileInfo.exists) throw new Error("File not found");
+
+          formData.append("image", {
+            uri: avatarUrl,
+            name: `avatar_${user.id}.jpg`,
+            type: "image/jpeg", // hoặc dựa theo asset.mimeType
+          });
+        }
+
+        const uploadResp = await fetch(`${DOMAIN}:3000/api/user/avatar`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(Platform.OS === "web" ? {} : { "Content-Type": "multipart/form-data" }), // Web không cần Content-Type
+          },
+          body: formData,
+        });
+
         if (!uploadResp.ok) throw new Error("Avatar upload failed");
         const { avatar } = await uploadResp.json();
         newAvatarUrl = avatar;
       }
+
       const resp = await fetch(`${DOMAIN}:3000/api/user`, {
         method: "PUT",
         headers: {
@@ -170,6 +189,7 @@ const ProfileScreen = () => {
         },
         body: JSON.stringify({ ...form, avatarUrl: newAvatarUrl }),
       });
+
       if (!resp.ok) throw new Error(`Status ${resp.status}`);
       const updated = await resp.json();
       dispatch(updateUser(updated.user));
@@ -215,24 +235,24 @@ const ProfileScreen = () => {
           <View style={styles.infoContainer}>
             {(["name", "dob", "gender", "phone", "email"] as Array<keyof typeof form>).map((field, index) => (
               <ProfileItem
-              key={field}
-              label={
-                field === "name"
-                  ? "Full name"
-                  : field === "dob"
-                    ? "Birth day"
-                    : field === "phone"
-                      ? "Phone number"
-                      : field === "email"
-                        ? "Email"
-                        : "Gender"
-              }
+                key={field}
+                label={
+                  field === "name"
+                    ? "Full name"
+                    : field === "dob"
+                      ? "Birth day"
+                      : field === "phone"
+                        ? "Phone number"
+                        : field === "email"
+                          ? "Email"
+                          : "Gender"
+                }
                 value={form[field]}
                 onChange={(val) => handleChange(field, val)}
-                isEditable={editable[field] && !loading}
+                isEditable={field === "phone" || field === "email" ? false : editable[field] && !loading}
                 onEdit={() => toggleEdit(field)}
                 theme={theme}
-                isLast={index === 4} // Đánh dấu item cuối để bỏ divider
+                showEditIcon={field !== "phone" && field !== "email"}
               />
             ))}
           </View>
@@ -273,7 +293,7 @@ const ProfileItem = ({
   isEditable,
   onEdit,
   theme,
-  isLast,
+  showEditIcon = true,
 }: {
   label: string;
   value: string;
@@ -281,9 +301,9 @@ const ProfileItem = ({
   isEditable: boolean;
   onEdit: () => void;
   theme: typeof DarkTheme | typeof DefaultTheme;
-  isLast?: boolean;
+  showEditIcon?: boolean;
 }) => (
-  <View style={[styles.itemContainer, !isLast && { borderBottomColor: theme.colors.border }]}>
+  <View style={[styles.itemContainer, { borderBottomColor: theme.colors.border }]}>
     <Text style={[styles.itemLabel, { color: theme.colors.text }]}>{label}</Text>
     <TextInput
       style={[
@@ -297,9 +317,11 @@ const ProfileItem = ({
       onChangeText={onChange}
       editable={isEditable}
     />
-    <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-      <Ionicons name="pencil" size={20} color={theme.colors.text} />
-    </TouchableOpacity>
+    {showEditIcon && (
+      <TouchableOpacity onPress={onEdit} style={styles.editButton}>
+        <Ionicons name="pencil" size={18} color={theme.colors.text} />
+      </TouchableOpacity>
+    )}
   </View>
 );
 

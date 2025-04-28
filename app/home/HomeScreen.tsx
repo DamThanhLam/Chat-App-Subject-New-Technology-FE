@@ -32,6 +32,7 @@ import {
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 
+// Các interface cho group conversation & combined conversation
 interface GroupConversation {
   id: string;
   groupName: string;
@@ -48,6 +49,26 @@ interface CombinedConversation {
   participantsCount?: number;
 }
 
+/* -----------------------------------------------------------------------------
+  Hàm tiện ích dùng để gọi fetch:
+  - Lấy headers từ getAuthHeaders (bao gồm Authorization & Content-Type)
+  - Nối URL và các options đã cho
+  - Nếu response không ok, ném exception với thông báo lỗi
+  - Nếu thành công, chuyển về JSON
+----------------------------------------------------------------------------- */
+async function apiFetch(url: string, options: RequestInit = {}): Promise<any> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error ${response.status}: ${errorText}`);
+  }
+  return response.json();
+}
+
 const HomeScreen = () => {
   const [search, setSearch] = useState("");
   const [displayConversations, setDisplayConversations] = useState<
@@ -59,6 +80,7 @@ const HomeScreen = () => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
 
+  // Lấy userId hiện tại
   useEffect(() => {
     const initializeUserId = async () => {
       try {
@@ -71,39 +93,35 @@ const HomeScreen = () => {
     };
     initializeUserId();
   }, []);
+
+  // Kết nối socket (có thể gọi lại mỗi khi component mount)
   useEffect(() => {
-    connectSocket()
-  })
+    connectSocket();
+  }, []);
+
   const fetchConversations = async () => {
     try {
       setLoading(true);
       if (!userId) return;
 
+      // Lấy danh sách bạn bè thông qua API đã được import
       const friends = await fetchFriends();
       const acceptedFriends = friends.filter(
         (friend) => friend.status === "accepted"
       );
 
-      const headers = await getAuthHeaders();
-      const groupResponse = await fetch(
-        `${API_BASE_URL}/conversations/my-groups/${userId}`,
-        {
-          method: "GET",
-          headers,
-        }
+      // Sử dụng hàm tiện ích apiFetch để lấy cuộc trò chuyện nhóm
+      const groupConversations: GroupConversation[] = await apiFetch(
+        `${API_BASE_URL}/conversations/my-groups/${userId}`
       );
 
-      if (!groupResponse.ok) {
-        throw new Error("Không thể lấy danh sách cuộc trò chuyện nhóm");
-      }
-      const groupConversations: GroupConversation[] =
-        await groupResponse.json();
-
+      // Xử lý conversation cá nhân
       const privateConversations: CombinedConversation[] = [];
       const friendIds = acceptedFriends.map((friend) =>
         friend.senderId === userId ? friend.receiverId : friend.senderId
       );
 
+      // Lấy thông tin của người bạn qua API (đã được rút gọn trong fetchUserInfo)
       const usersResponse = await Promise.all(
         friendIds.map((friendId) => fetchUserInfo(friendId))
       );
@@ -111,12 +129,11 @@ const HomeScreen = () => {
       const userMap = usersResponse.reduce((map, user) => {
         map[user.friendId] = user;
         return map;
-      }, {});
+      }, {} as { [friendId: string]: any });
 
       for (const friend of acceptedFriends) {
         const friendId =
           friend.senderId === userId ? friend.receiverId : friend.senderId;
-
         const lastMessage = await fetchLatestMessage(friendId);
         const userInfo = userMap[friendId] || {
           displayName: friendId,
@@ -130,7 +147,7 @@ const HomeScreen = () => {
             friend.senderId === userId
               ? friend.senderAVT
               : userInfo.avatar ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
@@ -145,18 +162,17 @@ const HomeScreen = () => {
           participantsCount: group.participants.length,
         }));
 
-      const combinedList = [
-        ...privateConversations,
-        ...groupConversationsList,
-      ].sort((a, b) => {
-        const timeA = a.lastMessage
-          ? new Date(a.lastMessage.createdAt).getTime()
-          : 0;
-        const timeB = b.lastMessage
-          ? new Date(b.lastMessage.createdAt).getTime()
-          : 0;
-        return timeB - timeA;
-      });
+      const combinedList = [...privateConversations, ...groupConversationsList].sort(
+        (a, b) => {
+          const timeA = a.lastMessage
+            ? new Date(a.lastMessage.createdAt).getTime()
+            : 0;
+          const timeB = b.lastMessage
+            ? new Date(b.lastMessage.createdAt).getTime()
+            : 0;
+          return timeB - timeA;
+        }
+      );
 
       setDisplayConversations(combinedList);
       console.log("Fetched conversations:", combinedList);
@@ -173,22 +189,20 @@ const HomeScreen = () => {
     }
   }, [userId]);
 
+  // Lắng nghe các sự kiện socket và cập nhật displayConversations
   useEffect(() => {
     connectSocket().then((socket) => {
       if (!socket) return;
+
       socket.on(
         "added-to-group",
-        ({
-          conversation: { id, groupName, participants, avatarUrl },
-          message,
-        }) => {
+        ({ conversation: { id, groupName, participants, avatarUrl }, message }) => {
           console.log(
             `Group created event received for user ${userId}:`,
             id,
             groupName,
             participants
           );
-
           const newGroup: CombinedConversation = {
             type: "group",
             id: id,
@@ -199,7 +213,6 @@ const HomeScreen = () => {
             lastMessage: null,
             participantsCount: participants.length,
           };
-
           setDisplayConversations((prev) => {
             if (prev.some((conv) => conv.id === id)) {
               console.log("Group already exists in displayConversations:", id);
@@ -225,16 +238,9 @@ const HomeScreen = () => {
           `Group deleted event received for user ${userId}:`,
           conversationId
         );
-        // Xóa nhóm khỏi displayConversations
-        setDisplayConversations((prev) => {
-          const updatedList = prev.filter((conv) => conv.id !== conversationId);
-          console.log(
-            "Updated displayConversations after deletion:",
-            updatedList
-          );
-          return updatedList;
-        });
-        // Gọi lại fetchConversations để đồng bộ dữ liệu từ database
+        setDisplayConversations((prev) =>
+          prev.filter((conv) => conv.id !== conversationId)
+        );
         fetchConversations();
       });
 
@@ -244,44 +250,29 @@ const HomeScreen = () => {
           conversationId,
           message
         );
-        setDisplayConversations((prev) => {
-          const updatedList = prev.filter((conv) => conv.id !== conversationId);
-          console.log(
-            "Updated displayConversations after being removed:",
-            updatedList
-          );
-          return updatedList;
-        });
+        setDisplayConversations((prev) =>
+          prev.filter((conv) => conv.id !== conversationId)
+        );
         fetchConversations();
       });
-      // Lắng nghe đổi tên nhóm
+
       socket.on("group-renamed", ({ conversationId, newName, leaderId }) => {
         console.log(
           `Group renamed event received for user ${userId}:`,
           conversationId,
           newName
         );
-
-        setDisplayConversations((prevConversations) => {
-          const updatedConversations = prevConversations.map((conv) => {
+        setDisplayConversations((prevConversations) =>
+          prevConversations.map((conv) => {
             if (conv.type === "group" && conv.id === conversationId) {
-              return {
-                ...conv,
-                displayName: newName,
-              };
+              return { ...conv, displayName: newName };
             }
             return conv;
-          });
-
-          console.log(
-            "Updated conversations after rename:",
-            updatedConversations
-          );
-          return updatedConversations;
-        });
+          })
+        );
       });
-      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
 
+      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
         const newGroup: CombinedConversation = {
           type: "group",
           id: id,
@@ -292,7 +283,6 @@ const HomeScreen = () => {
           lastMessage: null,
           participantsCount: participants.length,
         };
-
         setDisplayConversations((prev) => {
           if (prev.some((conv) => conv.id === id)) {
             console.log("Group already exists in displayConversations:", id);
@@ -310,8 +300,11 @@ const HomeScreen = () => {
           console.log("Updated displayConversations:", updatedList);
           return updatedList;
         });
-        socket.on("reponse-approve-into-group", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
-          if (reject) return
+      });
+
+      socket.on(
+        "notification-join-group",
+        ({ conversation: { id, groupName, participants, avatarUrl } }) => {
           const newGroup: CombinedConversation = {
             type: "group",
             id: id,
@@ -322,7 +315,6 @@ const HomeScreen = () => {
             lastMessage: null,
             participantsCount: participants.length,
           };
-
           setDisplayConversations((prev) => {
             if (prev.some((conv) => conv.id === id)) {
               console.log("Group already exists in displayConversations:", id);
@@ -340,70 +332,39 @@ const HomeScreen = () => {
             console.log("Updated displayConversations:", updatedList);
             return updatedList;
           });
-        })
-      });
-      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
-
-        const newGroup: CombinedConversation = {
-          type: "group",
-          id: id,
-          displayName: groupName || "Nhóm chat",
-          avatar:
-            avatarUrl ||
-            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-          lastMessage: null,
-          participantsCount: participants.length,
-        };
-
-        setDisplayConversations((prev) => {
-          if (prev.some((conv) => conv.id === id)) {
-            console.log("Group already exists in displayConversations:", id);
-            return prev;
-          }
-          const updatedList = [newGroup, ...prev].sort((a, b) => {
-            const timeA = a.lastMessage
-              ? new Date(a.lastMessage.createdAt).getTime()
-              : 0;
-            const timeB = b.lastMessage
-              ? new Date(b.lastMessage.createdAt).getTime()
-              : 0;
-            return timeB - timeA;
-          });
-          console.log("Updated displayConversations:", updatedList);
-          return updatedList;
-        });
-        socket.on("userJoinedGroup", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
-          if (reject) return
-          const newGroup: CombinedConversation = {
-            type: "group",
-            id: id,
-            displayName: groupName || "Nhóm chat",
-            avatar:
-              avatarUrl ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-            lastMessage: null,
-            participantsCount: participants.length,
-          };
-
-          setDisplayConversations((prev) => {
-            if (prev.some((conv) => conv.id === id)) {
-              console.log("Group already exists in displayConversations:", id);
-              return prev;
-            }
-            const updatedList = [newGroup, ...prev].sort((a, b) => {
-              const timeA = a.lastMessage
-                ? new Date(a.lastMessage.createdAt).getTime()
-                : 0;
-              const timeB = b.lastMessage
-                ? new Date(b.lastMessage.createdAt).getTime()
-                : 0;
-              return timeB - timeA;
+          socket.on("userJoinedGroup", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
+            if (reject) return;
+            const newGroup: CombinedConversation = {
+              type: "group",
+              id: id,
+              displayName: groupName || "Nhóm chat",
+              avatar:
+                avatarUrl ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              lastMessage: null,
+              participantsCount: participants.length,
+            };
+            setDisplayConversations((prev) => {
+              if (prev.some((conv) => conv.id === id)) {
+                console.log("Group already exists in displayConversations:", id);
+                return prev;
+              }
+              const updatedList = [newGroup, ...prev].sort((a, b) => {
+                const timeA = a.lastMessage
+                  ? new Date(a.lastMessage.createdAt).getTime()
+                  : 0;
+                const timeB = b.lastMessage
+                  ? new Date(b.lastMessage.createdAt).getTime()
+                  : 0;
+                return timeB - timeA;
+              });
+              console.log("Updated displayConversations:", updatedList);
+              return updatedList;
             });
-            console.log("Updated displayConversations:", updatedList);
-            return updatedList;
           });
-        })
-      });
+        }
+      );
+
       return () => {
         const socket = getSocket();
         if (socket) {
@@ -411,7 +372,7 @@ const HomeScreen = () => {
           socket.off("group-renamed");
         }
       };
-    })
+    });
   }, []);
 
   const getUnreadCount = (
@@ -432,17 +393,14 @@ const HomeScreen = () => {
     if (!isoTime || typeof isoTime !== "string") {
       return "Không rõ";
     }
-
     const date = new Date(isoTime);
     if (isNaN(date.getTime())) {
       return "Không rõ";
     }
-
     const now = new Date();
     const diffInMinutes = Math.floor(
       (now.getTime() - date.getTime()) / 1000 / 60
     );
-
     if (diffInMinutes < 60) {
       return `${diffInMinutes} phút`;
     } else if (diffInMinutes < 1440) {
@@ -460,10 +418,10 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-          ? "Emoji"
-          : item.lastMessage?.contentType === "file"
-            ? "File"
-            : "";
+        ? "Emoji"
+        : item.lastMessage?.contentType === "file"
+        ? "File"
+        : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (
@@ -544,6 +502,7 @@ const HomeScreen = () => {
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
+
         <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
           <Ionicons
             name="search"
@@ -551,6 +510,7 @@ const HomeScreen = () => {
             color={theme.colors.text}
             style={styles.searchIcon}
           />
+
           <TextInput
             placeholder="Tìm kiếm..."
             style={[styles.searchInput, { color: theme.colors.text }]}

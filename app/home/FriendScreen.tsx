@@ -94,41 +94,47 @@ const FriendScreen = () => {
     fetchData();
   }, [token, user.id, selectedTab]);
 
+  const apiFetch = async (endpoint, options = {}) => {
+    const defaultOptions = {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    };
+
+    const response = await fetch(`${DOMAIN}:3000${endpoint}`, {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
+    }
+    return response.json();
+  };
+
+  //Hàm get DS Nhóm
   const fetchGroups = async () => {
     try {
       if (!user?.id || !token) return;
-
-      const res = await fetch(
-        `${DOMAIN}:3000/api/conversations/my-groups/${user.id}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (!res.ok) throw new Error(`Failed to fetch groups: ${res.status}`);
-
-      const groups = await res.json();
-
-      if (!Array.isArray(groups)) throw new Error("Phản hồi không hợp lệ");
-
-
+  
+      const groupsData = await apiFetch(`/api/conversations/my-groups/${user.id}`);
+      
+      if (!Array.isArray(groupsData)) throw new Error("Phản hồi không hợp lệ");
+  
       const processedGroups = await Promise.all(
-        groups.map(async (group) => {
-          // Tính số thành viên (ưu tiên participantsIds nếu tồn tại)
-          const memberCount = group.participants?.length || 0;
-
-          return {
-            ...group,
-            memberCount, // <-- Đảm bảo trường này được truyền vào
-            isLeader: group.leaderId === user.id,
-          };
-        })
+        groupsData.map(async (group) => ({
+          ...group,
+          memberCount: group.participants?.length || 0,
+          isLeader: group.leaderId === user.id,
+        }))
       );
-
-      console.log("Processed groups:", processedGroups);
       setGroups(processedGroups);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error in fetchGroups:", error);
       setGroups([]);
       Toast.show({
@@ -139,48 +145,21 @@ const FriendScreen = () => {
     }
   };
 
+  //Hàm get DS Friend
   const fetchFriends = async () => {
     try {
-      // 1. Fetch danh sách bạn bè
-      const friendsRes = await fetch(
-        `${DOMAIN}:3000/api/friends/get-friends/${user.id}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (!friendsRes.ok) {
-        throw new Error(`Failed to fetch friends: ${friendsRes.status}`);
-      }
-
-      const { friends: rawFriends = [] } = await friendsRes.json();
-      const acceptedFriends = rawFriends.filter(
-        (friend) => friend.status === "accepted"
-      );
-
-      // 2. Lấy thông tin chi tiết cho từng bạn bè
+      const friendsData = await apiFetch(`/api/friends/get-friends/${user.id}`);
+      const acceptedFriends = friendsData.friends.filter(friend => friend.status === "accepted");
+  
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend) => {
-          const otherUserId =
-            friend.senderId === user.id ? friend.receiverId : friend.senderId;
-
+          const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
           try {
-            // Gọi song song cả user info và nickname
-            const [userRes, nicknameRes] = await Promise.all([
-              fetch(`${DOMAIN}:3000/api/user/${otherUserId}`, {
-                method: "GET",
-                headers: { Authorization: `Bearer ${token}` },
-              }),
+            const [userData, nicknameData] = await Promise.all([
+              apiFetch(`/api/user/${otherUserId}`),
               getNickname(otherUserId),
             ]);
-
-            if (!userRes.ok) throw new Error(`User ${otherUserId} not found`);
-
-            const userData = await userRes.json();
-            const nickname =
-              nicknameRes?.nickname || userData.username || "Unknown";
-
+            const nickname = nicknameData?.nickname || userData.name || "Unknown";
             return {
               ...friend,
               name: nickname,
@@ -196,7 +175,6 @@ const FriendScreen = () => {
           }
         })
       );
-
       setFriends(enrichedFriends);
       setFilteredFriends(enrichedFriends);
     } catch (error) {
@@ -255,28 +233,12 @@ const FriendScreen = () => {
     setSearchResult(null);
     setIsAlreadyFriend(true);
     setFriendRequestSent(false);
-
     try {
-      // Gọi API tìm kiếm user theo email
-      const res = await fetch(
-        DOMAIN +
-        `:3000/api/user/search?email=${encodeURIComponent(searchEmail)}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!res.ok) throw new Error("Không thể tìm kiếm người dùng.");
-
-      const data = await res.json();
-
+      const data = await apiFetch(`/api/user/search?email=${encodeURIComponent(searchEmail)}`);
       if (data?.users && data.users.length > 0) {
         const foundUser = data.users[0];
         setSearchResult(foundUser);
-
+  
         // Kiểm tra nếu đã là bạn bè
         const alreadyFriend = friends.some(
           (f) =>
@@ -284,24 +246,12 @@ const FriendScreen = () => {
             (f.receiverId === user.id && f.senderId === foundUser.id)
         );
         setIsAlreadyFriend(alreadyFriend);
-
-        // Nếu chưa là bạn bè thì kiểm tra xem đã gửi lời mời hay chưa
+  
+        // Nếu chưa là bạn bè, kiểm tra lời mời đang chờ
         if (!alreadyFriend) {
-          const checkPendingRes = await fetch(
-            DOMAIN +
-            `:3000/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+          const checkPendingData = await apiFetch(
+            `/api/friends/check-pending-request?senderId=${user.id}&receiverId=${foundUser.id}`
           );
-
-          if (!checkPendingRes.ok)
-            throw new Error("Không thể kiểm tra trạng thái lời mời.");
-
-          const checkPendingData = await checkPendingRes.json();
           setFriendRequestSent(!!checkPendingData?.isPending);
         }
       } else {
@@ -313,6 +263,7 @@ const FriendScreen = () => {
       setSearching(false);
     }
   };
+  
 
   useEffect(() => {
     connectSocket().then(socket => {
@@ -374,28 +325,16 @@ const FriendScreen = () => {
 
   const handleCancelFriendRequest = async (receiverId) => {
     try {
-      const res = await fetch(
-        `${DOMAIN}:3000/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.ok) {
-        setFriendRequestSent(false);
-        alert("Đã hủy lời mời kết bạn!");
-        setShowAddFriendModal(false);
-      } else {
-        alert("Không thể hủy lời mời.");
-      }
+      await apiFetch(`/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`, { method: "DELETE" });
+      setFriendRequestSent(false);
+      alert("Đã hủy lời mời kết bạn!");
+      setShowAddFriendModal(false);
     } catch (err) {
       console.error("Lỗi hủy lời mời:", err);
+      alert("Không thể hủy lời mời.");
     }
   };
+  
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
@@ -709,7 +648,7 @@ const FriendScreen = () => {
             {searchResult && (
               <View style={styles.searchResultContainer}>
                 <Text style={{ fontSize: 16, fontWeight: "bold" }}>
-                  {searchResult.username}
+                  {searchResult.name}
                 </Text>
                 <Text>{searchResult.email}</Text>
                 <Image
