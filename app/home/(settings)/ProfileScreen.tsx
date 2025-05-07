@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
@@ -32,6 +33,7 @@ const ProfileScreen = () => {
   const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { width } = useWindowDimensions();
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
@@ -204,6 +206,9 @@ const ProfileScreen = () => {
     }
   };
 
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
@@ -219,20 +224,57 @@ const ProfileScreen = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+        <ScrollView 
+          contentContainerStyle={[
+            styles.scrollContainer, 
+            { 
+              paddingHorizontal: isLargeScreen ? width * 0.15 : 16,
+              paddingTop: isLargeScreen ? 30 : 20 
+            }
+          ]} 
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Avatar */}
-          <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar} activeOpacity={0.7}>
-            <Image
-              source={{ uri: avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png" }}
-              style={styles.avatar}
-            />
-            <View style={[styles.editOverlay, { backgroundColor: theme.colors.primary + "80" }]}>
-              <Ionicons name="camera" size={20} color="#fff" />
-            </View>
-          </TouchableOpacity>
+          <View style={styles.avatarSection}>
+            <TouchableOpacity 
+              style={styles.avatarContainer} 
+              onPress={pickAvatar} 
+              activeOpacity={0.7}
+            >
+              <Image
+                source={{ uri: avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png" }}
+                style={[
+                  styles.avatar,
+                  { 
+                    width: isLargeScreen ? 150 : 100,
+                    height: isLargeScreen ? 150 : 100,
+                  }
+                ]}
+              />
+              <View style={[styles.editOverlay, { backgroundColor: theme.colors.primary + "80" }]}>
+                <Ionicons 
+                  name="camera" 
+                  size={isLargeScreen ? 24 : 20} 
+                  color="#fff" 
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
 
-          {/* Thông tin cá nhân */}
-          <View style={styles.infoContainer}>
+          {/* Profile Info */}
+          <View style={[
+            styles.infoContainer,
+            { 
+              backgroundColor: theme.colors.card,
+              padding: isLargeScreen ? 24 : 16,
+              borderRadius: 16,
+              elevation: 2,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+            }
+          ]}>
             {(["name", "dob", "gender", "phone", "email"] as Array<keyof typeof form>).map((field, index) => (
               <ProfileItem
                 key={field}
@@ -253,14 +295,27 @@ const ProfileScreen = () => {
                 onEdit={() => toggleEdit(field)}
                 theme={theme}
                 showEditIcon={field !== "phone" && field !== "email"}
+                isLargeScreen={isLargeScreen}
               />
             ))}
           </View>
 
-          {/* Nút hành động */}
-          <View style={styles.buttonContainer}>
+          {/* Action Buttons */}
+          <View style={[
+            styles.buttonContainer,
+            { 
+              marginTop: isLargeScreen ? 30 : 20,
+              paddingHorizontal: isLargeScreen ? width * 0.1 : 0,
+            }
+          ]}>
             <TouchableOpacity
-              style={[styles.resetButton, { borderColor: "#FF4D4D" }]}
+              style={[
+                styles.resetButton, 
+                { 
+                  borderColor: "#FF4D4D",
+                  paddingVertical: isLargeScreen ? 16 : 12,
+                }
+              ]}
               onPress={handleReset}
               disabled={loading}
               activeOpacity={0.7}
@@ -268,7 +323,13 @@ const ProfileScreen = () => {
               <Text style={[styles.resetText, { color: "#FF4D4D" }]}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.saveButton, 
+                { 
+                  backgroundColor: theme.colors.primary,
+                  paddingVertical: isLargeScreen ? 16 : 12,
+                }
+              ]}
               onPress={handleSave}
               disabled={loading}
               activeOpacity={0.7}
@@ -294,6 +355,7 @@ const ProfileItem = ({
   onEdit,
   theme,
   showEditIcon = true,
+  isLargeScreen,
 }: {
   label: string;
   value: string;
@@ -302,15 +364,33 @@ const ProfileItem = ({
   onEdit: () => void;
   theme: typeof DarkTheme | typeof DefaultTheme;
   showEditIcon?: boolean;
+  isLargeScreen: boolean;
 }) => (
-  <View style={[styles.itemContainer, { borderBottomColor: theme.colors.border }]}>
-    <Text style={[styles.itemLabel, { color: theme.colors.text }]}>{label}</Text>
+  <View style={[
+    styles.itemContainer, 
+    { 
+      borderBottomColor: theme.colors.border,
+      paddingVertical: isLargeScreen ? 16 : 12,
+    }
+  ]}>
+    <Text style={[
+      styles.itemLabel, 
+      { 
+        color: theme.colors.text,
+        fontSize: isLargeScreen ? 18 : 16,
+      }
+    ]}>
+      {label}
+    </Text>
     <TextInput
       style={[
         styles.itemValue,
         {
           color: theme.colors.text,
           backgroundColor: isEditable ? theme.colors.card : "transparent",
+          fontSize: isLargeScreen ? 18 : 16,
+          paddingVertical: isLargeScreen ? 10 : 8,
+          paddingHorizontal: isLargeScreen ? 16 : 12,
         },
       ]}
       value={value}
@@ -319,7 +399,11 @@ const ProfileItem = ({
     />
     {showEditIcon && (
       <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-        <Ionicons name="pencil" size={18} color={theme.colors.text} />
+        <Ionicons 
+          name="pencil" 
+          size={isLargeScreen ? 22 : 18} 
+          color={theme.colors.text} 
+        />
       </TouchableOpacity>
     )}
   </View>
@@ -329,9 +413,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  // Header
   header: {
-    height: 56,
+    height: 60,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -344,76 +427,61 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
   },
-  // ScrollView
   scrollContainer: {
     flexGrow: 1,
     paddingBottom: 40,
-    paddingHorizontal: 16,
   },
-  // Avatar
-  avatarContainer: {
+  avatarSection: {
     alignItems: "center",
     marginVertical: 20,
   },
+  avatarContainer: {
+    position: "relative",
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
+    borderRadius: 75,
+    borderWidth: 3,
     borderColor: "#fff",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   editOverlay: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
+    bottom: 5,
+    right: 5,
     padding: 8,
-    borderRadius: 16,
+    borderRadius: 20,
   },
-  // Thông tin cá nhân
   infoContainer: {
-    backgroundColor: "transparent",
-    borderRadius: 12,
+    width: "100%",
     marginBottom: 20,
   },
   itemContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   itemLabel: {
     flex: 1,
-    fontSize: 16,
     fontWeight: "500",
   },
   itemValue: {
     flex: 2,
-    fontSize: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
     borderRadius: 8,
   },
   editButton: {
     padding: 8,
+    marginLeft: 8,
   },
-  // Nút hành động
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
     gap: 16,
   },
   resetButton: {
     flex: 1,
-    paddingVertical: 12,
+    maxWidth: 200,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
@@ -425,7 +493,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    paddingVertical: 12,
+    maxWidth: 200,
     borderRadius: 12,
     alignItems: "center",
     elevation: 2,

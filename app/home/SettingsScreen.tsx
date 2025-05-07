@@ -12,6 +12,7 @@ import {
   Platform,
   StatusBar,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
@@ -24,9 +25,10 @@ import { getSocket } from "@/src/socket/socket";
 
 export default function SettingsScreen({ navigation }: any) {
   const [searchText, setSearchText] = useState("");
-  const colorScheme = useColorScheme(); // Lấy chế độ sáng/tối
+  const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const dispatch = useDispatch();
+  const { width } = useWindowDimensions();
 
   const handleLogout = () => {
     if (Platform.OS === "web") {
@@ -60,7 +62,7 @@ export default function SettingsScreen({ navigation }: any) {
     try {
       await Auth.signOut();
       dispatch(setUser({ id: "", name: "", phoneNumber: "", email: null }));
-      router.replace("/"); // hoặc navigation.navigate nếu bạn dùng navigation
+      router.replace("/");
       if(getSocket()){
         getSocket().disconnect()
       }
@@ -93,7 +95,7 @@ export default function SettingsScreen({ navigation }: any) {
       id: "3",
       name: "Logout",
       icon: "log-out",
-      screen: "", // Không cần route, vì xử lý logout luôn trong onPress
+      screen: "",
       image: "",
     },
   ];
@@ -101,6 +103,9 @@ export default function SettingsScreen({ navigation }: any) {
   const filteredOptions = settingsOptions.filter((option) =>
     option.name.toLowerCase().includes(searchText.toLowerCase())
   );
+
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
 
   return (
     <SafeAreaView
@@ -110,36 +115,58 @@ export default function SettingsScreen({ navigation }: any) {
       ]}
     >
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Thanh tìm kiếm */}
-        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
+        {/* Search Bar */}
+        <View style={[
+          styles.searchContainer, 
+          { 
+            backgroundColor: theme.colors.card,
+            marginHorizontal: isLargeScreen ? width * 0.1 : 16,
+            marginTop: isLargeScreen ? 20 : 10,
+          }
+        ]}>
           <Ionicons
             name="search"
-            size={20}
+            size={isLargeScreen ? 24 : 20}
             color={theme.colors.text}
             style={styles.searchIcon}
           />
           <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
+            style={[
+              styles.searchInput, 
+              { 
+                color: theme.colors.text,
+                fontSize: isLargeScreen ? 18 : 16,
+              }
+            ]}
             placeholder="Tìm kiếm..."
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.colors.text + '80'}
             value={searchText}
             onChangeText={setSearchText}
           />
         </View>
 
-        {/* Danh sách cài đặt */}
+        {/* Settings List */}
         <FlatList
           data={filteredOptions}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            {
+              paddingHorizontal: isLargeScreen ? width * 0.1 : 16,
+            }
+          ]}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
                 styles.listItem,
-                { backgroundColor: theme.colors.card },
-                item.name === "Logout" && styles.logoutItem, // Tùy chỉnh cho Logout
+                { 
+                  backgroundColor: theme.colors.card,
+                  paddingVertical: isLargeScreen ? 18 : 14,
+                  marginBottom: isLargeScreen ? 12 : 8,
+                },
+                item.name === "Logout" && styles.logoutItem,
               ]}
-              activeOpacity={0.7} // Hiệu ứng nhấn
+              activeOpacity={0.7}
               onPress={() => {
                 if (item.name === "Logout") {
                   handleLogout();
@@ -151,24 +178,39 @@ export default function SettingsScreen({ navigation }: any) {
               {item.icon ? (
                 <Ionicons
                   name={item.icon}
-                  size={24}
-                  color={item.name === "Logout" ? "#FF4D4D" : theme.colors.text}
+                  size={isLargeScreen ? 28 : 24}
+                  color={item.name === "Logout" ? "#FF4D4D" : theme.colors.primary}
                   style={styles.itemIcon}
                 />
               ) : (
                 <Image
                   source={{ uri: item.image }}
-                  style={[styles.itemIcon, styles.imageIcon]}
+                  style={[
+                    styles.imageIcon,
+                    {
+                      width: isLargeScreen ? 28 : 24,
+                      height: isLargeScreen ? 28 : 24,
+                    }
+                  ]}
                 />
               )}
               <Text
                 style={[
                   styles.itemText,
-                  { color: item.name === "Logout" ? "#FF4D4D" : theme.colors.text },
+                  { 
+                    color: item.name === "Logout" ? "#FF4D4D" : theme.colors.text,
+                    fontSize: isLargeScreen ? 18 : 16,
+                  },
                 ]}
               >
                 {item.name}
               </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={isLargeScreen ? 24 : 20}
+                color={item.name === "Logout" ? "#FF4D4D" : theme.colors.text + '80'}
+                style={styles.chevronIcon}
+              />
             </TouchableOpacity>
           )}
         />
@@ -184,31 +226,25 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "transparent",
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
     paddingVertical: 0,
   },
   listContainer: {
@@ -217,10 +253,8 @@ const styles = StyleSheet.create({
   listItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -233,14 +267,17 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   itemIcon: {
-    marginRight: 12,
+    marginRight: 16,
   },
   imageIcon: {
-    width: 24,
-    height: 24,
+    resizeMode: "contain",
+    marginRight: 16,
   },
   itemText: {
-    fontSize: 16,
+    flex: 1,
     fontWeight: "500",
+  },
+  chevronIcon: {
+    marginLeft: 8,
   },
 });
