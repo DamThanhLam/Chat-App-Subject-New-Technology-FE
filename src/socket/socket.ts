@@ -100,15 +100,15 @@ export const connectSocket = async () => {
     //   );
     // });
 
-    // Xử lý sự kiện nhóm bị xóa
-    newSocket.on("group-deleted", (data) => {
-      console.log("Group deleted:", data);
-      store.dispatch(
-        removeConversation({
-          conversationId: data.conversationId,
-        })
-      );
-    });
+    // // Xử lý sự kiện nhóm bị xóa
+    // newSocket.on("group-deleted", (data) => {
+    //   console.log("Group deleted:", data);
+    //   store.dispatch(
+    //     removeConversation({
+    //       conversationId: data.conversationId,
+    //     })
+    //   );
+    // });
 
     // Xử lý sự kiện mời tham gia nhóm
     newSocket.on(
@@ -139,11 +139,10 @@ export const connectSocket = async () => {
     });
 
     setSocket(newSocket);
-    return newSocket
-  }else{
+    return newSocket;
+  } else {
     return socket;
   }
-
 };
 
 export const getSocket = () => socket;
