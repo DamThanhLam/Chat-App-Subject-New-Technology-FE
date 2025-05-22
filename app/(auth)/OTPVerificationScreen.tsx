@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, useColorScheme, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, useColorScheme, Alert, useWindowDimensions } from 'react-native';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { Auth } from '@aws-amplify/auth';
@@ -26,6 +26,9 @@ const OTPVerificationScreen: React.FC = () => {
   const { user } = useLocalSearchParams();
   const parsedUser = user ? JSON.parse(user as string) : null;
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
+  const { width } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
 
   useEffect(() => {
     if (userStore.id) {
@@ -76,8 +79,6 @@ const OTPVerificationScreen: React.FC = () => {
     );
   };
 
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
   const showDialog = (title: string, message: string) => {
     if (Platform.OS === 'web') {
       alert(`${title}\n${message}`);
@@ -95,8 +96,6 @@ const OTPVerificationScreen: React.FC = () => {
         }
 
         await Auth.confirmSignUp(parsedUser.username, code);
-
-        // Hiển thị dialog thành công, chờ người dùng nhấn "Đóng" mới replace
         setIsSuccessModalVisible(true);
       } catch (error: any) {
         showDialog('Lỗi!', error.message || 'Xác nhận OTP thất bại.');
@@ -105,7 +104,6 @@ const OTPVerificationScreen: React.FC = () => {
       showDialog('Lỗi!', 'Vui lòng nhập đủ 6 số OTP.');
     }
   };
-
 
   const handleResendOtp = async () => {
     if (!parsedUser?.username) {
@@ -123,53 +121,129 @@ const OTPVerificationScreen: React.FC = () => {
     }
   };
 
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>Xác thực OTP</Text>
-      <Text style={[styles.subtitle, { color: theme.colors.text }]}>Nhập mã OTP được gửi đến {parsedUser?.username || 'không xác định'}</Text>
+      <View style={[styles.contentContainer, { 
+        width: isLargeScreen ? '80%' : '100%',
+        maxWidth: 500,
+        paddingHorizontal: isLargeScreen ? 40 : 24 
+      }]}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <Ionicons 
+            name="lock-closed" 
+            size={isLargeScreen ? 48 : 40} 
+            color={theme.colors.primary} 
+            style={styles.icon}
+          />
+          <Text style={[styles.title, { 
+            color: theme.colors.text,
+            fontSize: isLargeScreen ? 32 : 28 
+          }]}>Xác thực OTP</Text>
+          <Text style={[styles.subtitle, { 
+            color: theme.colors.text,
+            fontSize: isLargeScreen ? 18 : 16 
+          }]}>
+            Nhập mã OTP được gửi đến {'\n'}
+            <Text style={[styles.emailText, { color: theme.colors.primary }]}>{parsedUser?.username || 'email của bạn'}</Text>
+          </Text>
+        </View>
 
-      <OtpInput
-        key={resetKey}
-        numberOfDigits={6}
-        onTextChange={setOtp}
-        onFilled={handleVerifyOtp}
-        focusColor="#007AFF"
-        theme={{
-          containerStyle: styles.otpContainer,
-          pinCodeContainerStyle: styles.otpBox,
-          pinCodeTextStyle: { fontSize: 18, color: theme.colors.text },
-          placeholderTextStyle: { color: theme.colors.text },
-        }}
-        type="numeric"
-      />
+        {/* OTP Input Section */}
+        <View style={styles.otpSection}>
+          <OtpInput
+            key={resetKey}
+            numberOfDigits={6}
+            onTextChange={setOtp}
+            onFilled={handleVerifyOtp}
+            focusColor={theme.colors.primary}
+            theme={{
+              containerStyle: styles.otpContainer,
+              pinCodeContainerStyle: [styles.otpBox, {
+                width: isSmallScreen ? 40 : 48,
+                height: isSmallScreen ? 40 : 48,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.colors.card
+              }],
+              pinCodeTextStyle: { 
+                fontSize: isLargeScreen ? 20 : 18, 
+                color: theme.colors.text,
+                fontWeight: '600'
+              },
+              placeholderTextStyle: { 
+                color: theme.colors.text + '80' 
+              },
+            }}
+            type="numeric"
+          />
+        </View>
 
-      <TouchableOpacity
-        style={[styles.nextButton, { backgroundColor: theme.colors.primary }]}
-        onPress={() => handleVerifyOtp(otp)}
-      >
-        <Ionicons name="arrow-forward" size={24} color="white" />
-      </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionContainer}>
+          <TouchableOpacity 
+            disabled={isResendDisabled} 
+            onPress={handleResendOtp}
+            style={styles.resendButton}
+          >
+            <Text style={[styles.resendText, { 
+              color: isResendDisabled ? theme.colors.text + '80' : theme.colors.primary,
+              fontSize: isLargeScreen ? 16 : 14
+            }]}>
+              {isResendDisabled ? `Gửi lại OTP sau ${resendTime}s` : 'Gửi lại mã OTP'}
+            </Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity disabled={isResendDisabled} onPress={handleResendOtp}>
-        <Text style={[styles.resendText, { color: isResendDisabled ? 'gray' : theme.colors.primary }]}>
-          {isResendDisabled ? `Gửi lại OTP sau ${resendTime}s` : 'Gửi lại mã OTP'}
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => router.push({ pathname: '/RegisterScreen', params: { user, data } })}
+            style={styles.changeEmailButton}
+          >
+            <Text style={[styles.changeEmailText, { 
+              color: theme.colors.primary,
+              fontSize: isLargeScreen ? 16 : 14
+            }]}>
+              Thay đổi email
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <Text
-        style={[styles.resendText, { color: theme.colors.primary, textDecorationLine: 'underline' }]}
-        onPress={() => router.push({ pathname: '/RegisterScreen', params: { user, data } })}
-      >
-        Thay đổi {parsedUser?.username}
-      </Text>
+        {/* Verify Button */}
+        <TouchableOpacity
+          style={[styles.verifyButton, { 
+            backgroundColor: theme.colors.primary,
+            paddingVertical: isLargeScreen ? 16 : 14
+          }]}
+          onPress={() => handleVerifyOtp(otp)}
+        >
+          <Text style={[styles.verifyButtonText, {
+            fontSize: isLargeScreen ? 18 : 16
+          }]}>Xác nhận</Text>
+          <Ionicons name="arrow-forward" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
 
+      {/* Success Modal */}
       {isSuccessModalVisible && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Thành công</Text>
-            <Text style={styles.modalMessage}>Xác nhận OTP thành công! Vui lòng đăng nhập.</Text>
+          <View style={[styles.modalContent, {
+            width: isLargeScreen ? '50%' : '80%',
+            maxWidth: 400,
+            backgroundColor: theme.colors.card
+          }]}>
+            <Ionicons 
+              name="checkmark-circle" 
+              size={48} 
+              color="#4CAF50" 
+              style={styles.modalIcon}
+            />
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Thành công</Text>
+            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
+              Xác nhận OTP thành công! Vui lòng đăng nhập.
+            </Text>
             <TouchableOpacity
-              style={styles.modalButton}
+              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
               onPress={() => {
                 setIsSuccessModalVisible(false);
                 router.replace('/LoginScreen');
@@ -180,122 +254,146 @@ const OTPVerificationScreen: React.FC = () => {
           </View>
         </View>
       )}
-
     </View>
   );
 };
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  contentContainer: {
+    width: '100%',
+    maxWidth: 500,
+    alignItems: 'center',
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  icon: {
+    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    fontWeight: "400",
-    textAlign: "center",
-    marginBottom: 24,
+    fontWeight: '400',
+    textAlign: 'center',
     opacity: 0.8,
+    lineHeight: 24,
+  },
+  emailText: {
+    fontWeight: '600',
+  },
+  otpSection: {
+    width: '100%',
+    marginBottom: 32,
   },
   otpContainer: {
-    width: "100%",
-    height: 60,
-    flexDirection: "row",
-    justifyContent: "space-between",
+    width: '100%',
+    justifyContent: 'space-between',
   },
   otpBox: {
-    width: 48,
-    height: 48,
-    borderWidth: 1,
     borderRadius: 8,
-    fontSize: 18,
-    textAlign: "center",
-    backgroundColor: "transparent",
-    elevation: 1,
-    shadowColor: "#000",
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  resendText: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginTop: 16,
-    textAlign: "center",
+  actionContainer: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
   },
-  nextButton: {
-    position: "absolute",
-    bottom: 32,
-    right: 32,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
+  resendButton: {
+    padding: 8,
+  },
+  resendText: {
+    fontWeight: '500',
+  },
+  changeEmailButton: {
+    padding: 8,
+  },
+  changeEmailText: {
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  verifyButton: {
+    width: '100%',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  // Modal styles
+  verifyButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    marginRight: 8,
+  },
   modalOverlay: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 999,
   },
   modalContent: {
-    backgroundColor: "white",
     borderRadius: 12,
     padding: 24,
-    width: "80%",
-    maxWidth: 320,
-    alignItems: "center",
+    alignItems: 'center',
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
+  modalIcon: {
+    marginBottom: 16,
+  },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 12,
-    color: "#000",
   },
   modalMessage: {
     fontSize: 16,
-    fontWeight: "400",
+    fontWeight: '400',
     marginBottom: 24,
-    textAlign: "center",
-    color: "#333",
+    textAlign: 'center',
+    lineHeight: 24,
   },
   modalButton: {
-    backgroundColor: "#007AFF",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
-    width: "100%",
-    alignItems: "center",
+    width: '100%',
+    alignItems: 'center',
   },
   modalButtonText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 });
 

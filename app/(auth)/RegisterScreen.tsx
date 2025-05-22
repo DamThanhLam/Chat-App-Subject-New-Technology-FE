@@ -9,6 +9,10 @@ import {
   StyleSheet,
   Alert,
   useColorScheme,
+  useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { Auth } from "@aws-amplify/auth";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
@@ -50,6 +54,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   const router = useRouter();
   const params = useLocalSearchParams();
   const userStore = useSelector((state: RootState) => state.user);
+  const { width } = useWindowDimensions();
 
   const [form, setForm] = useState<FormState>({
     fullName: "",
@@ -151,86 +156,159 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
     }
   };
 
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>App Chat</Text>
-
-      {/* Full Name */}
-      <View style={styles.inputContainer}>
-        <Text style={{ color: theme.colors.text }}>Full name:</Text>
-        <TextInput
-          style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-          value={form.fullName}
-          onChangeText={(text) => setForm({ ...form, fullName: text })}
-          placeholder="Enter your full name"
-          placeholderTextColor={theme.colors.text}
-        />
-        {errors.fullName && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.fullName}</Text>}
-      </View>
-
-      {/* Email */}
-      <View style={styles.inputContainer}>
-        <Text style={{ color: theme.colors.text }}>Email:</Text>
-        <TextInput
-          style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-          value={form.email}
-          onChangeText={(text) => setForm({ ...form, email: text })}
-          placeholder="Enter your email"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          placeholderTextColor={theme.colors.text}
-        />
-        {errors.email && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.email}</Text>}
-      </View>
-
-      {/* Phone */}
-      <View style={styles.inputContainer}>
-        <Text style={{ color: theme.colors.text }}>Phone:</Text>
-        <View style={styles.phoneInputContainer}>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={form.countryCode}
-              onValueChange={(value: string) => setForm({ ...form, countryCode: value })}
-              style={[styles.picker, { backgroundColor: theme.colors.card, color: theme.colors.text }]}
-            >
-              {countryCodes.map((code) => (
-                <Picker.Item key={code.value} label={code.label} value={code.value} />
-              ))}
-            </Picker>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        contentContainerStyle={[styles.scrollContainer, { backgroundColor: theme.colors.background }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[
+          styles.container,
+          { 
+            paddingHorizontal: isLargeScreen ? width * 0.15 : 24,
+            paddingTop: isLargeScreen ? 40 : 24,
+          }
+        ]}>
+          {/* App Logo/Title */}
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>App Chat</Text>
           </View>
-          <TextInput
-            style={[styles.phoneInput, { borderColor: theme.colors.border, color: theme.colors.text }]}
-            value={form.phone}
-            onChangeText={(text) => setForm({ ...form, phone: text })}
-            placeholder="Enter phone number"
-            keyboardType="phone-pad"
-            placeholderTextColor={theme.colors.text}
-          />
-        </View>
-        {errors.phone && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.phone}</Text>}
-      </View>
 
-      {/* Password */}
-      <View style={styles.inputContainer}>
-        <Text style={{ color: theme.colors.text }}>Password:</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, flex: 1 }]}
-            value={form.password}
-            onChangeText={(text) => {
-              setForm({ ...form, password: text });
-              checkPasswordRules(text);
-            }}
-            placeholder="Enter password"
-            secureTextEntry={!showPassword}
-            placeholderTextColor={theme.colors.text}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Text style={{ marginLeft: 10, color: theme.colors.primary }}>
-              {showPassword ? "HIDE" : "SHOW"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+          {/* Form Container */}
+          <View style={styles.formContainer}>
+            {/* Full Name */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Full Name:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    borderColor: errors.fullName ? theme.colors.notification : theme.colors.border,
+                    color: theme.colors.text,
+                    backgroundColor: theme.colors.card,
+                  }
+                ]}
+                value={form.fullName}
+                onChangeText={(text) => setForm({ ...form, fullName: text })}
+                placeholder="Enter your full name"
+                placeholderTextColor={theme.colors.text + '80'}
+              />
+              {errors.fullName && (
+                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                  {errors.fullName}
+                </Text>
+              )}
+            </View>
+
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Email:</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    borderColor: errors.email ? theme.colors.notification : theme.colors.border,
+                    color: theme.colors.text,
+                    backgroundColor: theme.colors.card,
+                  }
+                ]}
+                value={form.email}
+                onChangeText={(text) => setForm({ ...form, email: text })}
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={theme.colors.text + '80'}
+              />
+              {errors.email && (
+                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                  {errors.email}
+                </Text>
+              )}
+            </View>
+
+            {/* Phone Number */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Phone Number:</Text>
+              <View style={styles.phoneInputContainer}>
+                <View style={[
+                  styles.countryCodeContainer,
+                  { 
+                    borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  }
+                ]}>
+                  <Picker
+                    selectedValue={form.countryCode}
+                    onValueChange={(value: string) => setForm({ ...form, countryCode: value })}
+                    style={[styles.picker, { color: theme.colors.text }]}
+                    dropdownIconColor={theme.colors.text}
+                  >
+                    {countryCodes.map((code) => (
+                      <Picker.Item key={code.value} label={code.label} value={code.value} />
+                    ))}
+                  </Picker>
+                </View>
+                <TextInput
+                  style={[
+                    styles.phoneInput,
+                    { 
+                      borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.card,
+                    }
+                  ]}
+                  value={form.phone}
+                  onChangeText={(text) => setForm({ ...form, phone: text })}
+                  placeholder="Enter phone number"
+                  keyboardType="phone-pad"
+                  placeholderTextColor={theme.colors.text + '80'}
+                />
+              </View>
+              {errors.phone && (
+                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                  {errors.phone}
+                </Text>
+              )}
+            </View>
+
+            {/* Password */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Password:</Text>
+              <View style={[
+                styles.passwordInputContainer,
+                { 
+                  borderColor: errors.password ? theme.colors.notification : theme.colors.border,
+                  backgroundColor: theme.colors.card,
+                }
+              ]}>
+                <TextInput
+                  style={[styles.passwordInput, { color: theme.colors.text }]}
+                  value={form.password}
+                  onChangeText={(text) => {
+                    setForm({ ...form, password: text });
+                    checkPasswordRules(text);
+                  }}
+                  placeholder="Enter password"
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor={theme.colors.text + '80'}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.showButton}
+                >
+                  <Text style={[styles.showText, { color: theme.colors.primary }]}>
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+
         {/* Chỉ hiển thị quy tắc nếu có nhập password và có ít nhất 1 quy tắc không thỏa mãn */}
         {form.password && !Object.values(passwordRules).every(Boolean) && (
           <View style={styles.passwordRules}>
@@ -259,104 +337,199 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
         {errors.password && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.password}</Text>}
       </View>
 
-      {/* Confirm Password */}
-      <View style={styles.inputContainer}>
-        <Text style={{ color: theme.colors.text }}>Confirm password:</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, flex: 1 }]}
-            value={form.confirmPassword}
-            onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
-            placeholder="Confirm password"
-            secureTextEntry={!showConfirmPassword}
-            placeholderTextColor={theme.colors.text}
-          />
-          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-            <Text style={{ marginLeft: 10, color: theme.colors.primary }}>
-              {showConfirmPassword ? "HIDE" : "SHOW"}
-            </Text>
-          </TouchableOpacity>
+            {/* Confirm Password */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
+              <View style={[
+                styles.passwordInputContainer,
+                { 
+                  borderColor: errors.confirmPassword ? theme.colors.notification : theme.colors.border,
+                  backgroundColor: theme.colors.card,
+                }
+              ]}>
+                <TextInput
+                  style={[styles.passwordInput, { color: theme.colors.text }]}
+                  value={form.confirmPassword}
+                  onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
+                  placeholder="Confirm password"
+                  secureTextEntry={!showConfirmPassword}
+                  placeholderTextColor={theme.colors.text + '80'}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.showButton}
+                >
+                  <Text style={[styles.showText, { color: theme.colors.primary }]}>
+                    {showConfirmPassword ? "HIDE" : "SHOW"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors.confirmPassword && (
+                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                  {errors.confirmPassword}
+                </Text>
+              )}
+            </View>
+
+            {/* Register Button */}
+            <TouchableOpacity
+              style={[styles.registerButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleRegister}
+            >
+              <Text style={styles.registerButtonText}>Register</Text>
+            </TouchableOpacity>
+
+            {/* Sign In Link */}
+            <View style={styles.signInContainer}>
+              <Text style={[styles.signInText, { color: theme.colors.text }]}>
+                Already have an account?
+              </Text>
+              <TouchableOpacity onPress={() => router.replace("/LoginScreen")}>
+                <Text style={[styles.signInLink, { color: theme.colors.primary }]}>
+                  SIGN IN
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-        {errors.confirmPassword && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.confirmPassword}</Text>}
-      </View>
-
-      <Button title="Register" onPress={handleRegister} color={theme.colors.primary} />
-
-      <TouchableOpacity onPress={() =>  router.replace("/LoginScreen")}>
-        <Text style={[styles.signInText, { color: theme.colors.primary }]}>
-          or Sign in
-        </Text>
-      </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingBottom: 40,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  header: {
+    marginBottom: 32,
+    alignItems: 'center',
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
-    textAlign: "center",
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    opacity: 0.7,
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+  },
+  inputGroup: {
     marginBottom: 24,
   },
-  inputContainer: {
-    marginBottom: 20,
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
   },
   input: {
+    width: '100%',
+    height: 50,
     borderWidth: 1,
     borderRadius: 8,
-    paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: "transparent",
   },
   phoneInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  pickerContainer: {
+  countryCodeContainer: {
+    width: 120,
+    height: 50,
     borderWidth: 1,
     borderRadius: 8,
     marginRight: 12,
-    overflow: "hidden",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   picker: {
-    height: 48,
-    width: 120,
+    width: '100%',
+    height: '100%',
   },
   phoneInput: {
+    flex: 1,
+    height: 50,
     borderWidth: 1,
     borderRadius: 8,
-    paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    flex: 1,
-    backgroundColor: "transparent",
   },
-  errorText: {
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    height: 50,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    height: '100%',
+  },
+  showButton: {
+    padding: 8,
+  },
+  showText: {
     fontSize: 14,
+    fontWeight: '500',
+  },
+  passwordRulesContainer: {
     marginTop: 8,
-    color: "#FF4D4D",
+  },
+  passwordRulesTitle: {
+    fontSize: 12,
+    marginBottom: 4,
   },
   passwordRules: {
-    marginTop: 8,
+    flexDirection: 'column',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  ruleText: {
+    fontSize: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  registerButton: {
+    width: '100%',
+    height: 50,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  registerButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signInContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
     gap: 4,
   },
   signInText: {
-    textAlign: "center",
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 14,
+  },
+  signInLink: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

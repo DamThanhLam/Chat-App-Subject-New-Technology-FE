@@ -12,6 +12,9 @@ import {
   Modal,
   Alert,
   FlatList,
+  Dimensions,
+  Platform,
+  
 } from "react-native";
 import { useColorScheme } from "react-native";
 import {
@@ -29,6 +32,9 @@ import { DOMAIN } from "@/src/configs/base_url";
 import { router } from "expo-router";
 import { getNickname } from "@/src/apis/nickName";
 import * as ImagePicker from "expo-image-picker";
+
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
 
 const FriendScreen = () => {
   const colorScheme = useColorScheme();
@@ -526,7 +532,11 @@ const FriendScreen = () => {
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Search Bar */}
           <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
             <Ionicons
               name="search"
@@ -543,16 +553,19 @@ const FriendScreen = () => {
             />
           </View>
 
+          {/* Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
               onPress={() => setSelectedTab("friends")}
-              style={styles.tab}
+              style={[
+                styles.tab,
+                selectedTab === "friends" && styles.activeTab
+              ]}
             >
               <Text
                 style={[
                   styles.tabText,
-                  selectedTab === "friends" && styles.tabActive,
-                   {color:"black"}
+                  selectedTab === "friends" && styles.activeTabText,
                 ]}
               >
                 Bạn bè
@@ -560,13 +573,15 @@ const FriendScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSelectedTab("groups")}
-              style={styles.tab}
+              style={[
+                styles.tab,
+                selectedTab === "groups" && styles.activeTab
+              ]}
             >
               <Text
                 style={[
                   styles.tabText,
-                  selectedTab === "groups" && styles.tabActive,
-                  {color:"black"}
+                  selectedTab === "groups" && styles.activeTabText,
                 ]}
               >
                 Nhóm
@@ -574,35 +589,37 @@ const FriendScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {selectedTab === "friends" && (
-            <View style={styles.shortcuts}>
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {selectedTab === "friends" ? (
               <TouchableOpacity
                 onPress={handleOpenAddFriendModal}
-                style={styles.shortcutItem}
+                style={styles.actionButton}
               >
-                <Ionicons name="person-add" size={22} color="#0066cc" />
-                <Text style={styles.shortcutText}>Thêm bạn</Text>
+                <Ionicons name="person-add" size={22} color={theme.colors.primary} />
+                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>
+                  Thêm bạn
+                </Text>
               </TouchableOpacity>
-            </View>
-          )}
-
-          {selectedTab === "groups" && (
-            <View style={styles.shortcuts}>
+            ) : (
               <TouchableOpacity
                 onPress={() => setCreateGroupModalVisible(true)}
-                style={styles.shortcutItem}
+                style={styles.actionButton}
               >
                 <Ionicons
                   name="people-circle-outline"
                   size={22}
-                  color="#0066cc"
+                  color={theme.colors.primary}
                 />
-                <Text style={styles.shortcutText}>Tạo nhóm chat</Text>
+                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>
+                  Tạo nhóm chat
+                </Text>
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
 
-          <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          {/* Content */}
+          <View style={styles.contentContainer}>
             {selectedTab === "friends"
               ? renderFriendGroup()
               : renderGroupList()}
@@ -610,22 +627,25 @@ const FriendScreen = () => {
         </ScrollView>
       )}
 
-      <Modal visible={showAddFriendModal} animationType="fade" transparent>
+      {/* Add Friend Modal */}
+      <Modal visible={showAddFriendModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Thêm bạn</Text>
+          <View style={[styles.modalContainer, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              Thêm bạn
+            </Text>
 
             <TextInput
               placeholder="Nhập email..."
               placeholderTextColor="#888"
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={searchEmail}
               onChangeText={setSearchEmail}
             />
 
             <View style={styles.buttonRow}>
               <TouchableOpacity
-                style={styles.cancelBtn}
+                style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
                 onPress={() => {
                   setShowAddFriendModal(false);
                   setSearchEmail("");
@@ -634,51 +654,48 @@ const FriendScreen = () => {
                   setFriendRequestSent(false);
                 }}
               >
-                <Text style={styles.cancelText}>Hủy</Text>
+                <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.searchBtn}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]}
                 onPress={handleSearchByEmail}
               >
-                <Text style={styles.searchText}>Tìm kiếm</Text>
+                <Text style={styles.buttonText}>Tìm kiếm</Text>
               </TouchableOpacity>
             </View>
 
-            {searching && <ActivityIndicator style={{ marginTop: 10 }} />}
+            {searching && <ActivityIndicator style={{ marginTop: 10 }} color={theme.colors.primary} />}
+            
             {searchResult && (
-              <View style={styles.searchResultContainer}>
-                <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+              <View style={[styles.searchResultContainer, { backgroundColor: theme.colors.background }]}>
+                <Image
+                  source={{ uri: searchResult.avatarUrl || DEFAULT_AVATAR }}
+                  style={styles.modalAvatar}
+                />
+                <Text style={[styles.searchResultName, { color: theme.colors.text }]}>
                   {searchResult.name}
                 </Text>
-                <Text>{searchResult.email}</Text>
-                <Image
-                  source={{ uri: searchResult.avatarUrl }}
-                  style={styles.avatar}
-                />
+                <Text style={[styles.searchResultEmail, { color: theme.colors.text }]}>
+                  {searchResult.email}
+                </Text>
 
                 {isAlreadyFriend ? (
-                  <Text
-                    style={{
-                      marginTop: 10,
-                      color: "green",
-                      fontWeight: "bold",
-                    }}
-                  >
+                  <Text style={[styles.statusText, { color: theme.colors.notification }]}>
                     Đã là bạn bè
                   </Text>
                 ) : friendRequestSent ? (
                   <TouchableOpacity
                     onPress={() => handleCancelFriendRequest(searchResult.id)}
-                    style={[styles.searchBtn, { marginTop: 10 }]}
+                    style={[styles.actionBtn, { backgroundColor: theme.colors.notification, marginTop: 16 }]}
                   >
-                    <Text style={styles.searchText}>Hủy lời mời</Text>
+                    <Text style={styles.buttonText}>Hủy lời mời</Text>
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
                     onPress={() => handleSendFriendRequest(searchResult.id)}
-                    style={[styles.searchBtn, { marginTop: 10 }]}
+                    style={[styles.actionBtn, { backgroundColor: theme.colors.primary, marginTop: 16 }]}
                   >
-                    <Text style={styles.searchText}>Gửi lời mời</Text>
+                    <Text style={styles.buttonText}>Gửi lời mời</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -687,16 +704,18 @@ const FriendScreen = () => {
         </View>
       </Modal>
 
-      {/* Modal tạo nhóm */}
-      <Modal visible={createGroupModalVisible} animationType="fade" transparent>
+      {/* Create Group Modal */}
+      <Modal visible={createGroupModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.groupModal}>
+          <View style={[styles.groupModal, { backgroundColor: theme.colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Tạo nhóm</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                Tạo nhóm
+              </Text>
               <TouchableOpacity
                 onPress={() => setCreateGroupModalVisible(false)}
               >
-                <Feather name="x" size={24} color="#333" />
+                <Feather name="x" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -707,18 +726,16 @@ const FriendScreen = () => {
               >
                 <Image
                   source={{
-                    uri:
-                      avatarUrl ||
-                      "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                    uri: avatarUrl || DEFAULT_AVATAR,
                   }}
-                  style={styles.avatar}
+                  style={styles.modalAvatar}
                 />
               </TouchableOpacity>
 
               <TextInput
                 placeholder="Nhập tên nhóm..."
                 placeholderTextColor="#888"
-                style={styles.input_namegroup}
+                style={[styles.input_namegroup, { color: theme.colors.text }]}
                 value={groupName}
                 onChangeText={setGroupName}
               />
@@ -727,7 +744,7 @@ const FriendScreen = () => {
             <TextInput
               placeholder="Tìm kiếm bạn bè..."
               placeholderTextColor="#888"
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={searchTerm}
               onChangeText={setSearchTerm}
             />
@@ -776,7 +793,7 @@ const FriendScreen = () => {
 
                         <View style={styles.checkboxCircle}>
                           {selectedFriends.includes(friendId) && (
-                            <View style={styles.checkboxSelected} />
+                            <View style={[styles.checkboxSelected, { backgroundColor: theme.colors.primary }]} />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -788,23 +805,31 @@ const FriendScreen = () => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
+                style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
                 onPress={() => {
                   setGroupName("");
                   setSelectedFriends([]);
                   setCreateGroupModalVisible(false);
                 }}
               >
-                <Text style={styles.cancelText}>Hủy</Text>
+                <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateGroup}
                 disabled={selectedFriends.length < 2 || !groupName.trim()}
                 style={[
-                  styles.createBtn,
-                  { backgroundColor: selectedFriends.length < 2 || !groupName.trim() ? "#ccc" : "#0066cc" },
+                  styles.actionBtn,
+                  { 
+                    backgroundColor: selectedFriends.length < 2 || !groupName.trim() 
+                      ? theme.colors.border 
+                      : theme.colors.primary,
+                    opacity: selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1
+                  },
                 ]}
               >
-                <Text style={styles.createText}>Tạo nhóm</Text>
+                <Text style={styles.buttonText}>
+                  {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -815,11 +840,28 @@ const FriendScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { 
+    flex: 1,
+    paddingTop: isSmallDevice ? 10 : 20,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  scrollContainer: {
+    paddingBottom: 20,
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: "center", 
+    alignItems: "center" 
+  },
+  contentContainer: {
+    paddingHorizontal: isSmallDevice ? 12 : 16,
+    marginBottom: 20,
+  },
+  
+  // Search Bar
   searchContainer: {
-    marginTop: 16,
-    marginHorizontal: 16,
+    marginTop: isSmallDevice ? 8 : 16,
+    marginHorizontal: isSmallDevice ? 12 : 16,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
@@ -827,50 +869,148 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: "#ddd",
-    backgroundColor: "transparent",
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 16, paddingVertical: 0 },
+  searchIcon: { 
+    marginRight: 8 
+  },
+  searchInput: { 
+    flex: 1, 
+    fontSize: isSmallDevice ? 14 : 16, 
+    paddingVertical: 0 
+  },
+  
+  // Tabs
   tabContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 16,
-    marginHorizontal: 16,
+    marginTop: isSmallDevice ? 12 : 16,
+    marginHorizontal: isSmallDevice ? 12 : 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
-  tab: { paddingVertical: 12, paddingHorizontal: 24 },
-  tabText: { fontSize: 16, fontWeight: "600", color: "#333" },
-  tabActive: { borderBottomWidth: 3, borderBottomColor: "#007AFF" },
-  shortcuts: {
-    marginTop: 16,
-    marginHorizontal: 16,
-    flexDirection: "row",
-    justifyContent: "flex-start",
+  tab: { 
+    paddingVertical: 12, 
+    paddingHorizontal: isSmallDevice ? 16 : 24,
+    marginHorizontal: 4,
   },
-  shortcutItem: { flexDirection: "row", alignItems: "center" },
-  shortcutText: { marginLeft: 8, fontSize: 14, color: "#007AFF", fontWeight: "500" },
-  avatar: { width: 48, height: 48, borderRadius: 24 },
-  actions: { flexDirection: "row", marginLeft: "auto", gap: 16 },
+  tabText: { 
+    fontSize: isSmallDevice ? 14 : 16, 
+    fontWeight: "600" 
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: "#007AFF",
+  },
+  activeTabText: {
+    color: '#007AFF',
+  },
+  
+  // Action Buttons
+  actionButtons: {
+    marginTop: isSmallDevice ? 12 : 16,
+    marginHorizontal: isSmallDevice ? 12 : 16,
+  },
+  actionButton: {
+    flexDirection: "row", 
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  actionButtonText: { 
+    marginLeft: 8, 
+    fontSize: isSmallDevice ? 14 : 16, 
+    fontWeight: "500" 
+  },
+  
+  // Friend/Group Items
   itemContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: isSmallDevice ? 8 : 16,
+    borderBottomWidth: 1,
+  },
+  avatar: { 
+    width: isSmallDevice ? 40 : 48, 
+    height: isSmallDevice ? 40 : 48, 
+    borderRadius: isSmallDevice ? 20 : 24 
+  },
+  modalAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 16,
+  },
+  name: { 
+    marginLeft: 12, 
+    fontSize: isSmallDevice ? 14 : 16, 
+    fontWeight: "500", 
+    flex: 1 
+  },
+  actions: { 
+    flexDirection: "row", 
+    marginLeft: "auto", 
+    gap: isSmallDevice ? 12 : 16 
+  },
+  groupTitle: {
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "600",
+    marginTop: isSmallDevice ? 12 : 16,
+    marginLeft: isSmallDevice ? 8 : 16,
+    opacity: 0.8,
+  },
+  
+  // Group List
+  groupItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: isSmallDevice ? 8 : 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
-  name: { marginLeft: 12, fontSize: 16, fontWeight: "500", flex: 1 },
-  groupTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 16,
-    marginLeft: 16,
-    color: "#666",
+  groupAvatar: {
+    width: isSmallDevice ? 48 : 56,
+    height: isSmallDevice ? 48 : 56,
+    borderRadius: isSmallDevice ? 24 : 28,
+    marginRight: 12,
   },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  groupMembers: {
+    fontSize: isSmallDevice ? 12 : 14,
+    opacity: 0.7,
+  },
+  noGroupsContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  noGroupsText: {
+    fontSize: isSmallDevice ? 14 : 16,
+    opacity: 0.7,
+  },
+  groupListContainer: {
+    paddingBottom: 20,
+  },
+  loader: {
+    marginTop: 24,
+  },
+  
+  // Modals
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -878,10 +1018,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
-    width: "80%",
-    maxWidth: 320,
-    padding: 24,
-    backgroundColor: "#fff",
+    width: isSmallDevice ? '90%' : '80%',
+    maxWidth: 400,
+    padding: isSmallDevice ? 16 : 24,
     borderRadius: 12,
     elevation: 5,
     shadowColor: "#000",
@@ -889,12 +1028,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+  groupModal: {
+    width: isSmallDevice ? '95%' : '90%',
+    maxWidth: 400,
+    height: isSmallDevice ? '85%' : '80%',
+    borderRadius: 12,
+    padding: isSmallDevice ? 12 : 16,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: "600",
     textAlign: "center",
-    color: "#000",
   },
   input: {
     height: 48,
@@ -903,8 +1053,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: "transparent",
+    fontSize: isSmallDevice ? 14 : 16,
   },
   input_namegroup: {
     flex: 1,
@@ -913,9 +1062,19 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 8,
     paddingHorizontal: 12,
-    fontSize: 16,
-    backgroundColor: "transparent",
+    fontSize: isSmallDevice ? 14 : 16,
   },
+  inputGroupContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 12,
+  },
+  avatarContainer: {
+    marginRight: 0,
+  },
+  
+  // Buttons
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -923,65 +1082,46 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    backgroundColor: "#ccc",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
   },
-  searchBtn: {
+  actionBtn: {
     flex: 1,
-    backgroundColor: "#007AFF",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
   },
-  cancelText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  searchText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  buttonText: { 
+    color: "#fff", 
+    fontSize: isSmallDevice ? 14 : 16, 
+    fontWeight: "600" 
+  },
+  
+  // Search Results
   searchResultContainer: {
     marginTop: 16,
     alignItems: "center",
-    padding: 12,
+    padding: isSmallDevice ? 12 : 16,
     borderRadius: 8,
-    backgroundColor: "#f5f5f5",
   },
-  groupModal: {
-    backgroundColor: "white",
-    width: "90%",
-    maxWidth: 400,
-    height: "80%",
-    borderRadius: 12,
-    padding: 16,
+  searchResultName: {
+    fontSize: isSmallDevice ? 16 : 18,
+    fontWeight: "bold",
+    marginBottom: 4,
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+  searchResultEmail: {
+    fontSize: isSmallDevice ? 14 : 16,
+    marginBottom: 12,
+    opacity: 0.8,
   },
-  groupLetter: {
-    fontWeight: "600",
-    fontSize: 16,
-    color: "#666",
+  statusText: {
     marginTop: 12,
-    marginLeft: 16,
+    fontWeight: "bold",
+    fontSize: isSmallDevice ? 14 : 16,
   },
-  selectableFriend: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#ddd",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
+  
+  // Checkbox
   checkboxCircle: {
     marginLeft: "auto",
     width: 24,
@@ -996,171 +1136,17 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#007AFF",
   },
+  
+  // Modal Footer
   modalFooter: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
-  },
-  createBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  createText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  inputGroupContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
-  },
-  avatarContainer: {
-    marginRight: 0,
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 12,
-  },
-  groupItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginHorizontal: 16,
-  },
-  groupAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-  },
-  groupInfoContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  groupName: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-    color: "#000",
-  },
-  groupLeader: {
-    fontSize: 14,
-    opacity: 0.8,
-    marginBottom: 2,
-  },
-  groupMembers: {
-    fontSize: 14,
-    opacity: 0.7,
-    color: "#666",
-  },
-  groupActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  noGroupsContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  noGroupsText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  groupListContainer: {
-    paddingBottom: 20,
-  },
-  groupCard: {
-    width: "48%",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    backgroundColor: "#fff",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  groupHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  groupCardAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  groupCardName: {
-    fontSize: 16,
-    fontWeight: "600",
-    flexShrink: 1,
-    color: "#000",
-  },
-  groupMemberCount: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 8,
-    color: "#666",
-  },
-  leaderBadge: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    alignSelf: "flex-start",
-  },
-  leaderBadgeText: {
-    color: "white",
-    fontSize: 12,
-  },
-  deputyBadge: {
-    backgroundColor: "#2196F3",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    alignSelf: "flex-start",
-    marginTop: 4,
-  },
-  deputyBadgeText: {
-    color: "white",
-    fontSize: 12,
-  },
-  loader: {
-    marginTop: 24,
-  },
-  groupInfo: {
-    flex: 1,
-  },
-  groupDeputy: {},
-  viewButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "#007AFF",
-  },
-  viewButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
   },
 });
 

@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
   AppState,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";
@@ -79,6 +80,7 @@ const HomeScreen = () => {
   const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
   // Lấy userId hiện tại
   useEffect(() => {
@@ -121,46 +123,48 @@ const HomeScreen = () => {
         friend.senderId === userId ? friend.receiverId : friend.senderId
       );
 
-      // Lấy thông tin của người bạn qua API (đã được rút gọn trong fetchUserInfo)
-      const usersResponse = await Promise.all(
-        friendIds.map((friendId) => fetchUserInfo(friendId))
+      // Lấy thông tin của người bạn qua API
+      const enrichedFriends = await Promise.all(
+        acceptedFriends.map(async (friend) => {
+          const otherUserId = friend.senderId === userId ? friend.receiverId : friend.senderId;
+          try {
+            const userData = await apiFetch(`${API_BASE_URL}/user/${otherUserId}`);
+            return {
+              ...friend,
+              displayName: userData.name || otherUserId,
+              avatarUrl: userData.avatarUrl || DEFAULT_AVATAR,
+            };
+          } catch (error) {
+            console.error(`Error fetching user data for ${otherUserId}:`, error);
+            return {
+              ...friend,
+              displayName: otherUserId,
+              avatarUrl: DEFAULT_AVATAR,
+            };
+          }
+        })
       );
 
-      const userMap = usersResponse.reduce((map, user) => {
-        map[user.friendId] = user;
-        return map;
-      }, {} as { [friendId: string]: any });
-
-      for (const friend of acceptedFriends) {
-        const friendId =
-          friend.senderId === userId ? friend.receiverId : friend.senderId;
+      for (const friend of enrichedFriends) {
+        const friendId = friend.senderId === userId ? friend.receiverId : friend.senderId;
         const lastMessage = await fetchLatestMessage(friendId);
-        const userInfo = userMap[friendId] || {
-          displayName: friendId,
-          avatar: null,
-        };
         privateConversations.push({
           type: "private",
           id: friendId,
-          displayName: userInfo.displayName,
-          avatar:
-            friend.senderId === userId
-              ? friend.senderAVT
-              : userInfo.avatar ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          displayName: friend.displayName,
+          avatar: friend.avatarUrl,
           lastMessage,
         });
       }
 
-      const groupConversationsList: CombinedConversation[] =
-        groupConversations.map((group) => ({
-          type: "group",
-          id: group.id,
-          displayName: group.groupName || "Nhóm chat",
-          avatar: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-          lastMessage: group.lastMessage,
-          participantsCount: group.participants.length,
-        }));
+      const groupConversationsList: CombinedConversation[] = groupConversations.map((group) => ({
+        type: "group",
+        id: group.id,
+        displayName: group.groupName || "Nhóm chat",
+        avatar: group.avatarUrl || DEFAULT_AVATAR,
+        lastMessage: group.lastMessage,
+        participantsCount: group.participants.length,
+      }));
 
       const combinedList = [...privateConversations, ...groupConversationsList].sort(
         (a, b) => {
@@ -207,9 +211,7 @@ const HomeScreen = () => {
             type: "group",
             id: id,
             displayName: groupName || "Nhóm chat",
-            avatar:
-              avatarUrl ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            avatar: avatarUrl || DEFAULT_AVATAR,
             lastMessage: null,
             participantsCount: participants.length,
           };
@@ -277,9 +279,7 @@ const HomeScreen = () => {
           type: "group",
           id: id,
           displayName: groupName || "Nhóm chat",
-          avatar:
-            avatarUrl ||
-            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          avatar: avatarUrl || DEFAULT_AVATAR,
           lastMessage: null,
           participantsCount: participants.length,
         };
@@ -309,9 +309,7 @@ const HomeScreen = () => {
             type: "group",
             id: id,
             displayName: groupName || "Nhóm chat",
-            avatar:
-              avatarUrl ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            avatar: avatarUrl || DEFAULT_AVATAR,
             lastMessage: null,
             participantsCount: participants.length,
           };
@@ -338,9 +336,7 @@ const HomeScreen = () => {
               type: "group",
               id: id,
               displayName: groupName || "Nhóm chat",
-              avatar:
-                avatarUrl ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+              avatar: avatarUrl || DEFAULT_AVATAR,
               lastMessage: null,
               participantsCount: participants.length,
             };
@@ -449,9 +445,7 @@ const HomeScreen = () => {
       >
         <Image
           source={{
-            uri:
-              item.avatar ||
-              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            uri: item.avatar || DEFAULT_AVATAR,
           }}
           style={styles.avatar}
         />
@@ -502,7 +496,6 @@ const HomeScreen = () => {
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-
         <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
           <Ionicons
             name="search"
@@ -510,18 +503,17 @@ const HomeScreen = () => {
             color={theme.colors.text}
             style={styles.searchIcon}
           />
-
           <TextInput
             placeholder="Tìm kiếm..."
             style={[styles.searchInput, { color: theme.colors.text }]}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.colors.text + "80"} // 50% opacity
           />
         </View>
 
         {loading ? (
-          <Text style={{ color: theme.colors.text, textAlign: "center" }}>
+          <Text style={{ color: theme.colors.text, textAlign: "center", padding: 20 }}>
             Đang tải...
           </Text>
         ) : (
@@ -552,75 +544,76 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    margin: 16,
+    borderRadius: 20,
+    paddingHorizontal: Dimensions.get("window").width * 0.04,
+    paddingVertical: Dimensions.get("window").height * 0.015,
+    margin: Dimensions.get("window").width * 0.04,
     borderWidth: 1,
     borderColor: "#ddd",
     backgroundColor: "transparent",
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: Dimensions.get("window").width * 0.02,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Dimensions.get("window").width * 0.04,
     paddingVertical: 0,
   },
   chatList: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: Dimensions.get("window").width * 0.04,
+    paddingBottom: Dimensions.get("window").height * 0.05,
   },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: Dimensions.get("window").height * 0.015,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
+    width: Dimensions.get("window").width * 0.12,
+    height: Dimensions.get("window").width * 0.12,
+    borderRadius: Dimensions.get("window").width * 0.06,
+    marginRight: Dimensions.get("window").width * 0.03,
   },
   chatDetails: {
     flex: 1,
+    justifyContent: "center",
   },
   chatName: {
-    fontSize: 16,
+    fontSize: Dimensions.get("window").width * 0.045,
     fontWeight: "600",
     color: "#000",
   },
   chatMessage: {
-    fontSize: 14,
+    fontSize: Dimensions.get("window").width * 0.035,
     opacity: 0.7,
     color: "#666",
   },
   chatMeta: {
     alignItems: "flex-end",
-    gap: 6,
+    gap: Dimensions.get("window").height * 0.005,
   },
   chatTime: {
-    fontSize: 12,
+    fontSize: Dimensions.get("window").width * 0.03,
     opacity: 0.7,
     color: "#666",
   },
   unreadBadge: {
     backgroundColor: "#FF3B30",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: Dimensions.get("window").width * 0.03,
+    paddingHorizontal: Dimensions.get("window").width * 0.02,
+    paddingVertical: Dimensions.get("window").height * 0.005,
   },
   unreadText: {
     color: "white",
-    fontSize: 12,
+    fontSize: Dimensions.get("window").width * 0.03,
     fontWeight: "600",
   },
 });

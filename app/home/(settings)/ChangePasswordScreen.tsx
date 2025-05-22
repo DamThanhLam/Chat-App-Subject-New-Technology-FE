@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,9 +25,13 @@ const ChangePasswordScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { width } = useWindowDimensions();
 
   const handleChangePassword = async () => {
     setError("");
@@ -58,10 +63,13 @@ const ChangePasswordScreen = () => {
     }
   };
 
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
@@ -69,81 +77,140 @@ const ChangePasswordScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Nội dung */}
-      <View style={styles.container}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>Current password</Text>
-        <TextInput
-          style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="Enter current password"
-          placeholderTextColor={theme.colors.text}
-          secureTextEntry
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-        />
+      {/* Content */}
+      <View style={[styles.container, { paddingHorizontal: isLargeScreen ? width * 0.2 : 16 }]}>
+        <View style={[styles.formContainer, { backgroundColor: theme.colors.card }]}>
+          {/* Current Password */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Current Password</Text>
+            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text }]}
+                placeholder="Enter current password"
+                placeholderTextColor={theme.colors.text + '80'}
+                secureTextEntry={!showCurrentPassword}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+              />
+              <TouchableOpacity 
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                style={styles.showButton}
+              >
+                <Text style={[styles.showText, { color: theme.colors.primary }]}>
+                  {showCurrentPassword ? "HIDE" : "SHOW"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        <Text style={[styles.label, { color: theme.colors.text }]}>New password</Text>
-        <TextInput
-          style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="Enter new password"
-          placeholderTextColor={theme.colors.text}
-          secureTextEntry
-          value={newPassword}
-          onChangeText={setNewPassword}
-        />
+          {/* New Password */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>New Password</Text>
+            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text }]}
+                placeholder="Enter new password"
+                placeholderTextColor={theme.colors.text + '80'}
+                secureTextEntry={!showNewPassword}
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <TouchableOpacity 
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                style={styles.showButton}
+              >
+                <Text style={[styles.showText, { color: theme.colors.primary }]}>
+                  {showNewPassword ? "HIDE" : "SHOW"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        <Text style={[styles.label, { color: theme.colors.text }]}>Confirm password</Text>
-        <TextInput
-          style={[styles.input, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}
-          placeholder="Re-enter new password"
-          placeholderTextColor={theme.colors.text}
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
+          {/* Confirm Password */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
+            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text }]}
+                placeholder="Re-enter new password"
+                placeholderTextColor={theme.colors.text + '80'}
+                secureTextEntry={!showConfirmPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity 
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.showButton}
+              >
+                <Text style={[styles.showText, { color: theme.colors.primary }]}>
+                  {showConfirmPassword ? "HIDE" : "SHOW"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        {/* Thông báo lỗi/thành công */}
-        {error !== "" && <Text style={{ color: "red", marginTop: 10 }}>{error}</Text>}
-        {success !== "" && <Text style={{ color: "green", marginTop: 10 }}>{success}</Text>}
+          {/* Messages */}
+          {error !== "" && (
+            <View style={[styles.messageContainer, { backgroundColor: theme.colors.notification + '20' }]}>
+              <Ionicons name="warning" size={18} color={theme.colors.notification} />
+              <Text style={[styles.errorText, { color: theme.colors.notification }]}>{error}</Text>
+            </View>
+          )}
+          {success !== "" && (
+            <View style={[styles.messageContainer, { backgroundColor: '#4CAF50' + '20' }]}>
+              <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+              <Text style={[styles.successText, { color: "#4CAF50" }]}>{success}</Text>
+            </View>
+          )}
 
-        {/* Nút */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: "red" }]}
-            onPress={() => navigation.goBack()}
-            disabled={loading}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
+          {/* Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.cancelButton, { borderColor: theme.colors.notification }]}
+              onPress={() => navigation.goBack()}
+              disabled={loading}
+            >
+              <Text style={[styles.cancelText, { color: theme.colors.notification }]}>Cancel</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.changeButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleChangePassword}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.changeText}>Change</Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.changeButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleChangePassword}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.changeText}>Change Password</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
   );
 };
 
-// Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
     paddingTop: 20,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  formContainer: {
+    borderRadius: 12,
+    padding: 24,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   header: {
-    height: 56,
+    height: 60,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -156,48 +223,77 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
+  },
+  inputGroup: {
+    marginBottom: 24,
   },
   label: {
     fontSize: 16,
     fontWeight: "500",
-    marginTop: 20,
     marginBottom: 8,
   },
-  input: {
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  passwordInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    backgroundColor: "transparent",
-    fontStyle: "italic", 
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    height: 50,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    height: "100%",
+  },
+  showButton: {
+    padding: 8,
+  },
+  showText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  messageContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 16,
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
+  },
+  successText: {
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
   },
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 40,
+    marginTop: 24,
     gap: 16,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#FF4D4D",
-    backgroundColor: "transparent",
     alignItems: "center",
+    backgroundColor: "transparent",
   },
   cancelText: {
-    color: "#f0f0f0",
     fontSize: 16,
     fontWeight: "600",
   },
   changeButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: "center",
     elevation: 2,
     shadowColor: "#000",

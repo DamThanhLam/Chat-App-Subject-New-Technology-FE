@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -12,6 +13,7 @@ import {
   Pressable,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from "react-native";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme } from "@react-navigation/native";
@@ -21,20 +23,13 @@ import { RootState } from "@/src/redux/store";
 import moment from "moment";
 import { getSocket } from "@/src/socket/socket";
 import { DOMAIN } from "@/src/configs/base_url";
-import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 
-// Tạo Tab Navigator
-const Tab = createMaterialTopTabNavigator();
-
-// Các kiểu dữ liệu
 type RequestItem = {
   id: string;
   name: string;
   avatarUrl: string;
   createdAt: string;
   senderId?: string;
-  groupId?: string;
-  groupName?: string;
 };
 
 type FriendRequest = {
@@ -45,16 +40,6 @@ type FriendRequest = {
   createdAt: string;
 };
 
-type GroupInvitation = {
-  id: string;
-  groupId: string;
-  senderId: string;
-  receiverId: string;
-  status: string;
-  createdAt: string;
-};
-
-// Hàm tiện ích tạo apiFetch, nhận token và trả về hàm gọi fetch với cấu hình mặc định.
 const createApiFetch = (token: string) => async (
   endpoint: string,
   options: RequestInit = {}
@@ -76,19 +61,13 @@ const createApiFetch = (token: string) => async (
   if (!response.ok) {
     throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
   }
-  const contentType = response.headers.get("Content-Type");
-  if (contentType && contentType.includes("application/json")) {
-    return response.json();
-  }
-  return response.text();
+  return response.json();
 };
 
-//-------------------------------------------------------------
-// FriendRequestsTab: hiển thị danh sách lời mời kết bạn
-//-------------------------------------------------------------
 const FriendRequestsTab = ({ token, userId }: { token: string; userId: string }) => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { width } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [originalRequests, setOriginalRequests] = useState<RequestItem[]>([]);
@@ -96,7 +75,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
   const [socket, setSocket] = useState<any>(null);
   const user = useSelector((state: RootState) => state.user);
 
-  // Tạo hàm apiFetch sử dụng token từ props
+  const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
+
   const apiFetch = createApiFetch(token);
 
   useEffect(() => {
@@ -113,14 +94,12 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
               return {
                 id: request.id,
                 name: senderData.name || "Unknown",
-                avatarUrl:
-                  senderData.avatarUrl ||
-                  "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                avatarUrl: senderData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
                 createdAt: request.createdAt,
                 senderId: request.senderId,
               };
             } catch (error) {
-              console.error("Lỗi fetch user:", error);
+              console.error("Error fetching user:", error);
               return {
                 id: request.id,
                 name: "Unknown",
@@ -135,7 +114,7 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
         setOriginalRequests(enrichedRequests);
         setRequests(enrichedRequests);
       } catch (err) {
-        console.error("Lỗi fetch request:", err);
+        console.error("Error fetching requests:", err);
       } finally {
         setLoading(false);
       }
@@ -144,27 +123,25 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
     fetchRequests();
   }, [token, user.id]);
 
-  // Khởi tạo socket và lắng nghe các sự kiện cập nhật lời mời
   useEffect(() => {
     setSocket(getSocket());
   }, []);
 
   useEffect(() => {
     if (!socket) return;
-    socket.on("newFriendRequest", async (newRequest: FriendRequest) => {
+
+    const handleNewRequest = async (newRequest: FriendRequest) => {
       try {
         const senderData = await apiFetch(`/api/user/${newRequest.senderId}`);
         const enrichedRequest: RequestItem = {
           id: newRequest.id,
           name: senderData.name || "Unknown",
-          avatarUrl:
-            senderData.avatarUrl ||
-            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+          avatarUrl: senderData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
           createdAt: newRequest.createdAt,
           senderId: newRequest.senderId,
         };
-        setRequests((prev) => [enrichedRequest, ...prev]);
-        setOriginalRequests((prev) => [enrichedRequest, ...prev]);
+        setRequests(prev => [enrichedRequest, ...prev]);
+        setOriginalRequests(prev => [enrichedRequest, ...prev]);
       } catch (error) {
         console.error("Error enriching request:", error);
         const enrichedFallback: RequestItem = {
@@ -174,26 +151,24 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
           createdAt: newRequest.createdAt,
           senderId: newRequest.senderId,
         };
-        setRequests((prev) => [enrichedFallback, ...prev]);
-        setOriginalRequests((prev) => [enrichedFallback, ...prev]);
+        setRequests(prev => [enrichedFallback, ...prev]);
+        setOriginalRequests(prev => [enrichedFallback, ...prev]);
       }
-    });
+    };
 
-    socket.on("friendRequestDeclined", (declinedRequestId: string) => {
-      setRequests((prev) => prev.filter((r) => r.id !== declinedRequestId));
-      setOriginalRequests((prev) => prev.filter((r) => r.id !== declinedRequestId));
-    });
+    const handleRequestUpdate = (requestId: string) => {
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+      setOriginalRequests(prev => prev.filter(r => r.id !== requestId));
+    };
 
-    socket.on("friendRequestAccepted", (acceptedRequestId: string) => {
-      setRequests((prev) => prev.filter((r) => r.id !== acceptedRequestId));
-      setOriginalRequests((prev) => prev.filter((r) => r.id !== acceptedRequestId));
-    });
+    socket.on("newFriendRequest", handleNewRequest);
+    socket.on("friendRequestDeclined", handleRequestUpdate);
+    socket.on("friendRequestAccepted", handleRequestUpdate);
 
     return () => {
-      socket.off("newFriendRequest");
-      socket.off("friendRequestDeclined");
-      socket.off("friendRequestAccepted");
-      socket.disconnect();
+      socket.off("newFriendRequest", handleNewRequest);
+      socket.off("friendRequestDeclined", handleRequestUpdate);
+      socket.off("friendRequestAccepted", handleRequestUpdate);
     };
   }, [socket]);
 
@@ -213,10 +188,8 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
     socket.emit("acceptFriendRequest", { friendRequestId, token });
     socket.once("acceptFriendRequestResponse", (response: { code: number }) => {
       if (response.code === 200) {
-        setRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
-        setOriginalRequests((prev) =>
-          prev.filter((item) => item.id !== friendRequestId)
-        );
+        setRequests(prev => prev.filter(item => item.id !== friendRequestId));
+        setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
       }
     });
   };
@@ -226,17 +199,31 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
     socket.emit("declineFriendRequest", { friendRequestId, token });
     socket.once("declineFriendRequestResponse", (response: { code: number }) => {
       if (response.code === 200) {
-        setRequests((prev) => prev.filter((item) => item.id !== friendRequestId));
-        setOriginalRequests((prev) =>
-          prev.filter((item) => item.id !== friendRequestId)
-        );
+        setRequests(prev => prev.filter(item => item.id !== friendRequestId));
+        setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
       }
     });
   };
 
   const renderRequestItem = ({ item }: { item: RequestItem }) => (
-    <View style={[styles.requestItem, { borderColor: theme.colors.border }]} key={item.id}>
-      <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+    <View style={[
+      styles.requestItem, 
+      { 
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.card,
+        padding: isLargeScreen ? 16 : 12,
+      }
+    ]} key={item.id}>
+      <Image 
+        source={{ uri: item.avatarUrl }} 
+        style={[
+          styles.avatar, 
+          { 
+            width: isLargeScreen ? 64 : 56, 
+            height: isLargeScreen ? 64 : 56 
+          }
+        ]} 
+      />
       <View style={styles.infoContainer}>
         <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
         <Text style={[styles.time, { color: theme.colors.text }]}>
@@ -268,69 +255,107 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
         </View>
       ) : (
         <>
-          <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>
+          <View style={[
+            styles.headerRow, 
+            { 
+              backgroundColor: theme.colors.card,
+              borderBottomColor: theme.colors.border,
+              paddingHorizontal: isLargeScreen ? 24 : 16,
+            }
+          ]}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
               Lời mời kết bạn ({requests.length})
             </Text>
             <TouchableOpacity onPress={() => setSortModalVisible(true)}>
-              <Text style={styles.sortLabel}>Sắp xếp ▾</Text>
+              <Text style={[styles.sortLabel, { color: theme.colors.primary }]}>
+                Sắp xếp ▾
+              </Text>
             </TouchableOpacity>
           </View>
           <FlatList
             data={requests}
             keyExtractor={(item) => item.id}
             renderItem={renderRequestItem}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { 
+                padding: isLargeScreen ? 24 : 16,
+                paddingBottom: 20,
+              }
+            ]}
             ListEmptyComponent={
-              <Text
-                style={{
-                  textAlign: "center",
-                  marginTop: 20,
-                  color: theme.colors.text,
-                }}
-              >
+              <Text style={[
+                styles.emptyText,
+                { color: theme.colors.text }
+              ]}>
                 Không có lời mời kết bạn nào
               </Text>
             }
           />
           <Modal
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             visible={sortModalVisible}
             onRequestClose={() => setSortModalVisible(false)}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Sắp xếp theo</Text>
+            <Pressable 
+              style={styles.modalOverlay} 
+              onPress={() => setSortModalVisible(false)}
+            >
+              <View style={[
+                styles.modalContent,
+                { 
+                  backgroundColor: theme.colors.card,
+                  width: isLargeScreen ? '50%' : '80%',
+                  maxWidth: 400,
+                }
+              ]}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  Sắp xếp theo
+                </Text>
                 <TouchableOpacity
                   onPress={() => {
                     setRequests(sortRequests("default", originalRequests));
                     setSortModalVisible(false);
                   }}
+                  style={styles.modalOptionContainer}
                 >
-                  <Text style={styles.modalOption}>Mặc định</Text>
+                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
+                    Mặc định
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
                     setRequests(sortRequests("a-z", originalRequests));
                     setSortModalVisible(false);
                   }}
+                  style={styles.modalOptionContainer}
                 >
-                  <Text style={styles.modalOption}>Tên A-Z</Text>
+                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
+                    Tên A-Z
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
                     setRequests(sortRequests("z-a", originalRequests));
                     setSortModalVisible(false);
                   }}
+                  style={styles.modalOptionContainer}
                 >
-                  <Text style={styles.modalOption}>Tên Z-A</Text>
+                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
+                    Tên Z-A
+                  </Text>
                 </TouchableOpacity>
-                <Pressable onPress={() => setSortModalVisible(false)}>
-                  <Text style={styles.modalClose}>Đóng</Text>
+                <Pressable 
+                  onPress={() => setSortModalVisible(false)}
+                  style={styles.modalCloseContainer}
+                >
+                  <Text style={[styles.modalClose, { color: theme.colors.primary }]}>
+                    Đóng
+                  </Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           </Modal>
         </>
       )}
@@ -338,287 +363,6 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
   );
 };
 
-//-------------------------------------------------------------
-// GroupInvitationsTab: hiển thị danh sách lời mời tham gia nhóm
-//-------------------------------------------------------------
-const GroupInvitationsTab = ({ token, userId }: { token: string; userId: string }) => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const [loading, setLoading] = useState(true);
-  const [invitations, setInvitations] = useState<RequestItem[]>([]);
-  const [originalInvitations, setOriginalInvitations] = useState<RequestItem[]>([]);
-  const [sortModalVisible, setSortModalVisible] = useState(false);
-  const [socket, setSocket] = useState<any>(null);
-
-  // Tạo hàm apiFetch sử dụng token
-  const apiFetch = createApiFetch(token);
-
-  useEffect(() => {
-    if (!token || !userId) return;
-    const fetchInvitations = async () => {
-      try {
-        const data = await apiFetch(`/api/groups/invitations/${userId}`);
-        const rawInvitations: GroupInvitation[] = data.invitations || [];
-
-        const enrichedInvitations = await Promise.all(
-          rawInvitations.map(async (invitation: GroupInvitation) => {
-            try {
-              const [groupData, senderData] = await Promise.all([
-                apiFetch(`/api/groups/${invitation.groupId}`),
-                apiFetch(`/api/user/${invitation.senderId}`),
-              ]);
-              return {
-                id: invitation.id,
-                name: senderData.username || "Unknown", // Nếu muốn hiển thị tên người gửi, bạn có thể thay đổi thành senderData.name nếu cần
-                groupName: groupData.name || "Unknown Group",
-                avatarUrl:
-                  groupData.avatarUrl ||
-                  "https://cdn-icons-png.flaticon.com/512/219/219983.png",
-                createdAt: invitation.createdAt,
-                groupId: invitation.groupId,
-                senderId: invitation.senderId,
-              };
-            } catch (error) {
-              console.error("Error fetching group/user:", error);
-              return {
-                id: invitation.id,
-                name: "Unknown",
-                groupName: "Unknown Group",
-                avatarUrl:
-                  "https://cdn-icons-png.flaticon.com/512/219/219983.png",
-                createdAt: invitation.createdAt,
-                groupId: invitation.groupId,
-                senderId: invitation.senderId,
-              };
-            }
-          })
-        );
-
-        setOriginalInvitations(enrichedInvitations);
-        setInvitations(enrichedInvitations);
-      } catch (err) {
-        console.error("Error fetching invitations:", err);
-        setInvitations([]);
-        setOriginalInvitations([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInvitations();
-  }, [token, userId]);
-
-  useEffect(() => {
-    setSocket(getSocket());
-  }, []);
-
-  useEffect(() => {
-    if (!socket) return;
-    socket.on("newGroupInvitation", async (newInvitation: GroupInvitation) => {
-      try {
-        const [groupData, senderData] = await Promise.all([
-          apiFetch(`/api/groups/${newInvitation.groupId}`),
-          apiFetch(`/api/user/${newInvitation.senderId}`),
-        ]);
-        const enrichedInvitation: RequestItem = {
-          id: newInvitation.id,
-          name: senderData.name || "Unknown",
-          groupName: groupData.name || "Unknown Group",
-          avatarUrl:
-            groupData.avatarUrl ||
-            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
-          createdAt: newInvitation.createdAt,
-          groupId: newInvitation.groupId,
-          senderId: newInvitation.senderId,
-        };
-        setInvitations((prev) => [enrichedInvitation, ...prev]);
-        setOriginalInvitations((prev) => [enrichedInvitation, ...prev]);
-      } catch (error) {
-        console.error("Error enriching invitation:", error);
-        const enrichedFallback: RequestItem = {
-          id: newInvitation.id,
-          name: "Unknown",
-          groupName: "Unknown Group",
-          avatarUrl:
-            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
-          createdAt: newInvitation.createdAt,
-          groupId: newInvitation.groupId,
-          senderId: newInvitation.senderId,
-        };
-        setInvitations((prev) => [enrichedFallback, ...prev]);
-        setOriginalInvitations((prev) => [enrichedFallback, ...prev]);
-      }
-    });
-
-    socket.on("groupInvitationDeclined", (declinedInvitationId: string) => {
-      setInvitations((prev) => prev.filter((i) => i.id !== declinedInvitationId));
-      setOriginalInvitations((prev) =>
-        prev.filter((i) => i.id !== declinedInvitationId)
-      );
-    });
-
-    socket.on("groupInvitationAccepted", (acceptedInvitationId: string) => {
-      setInvitations((prev) => prev.filter((i) => i.id !== acceptedInvitationId));
-      setOriginalInvitations((prev) =>
-        prev.filter((i) => i.id !== acceptedInvitationId)
-      );
-    });
-
-    return () => {
-      socket.off("newGroupInvitation");
-      socket.off("groupInvitationDeclined");
-      socket.off("groupInvitationAccepted");
-      socket.disconnect();
-    };
-  }, [socket]);
-
-  const sortInvitations = (type: string, data: RequestItem[]) => {
-    switch (type) {
-      case "a-z":
-        return [...data].sort((a, b) =>
-          (a.groupName || "").localeCompare(b.groupName || "")
-        );
-      case "z-a":
-        return [...data].sort((a, b) =>
-          (b.groupName || "").localeCompare(a.groupName || "")
-        );
-      default:
-        return [...data];
-    }
-  };
-
-  const handleAccept = (invitationId: string) => {
-    if (!socket || !token) return;
-    socket.emit("acceptGroupInvitation", { invitationId, token });
-    socket.once("acceptGroupInvitationResponse", (response: { code: number }) => {
-      if (response.code === 200) {
-        setInvitations((prev) => prev.filter((item) => item.id !== invitationId));
-        setOriginalInvitations((prev) =>
-          prev.filter((item) => item.id !== invitationId)
-        );
-      }
-    });
-  };
-
-  const handleDecline = (invitationId: string) => {
-    if (!socket || !token) return;
-    socket.emit("declineGroupInvitation", { invitationId, token });
-    socket.once("declineGroupInvitationResponse", (response: { code: number }) => {
-      if (response.code === 200) {
-        setInvitations((prev) => prev.filter((item) => item.id !== invitationId));
-        setOriginalInvitations((prev) =>
-          prev.filter((item) => item.id !== invitationId)
-        );
-      }
-    });
-  };
-
-  const renderInvitationItem = ({ item }: { item: RequestItem }) => (
-    <View style={[styles.requestItem, { borderColor: theme.colors.border }]} key={item.id}>
-      <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-      <View style={styles.infoContainer}>
-        <Text style={[styles.name, { color: theme.colors.text }]}>{item.groupName}</Text>
-        <Text style={[styles.time, { color: theme.colors.text }]}>
-          {moment(item.createdAt).fromNow()} - {item.name} mời bạn tham gia
-        </Text>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, styles.acceptButton]}
-            onPress={() => handleAccept(item.id)}
-          >
-            <Text style={styles.buttonText}>Chấp nhận</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.declineButton]}
-            onPress={() => handleDecline(item.id)}
-          >
-            <Text style={styles.buttonText}>Từ chối</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={{ flex: 1 }}>
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
-        <>
-          <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>
-              Lời mời tham gia nhóm ({invitations.length})
-            </Text>
-            <TouchableOpacity onPress={() => setSortModalVisible(true)}>
-              <Text style={styles.sortLabel}>Sắp xếp ▾</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={invitations}
-            keyExtractor={(item) => item.id}
-            renderItem={renderInvitationItem}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={
-              <Text
-                style={{
-                  textAlign: "center",
-                  marginTop: 20,
-                  color: theme.colors.text,
-                }}
-              >
-                Không có lời mời tham gia nhóm nào
-              </Text>
-            }
-          />
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={sortModalVisible}
-            onRequestClose={() => setSortModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Sắp xếp theo</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setInvitations(sortInvitations("default", originalInvitations));
-                    setSortModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalOption}>Mặc định</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setInvitations(sortInvitations("a-z", originalInvitations));
-                    setSortModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalOption}>Tên nhóm A-Z</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setInvitations(sortInvitations("z-a", originalInvitations));
-                    setSortModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalOption}>Tên nhóm Z-A</Text>
-                </TouchableOpacity>
-                <Pressable onPress={() => setSortModalVisible(false)}>
-                  <Text style={styles.modalClose}>Đóng</Text>
-                </Pressable>
-              </View>
-            </View>
-          </Modal>
-        </>
-      )}
-    </View>
-  );
-};
-
-//-------------------------------------------------------------
-// FriendRequestsScreen: màn hình Tab chứa FriendRequests và GroupInvitations
-//-------------------------------------------------------------
 const FriendRequestsScreen = () => {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
@@ -654,27 +398,7 @@ const FriendRequestsScreen = () => {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: theme.colors.primary,
-          tabBarInactiveTintColor: theme.colors.text,
-          tabBarIndicatorStyle: { backgroundColor: theme.colors.primary },
-          tabBarLabelStyle: { fontWeight: "bold" },
-        }}
-      >
-        <Tab.Screen
-          name="FriendRequests"
-          options={{ title: "Lời mời kết bạn" }}
-        >
-          {() => <FriendRequestsTab token={token} userId={String(user.id)} />}
-        </Tab.Screen>
-        <Tab.Screen
-          name="GroupInvitations"
-          options={{ title: "Lời mời nhóm" }}
-        >
-          {() => <GroupInvitationsTab token={token} userId={String(user.id)} />}
-        </Tab.Screen>
-      </Tab.Navigator>
+      <FriendRequestsTab token={token} userId={String(user.id)} />
     </SafeAreaView>
   );
 };
@@ -690,18 +414,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   listContent: {
-    padding: 16,
     paddingBottom: 20,
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 16,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "transparent",
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -711,22 +436,17 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#000",
   },
   sortLabel: {
-    color: "#007AFF",
     fontSize: 14,
     fontWeight: "500",
   },
   requestItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#eee",
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -734,10 +454,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
+    borderRadius: 32,
+    marginRight: 16,
   },
   infoContainer: {
     flex: 1,
@@ -745,13 +463,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000",
   },
   time: {
     fontSize: 14,
     marginTop: 4,
     opacity: 0.7,
-    color: "#666",
   },
   buttonRow: {
     flexDirection: "row",
@@ -778,11 +494,10 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    paddingHorizontal: 24,
   },
   modalContent: {
-    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 24,
     elevation: 5,
@@ -796,21 +511,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 16,
     textAlign: "center",
-    color: "#000",
   },
-  modalOption: {
-    fontSize: 16,
+  modalOptionContainer: {
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-    color: "#333",
+  },
+  modalOption: {
+    fontSize: 16,
+  },
+  modalCloseContainer: {
+    marginTop: 24,
   },
   modalClose: {
     fontSize: 16,
-    color: "#FF3B30",
-    marginTop: 24,
-    textAlign: "center",
     fontWeight: "600",
+    textAlign: "center",
   },
 });
 

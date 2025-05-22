@@ -102,136 +102,215 @@ export default function LoginScreen() {
   };
 
   const isLargeScreen = width >= 768;
+  const isSmallScreen = width <= 320;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity 
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>LOGIN</Text>
-          {/* View rỗng để cân đối */}
+          <Text style={[styles.headerTitle, { color: colors.text }]}>LOG IN</Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* Nội dung Login */}
-        <View style={[styles.content, { paddingHorizontal: isLargeScreen ? 100 : 20 }]}>
-          <TextInput
-            placeholder="Email"
-            style={[
-              styles.input,
-              { color: colors.text, fontSize: isLargeScreen ? 18 : 16 },
-            ]}
-            placeholderTextColor={colors.text}
-            value={username}
-            onChangeText={setUsername}
-          />
-
-          <View style={styles.passwordContainer}>
+        {/* Main Content */}
+        <View style={[styles.content, { paddingHorizontal: isLargeScreen ? width * 0.2 : 24 }]}>
+          <View style={styles.formContainer}>
+            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
             <TextInput
-              placeholder="Password"
-              secureTextEntry={!showPassword}
+              placeholder="Enter your email"
+              placeholderTextColor={colors.text + '80'}
               style={[
                 styles.input,
-                { flex: 1, color: colors.text, fontSize: isLargeScreen ? 18 : 16 },
+                { 
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  height: isLargeScreen ? 56 : 48,
+                },
               ]}
-              value={password}
-              onChangeText={setPassword}
-              placeholderTextColor={colors.text}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Text style={[styles.showText, { fontSize: isLargeScreen ? 16 : 14 }]}>
-                {showPassword ? "HIDE" : "SHOW"}
+
+            <Text style={[styles.label, { color: colors.text, marginTop: 16 }]}>Password</Text>
+            <View style={[
+              styles.passwordContainer, 
+              { 
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                height: isLargeScreen ? 56 : 48,
+              }
+            ]}>
+              <TextInput
+                placeholder="Enter your password"
+                placeholderTextColor={colors.text + '80'}
+                secureTextEntry={!showPassword}
+                style={[
+                  styles.passwordInput,
+                  { color: colors.text }
+                ]}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity 
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.showButton}
+              >
+                <Text style={[styles.showText, { color: colors.primary }]}>
+                  {showPassword ? "HIDE" : "SHOW"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              onPress={() => router.replace("/ForgotScreen")}
+              style={styles.forgotPasswordButton}
+            >
+              <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
+                Forgot password?
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                { backgroundColor: colors.primary }
+              ]}
+              onPress={handleLogin}
+            >
+              <Text style={styles.loginButtonText}>Login</Text>
+              <Ionicons name="arrow-forward" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: colors.text }]}>
+              Don't have an account?
+            </Text>
+            <TouchableOpacity onPress={() => router.replace("/RegisterScreen")}>
+              <Text style={[styles.signUpText, { color: colors.primary }]}>
+                SIGN UP
               </Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => router.replace("/ForgotScreen")}>
-            <Text style={[styles.signInText, { color: colors.primary }]}>
-              Forgot password
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.replace("/RegisterScreen")}>
-            <Text style={[styles.signInText, { color: colors.primary }]}>
-              Do you have not account?
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.nextButton,
-              {
-                backgroundColor: colors.primary,
-                bottom: isLargeScreen ? 40 : 20,
-                right: isLargeScreen ? 40 : 20,
-              },
-            ]}
-            onPress={handleLogin}
-          >
-            <Ionicons name="arrow-forward" size={24} color="white" />
-          </TouchableOpacity>
         </View>
-
-
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  signInText: {
-    textAlign: "center",
-    marginTop: 10,
-    fontSize: 16,
-  },
   safeArea: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   container: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  // Header style
+  // Header styles
   header: {
-    height: 60,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
+  },
+  backButton: {
+    padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
   },
-  // Nội dung login
+  // Content styles
   content: {
     flex: 1,
     justifyContent: "center",
   },
+  formContainer: {
+    width: "100%",
+    maxWidth: 400,
+    alignSelf: "center",
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
   input: {
-    borderBottomWidth: 1,
-    borderBottomColor: "gray",
-    paddingVertical: Platform.OS === "web" ? 12 : 10,
-    marginBottom: 15,
+    width: "100%",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    fontSize: 16,
   },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    height: "100%",
+  },
+  showButton: {
+    padding: 8,
   },
   showText: {
-    color: "gray",
-    fontWeight: "bold",
-    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: "500",
   },
-  nextButton: {
-    position: "absolute",
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  forgotPasswordButton: {
+    alignSelf: "flex-end",
+    marginTop: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  loginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    marginTop: 24,
+  },
+  loginButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  // Footer styles
+  footer: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 24,
+  },
+  footerText: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  signUpText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
