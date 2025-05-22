@@ -118,8 +118,8 @@ const GroupChatScreen = () => {
     colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [groupName, setGroupName] = useState("Group Chat");
-  const [isChatting, setIsChatting] = useState(false)
-  const [isLeader, setIsleader] = useState(false)
+  const [isChatting, setIsChatting] = useState(false);
+  const [isLeader, setIsleader] = useState(false);
   useEffect(() => {
     if (flatListRef.current && conversation.length > 0) {
       flatListRef.current.scrollToEnd({ animated: false });
@@ -152,9 +152,9 @@ const GroupChatScreen = () => {
         );
         if (!res.ok) throw new Error("Could not fetch group info");
         const groupData: Conversation = await res.json();
-        setIsChatting(groupData.permission.chat)
+        setIsChatting(groupData.permission.chat);
         setGroupName(groupData.groupName);
-        setIsleader(userID1 === groupData.leaderId)
+        setIsleader(userID1 === groupData.leaderId);
         const users: User[] = await Promise.all(
           groupData.participants.map(async (p) => {
             const uid = p.id;
@@ -220,7 +220,8 @@ const GroupChatScreen = () => {
     let socket: any;
     let isRemoved = false;
     const handleNew = ({
-      message: newMsg, conversationId: cid
+      message: newMsg,
+      conversationId: cid,
     }: {
       message: Message & { tempId?: string };
     }) => {
@@ -240,7 +241,6 @@ const GroupChatScreen = () => {
           return list;
         });
       }
-
     };
     // Handle group deletion
     const handleGroupDeleted = ({
@@ -277,7 +277,7 @@ const GroupChatScreen = () => {
       userId,
       username,
       conversationId: cid,
-      message
+      message,
     }: {
       userId: string;
       username: string;
@@ -289,12 +289,10 @@ const GroupChatScreen = () => {
           router.back();
         }
         setGroupParticipants((prev) => prev.filter((p) => p._id !== userId));
-        setConversation(pre => [...pre, message])
+        setConversation((pre) => [...pre, message]);
         setGroupParticipants((pre) => {
-          return pre.filter(item => item._id != userId)
-        })
-        
-
+          return pre.filter((item) => item._id != userId);
+        });
       }
     };
     connectSocket()
@@ -304,76 +302,93 @@ const GroupChatScreen = () => {
           setConversation((prev) => prev.filter((m) => m.id !== messageId))
         );
         socket?.on("message-recalled", ({ message }) => {
-          console.log("message-recalled")
-          console.log(message)
+          console.log("message-recalled");
+          console.log(message);
           setConversation((prev) =>
-            prev.map((m) =>
-              m.id === message.id ? message : m
-            )
-          )
+            prev.map((m) => (m.id === message.id ? message : m))
+          );
         });
         socket?.on("group-message", handleNew);
         socket?.on("userLeft", handleUserLeft);
         socket?.on("group-deleted", handleGroupDeleted);
         socket?.on("removed-from-group", handleRemovedFromGroup);
         socket?.emit("join-group", conversationId);
-        socket.on("group-renamed", ({ conversationId:cid, newName, leaderId }) => {
-          conversationId === cid && setGroupName(newName);
-        });
-        socket.on("userJoinedGroup", ({ message, userJoin, conversationId:cid }) => {
-          if (cid === conversationId) {
-            setConversation(pre => [...pre, message])
-            userJoin && setGroupParticipants(pre => [...pre, {
-              _id: userJoin.id,
-              name: userJoin.name || "Unknown",
-              image: userJoin.urlAVT || "",
-            }])
+        socket.on(
+          "group-renamed",
+          ({ conversationId: cid, newName, leaderId }) => {
+            conversationId === cid && setGroupName(newName);
           }
-        })
-        socket.on("reponse-approve-into-group", ({ message, userJoin, conversationId: cid }) => {
-          if (cid === conversationId) {
-            setConversation(pre => [...pre, message])
-            userJoin && setGroupParticipants(pre => [...pre, {
-              _id: userJoin.id,
-              name: userJoin.name || "Unknown",
-              image: userJoin.urlAVT || "",
-            }])
+        );
+        socket.on(
+          "userJoinedGroup",
+          ({ message, userJoin, conversationId: cid }) => {
+            if (cid === conversationId) {
+              setConversation((pre) => [...pre, message]);
+              userJoin &&
+                setGroupParticipants((pre) => [
+                  ...pre,
+                  {
+                    _id: userJoin.id,
+                    name: userJoin.name || "Unknown",
+                    image: userJoin.urlAVT || "",
+                  },
+                ]);
+            }
           }
-
-        })
+        );
+        socket.on(
+          "reponse-approve-into-group",
+          ({ message, userJoin, conversationId: cid }) => {
+            if (cid === conversationId) {
+              setConversation((pre) => [...pre, message]);
+              userJoin &&
+                setGroupParticipants((pre) => [
+                  ...pre,
+                  {
+                    _id: userJoin.id,
+                    name: userJoin.name || "Unknown",
+                    image: userJoin.urlAVT || "",
+                  },
+                ]);
+            }
+          }
+        );
         socket.on("response-invite-join-group", (response) => {
-          console.log("response-invite-join-group")
-          console.log(response)
-
-        })
+          console.log("response-invite-join-group");
+          console.log(response);
+        });
         socket.on("block-chatting", ({ isChatting, conversationId: cid }) => {
           if (cid === conversationId) {
-            setIsChatting(isChatting)
+            setIsChatting(isChatting);
           }
-        })
+        });
       })
       .catch((err) => console.error("Socket connect error", err));
 
     return () => {
-      return async () => {
-        const socket = await getSocket()
-        if (socket) {
-          socket.emit("leave-group", conversationId);
-          socket.off("message-deleted");
-          socket.off("message-recalled");
-          socket.off("group-deleted", handleGroupDeleted);
-          socket.off("removed-from-group", handleRemovedFromGroup);
-          socket.off("group-message", handleNew);
-          socket.off("userLeft", handleUserLeft);
-          socket.off("group-renamed");
-          socket.off("userJoinedGroup");
-          socket.off("reponse-approve-into-group");
-          socket.off("response-invite-join-group");
-          socket.off("block-chatting");
-        }
-      };
-
+      if (socket) {
+        socket.emit("leave-group", conversationId);
+        socket.off("message-deleted");
+        socket.off("message-recalled");
+        socket.off("group-message", handleNew);
+        socket.off("userLeft", handleUserLeft);
+        socket.off("group-deleted", handleGroupDeleted);
+        socket.off("removed-from-group", handleRemovedFromGroup);
+        socket.off("group-renamed");
+        socket.off("userJoinedGroup");
+        socket.off("reponse-approve-into-group");
+        socket.off("response-invite-join-group");
+        socket.off("block-chatting");
+      }
     };
+  }, [conversationId, userID1]);
+
+  useEffect(() => {
+    console.log(
+      "Socket useEffect running with conversationId:",
+      conversationId
+    );
+    // ... rest of the code
   }, [conversationId]);
 
   const openSettings = useCallback(() => {
@@ -694,7 +709,7 @@ const GroupChatScreen = () => {
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={() => { }}
+          onChange={() => {}}
         />
       )}
 
@@ -746,7 +761,7 @@ const GroupChatScreen = () => {
       <FlatList
         data={conversation}
         ref={flatListRef}
-        keyExtractor={(item) => item ? item.id : ""}
+        keyExtractor={(item) => (item ? item.id : "")}
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }}
@@ -845,13 +860,12 @@ const GroupChatScreen = () => {
           />
         </View>
       )}
-   
+
       {showEmojiPicker && Platform.OS !== "web" && (
         <EmojiPickerMobile
           open={showEmojiPicker}
           onEmojiSelected={handleEmojiSelectMobile}
           onClose={() => setShowEmojiPicker(false)}
-          
         />
       )}
       {/* Image Picker (Mobile) */}
@@ -1005,7 +1019,10 @@ const GroupChatScreen = () => {
       >
         <TouchableOpacity
           onPress={toggleEmojiPicker}
-          style={[styles.iconSpacing,{display:isChatting || isLeader?"flex":"none"}]}
+          style={[
+            styles.iconSpacing,
+            { display: isChatting || isLeader ? "flex" : "none" },
+          ]}
         >
           <FontAwesome
             name="smile-o"
@@ -1024,7 +1041,11 @@ const GroupChatScreen = () => {
           editable={isChatting || isLeader}
           value={message}
           onChangeText={setMessage}
-          placeholder={isChatting || isLeader ? "Type a message..." : "Nhóm trưởng đã khá chat"}
+          placeholder={
+            isChatting || isLeader
+              ? "Type a message..."
+              : "Nhóm trưởng đã khá chat"
+          }
           placeholderTextColor={theme.colors.text}
         />
         {message.trim() === "" ? (
@@ -1049,7 +1070,6 @@ const GroupChatScreen = () => {
                 ref={fileInputRef}
                 onChange={onWebFilesChange}
                 disabled={!(isChatting || isLeader)}
-
               />
             )}
 
@@ -1057,7 +1077,6 @@ const GroupChatScreen = () => {
               onPress={openImagePicker}
               style={styles.iconSpacing}
               disabled={!(isChatting || isLeader)}
-
             >
               <FontAwesome
                 name="image"
@@ -1068,9 +1087,11 @@ const GroupChatScreen = () => {
               />
             </TouchableOpacity>
           </>
-        ) :
-          isChatting || isLeader ? <Button onPress={sendTextMessage}>Send</Button> : <></>
-        }
+        ) : isChatting || isLeader ? (
+          <Button onPress={sendTextMessage}>Send</Button>
+        ) : (
+          <></>
+        )}
       </View>
     </PaperProvider>
   );

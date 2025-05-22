@@ -32,6 +32,7 @@ import {
 } from "@/src/interface/interface";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
+import { getNickname } from "@/src/apis/nickName";
 
 // Các interface cho group conversation & combined conversation
 interface GroupConversation {
@@ -145,14 +146,27 @@ const HomeScreen = () => {
         })
       );
 
-      for (const friend of enrichedFriends) {
-        const friendId = friend.senderId === userId ? friend.receiverId : friend.senderId;
+      for (const friend of acceptedFriends) {
+        const friendId =
+          friend.senderId === userId ? friend.receiverId : friend.senderId;
+        const nickName = await getNickname(friendId);
+
         const lastMessage = await fetchLatestMessage(friendId);
+        console.log("Last message:", lastMessage);
+
+        const userInfo = userMap[friendId] || {
+          displayName: friendId,
+          avatar: null,
+        };
         privateConversations.push({
           type: "private",
           id: friendId,
-          displayName: friend.displayName,
-          avatar: friend.avatarUrl,
+          displayName: nickName?.nickname || userInfo.displayName,
+          avatar:
+            friend.senderId === userId
+              ? friend.senderAVT
+              : userInfo.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
@@ -166,8 +180,13 @@ const HomeScreen = () => {
         participantsCount: group.participants.length,
       }));
 
-      const combinedList = [...privateConversations, ...groupConversationsList].sort(
-        (a, b) => {
+      const combinedList = [...privateConversations, ...groupConversationsList]
+        .filter(
+          (conv) =>
+            conv.type === "group" ||
+            (conv.type === "private" && conv.lastMessage)
+        )
+        .sort((a, b) => {
           const timeA = a.lastMessage
             ? new Date(a.lastMessage.createdAt).getTime()
             : 0;
@@ -175,8 +194,7 @@ const HomeScreen = () => {
             ? new Date(b.lastMessage.createdAt).getTime()
             : 0;
           return timeB - timeA;
-        }
-      );
+        });
 
       setDisplayConversations(combinedList);
       console.log("Fetched conversations:", combinedList);
@@ -200,7 +218,10 @@ const HomeScreen = () => {
 
       socket.on(
         "added-to-group",
-        ({ conversation: { id, groupName, participants, avatarUrl }, message }) => {
+        ({
+          conversation: { id, groupName, participants, avatarUrl },
+          message,
+        }) => {
           console.log(
             `Group created event received for user ${userId}:`,
             id,
@@ -274,33 +295,38 @@ const HomeScreen = () => {
         );
       });
 
-      socket.on("notification-join-group", ({ conversation: { id, groupName, participants, avatarUrl } }) => {
-        const newGroup: CombinedConversation = {
-          type: "group",
-          id: id,
-          displayName: groupName || "Nhóm chat",
-          avatar: avatarUrl || DEFAULT_AVATAR,
-          lastMessage: null,
-          participantsCount: participants.length,
-        };
-        setDisplayConversations((prev) => {
-          if (prev.some((conv) => conv.id === id)) {
-            console.log("Group already exists in displayConversations:", id);
-            return prev;
-          }
-          const updatedList = [newGroup, ...prev].sort((a, b) => {
-            const timeA = a.lastMessage
-              ? new Date(a.lastMessage.createdAt).getTime()
-              : 0;
-            const timeB = b.lastMessage
-              ? new Date(b.lastMessage.createdAt).getTime()
-              : 0;
-            return timeB - timeA;
+      socket.on(
+        "notification-join-group",
+        ({ conversation: { id, groupName, participants, avatarUrl } }) => {
+          const newGroup: CombinedConversation = {
+            type: "group",
+            id: id,
+            displayName: groupName || "Nhóm chat",
+            avatar:
+              avatarUrl ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            lastMessage: null,
+            participantsCount: participants.length,
+          };
+          setDisplayConversations((prev) => {
+            if (prev.some((conv) => conv.id === id)) {
+              console.log("Group already exists in displayConversations:", id);
+              return prev;
+            }
+            const updatedList = [newGroup, ...prev].sort((a, b) => {
+              const timeA = a.lastMessage
+                ? new Date(a.lastMessage.createdAt).getTime()
+                : 0;
+              const timeB = b.lastMessage
+                ? new Date(b.lastMessage.createdAt).getTime()
+                : 0;
+              return timeB - timeA;
+            });
+            console.log("Updated displayConversations:", updatedList);
+            return updatedList;
           });
-          console.log("Updated displayConversations:", updatedList);
-          return updatedList;
-        });
-      });
+        }
+      );
 
       socket.on(
         "notification-join-group",
@@ -330,34 +356,46 @@ const HomeScreen = () => {
             console.log("Updated displayConversations:", updatedList);
             return updatedList;
           });
-          socket.on("userJoinedGroup", ({ conversation: { id, groupName, participants, avatarUrl }, accept, reject }) => {
-            if (reject) return;
-            const newGroup: CombinedConversation = {
-              type: "group",
-              id: id,
-              displayName: groupName || "Nhóm chat",
-              avatar: avatarUrl || DEFAULT_AVATAR,
-              lastMessage: null,
-              participantsCount: participants.length,
-            };
-            setDisplayConversations((prev) => {
-              if (prev.some((conv) => conv.id === id)) {
-                console.log("Group already exists in displayConversations:", id);
-                return prev;
-              }
-              const updatedList = [newGroup, ...prev].sort((a, b) => {
-                const timeA = a.lastMessage
-                  ? new Date(a.lastMessage.createdAt).getTime()
-                  : 0;
-                const timeB = b.lastMessage
-                  ? new Date(b.lastMessage.createdAt).getTime()
-                  : 0;
-                return timeB - timeA;
+          socket.on(
+            "userJoinedGroup",
+            ({
+              conversation: { id, groupName, participants, avatarUrl },
+              accept,
+              reject,
+            }) => {
+              if (reject) return;
+              const newGroup: CombinedConversation = {
+                type: "group",
+                id: id,
+                displayName: groupName || "Nhóm chat",
+                avatar:
+                  avatarUrl ||
+                  "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                lastMessage: null,
+                participantsCount: participants.length,
+              };
+              setDisplayConversations((prev) => {
+                if (prev.some((conv) => conv.id === id)) {
+                  console.log(
+                    "Group already exists in displayConversations:",
+                    id
+                  );
+                  return prev;
+                }
+                const updatedList = [newGroup, ...prev].sort((a, b) => {
+                  const timeA = a.lastMessage
+                    ? new Date(a.lastMessage.createdAt).getTime()
+                    : 0;
+                  const timeB = b.lastMessage
+                    ? new Date(b.lastMessage.createdAt).getTime()
+                    : 0;
+                  return timeB - timeA;
+                });
+                console.log("Updated displayConversations:", updatedList);
+                return updatedList;
               });
-              console.log("Updated displayConversations:", updatedList);
-              return updatedList;
-            });
-          });
+            }
+          );
         }
       );
 
@@ -496,7 +534,12 @@ const HomeScreen = () => {
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.searchContainer,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
           <Ionicons
             name="search"
             size={20}
@@ -519,7 +562,9 @@ const HomeScreen = () => {
         ) : (
           <FlatList
             data={displayConversations.filter((conv) =>
-              conv.displayName.toLowerCase().includes(search.toLowerCase())
+              typeof conv.displayName === "string"
+                ? conv.displayName.toLowerCase().includes(search.toLowerCase())
+                : false
             )}
             keyExtractor={(item) => `${item.type}-${item.id}`}
             renderItem={renderItem}

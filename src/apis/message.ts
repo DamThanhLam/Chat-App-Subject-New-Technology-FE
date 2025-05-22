@@ -36,10 +36,15 @@ export const fetchUserInfo = async (friendId: string): Promise<UserInfo> => {
   }
 
   const userData = await response.json();
+  console.log(`Thông tin người dùng ${friendId}:`, userData);
+
   const resultNickname = await getNickname(friendId);
   return {
     friendId,
-    displayName: resultNickname && resultNickname.nickname? resultNickname.nickname : userData.name || friendId,
+    displayName:
+      resultNickname && resultNickname.nickname
+        ? resultNickname.nickname
+        : userData.username || friendId,
     avatar: userData.urlAVT || null,
   };
 };
