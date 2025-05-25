@@ -21,7 +21,7 @@ import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import moment from "moment";
-import { getSocket } from "@/src/socket/socket";
+import { connectSocket, getSocket } from "@/src/socket/socket";
 import { DOMAIN } from "@/src/configs/base_url";
 
 type RequestItem = {
@@ -124,7 +124,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
   }, [token, user.id]);
 
   useEffect(() => {
-    setSocket(getSocket());
+    connectSocket().then(socket => {
+      setSocket(socket)
+    })
   }, []);
 
   useEffect(() => {
@@ -183,46 +185,59 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
     }
   };
 
-  const handleAccept = (friendRequestId: string) => {
-    if (!socket || !token) return;
-    socket.emit("acceptFriendRequest", { friendRequestId, token });
-    socket.once("acceptFriendRequestResponse", (response: { code: number }) => {
-      if (response.code === 200) {
-        setRequests(prev => prev.filter(item => item.id !== friendRequestId));
-        setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
-      }
-    });
+  const handleAccept = async (friendRequestId: string) => {
+    if (!token) {
+      console.log("socket or token is empty")
+      return
+    };
+    await connectSocket().then(socket => {
+      socket.emit("acceptFriendRequest", { friendRequestId, token });
+      socket.once("acceptFriendRequestResponse", (response: { code: number }) => {
+        if (response.code === 200) {
+          setRequests(prev => prev.filter(item => item.id !== friendRequestId));
+          setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
+        }
+      });
+    })
+
   };
 
-  const handleDecline = (friendRequestId: string) => {
-    if (!socket || !token) return;
-    socket.emit("declineFriendRequest", { friendRequestId, token });
-    socket.once("declineFriendRequestResponse", (response: { code: number }) => {
-      if (response.code === 200) {
-        setRequests(prev => prev.filter(item => item.id !== friendRequestId));
-        setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
-      }
-    });
+  const handleDecline = async (friendRequestId: string) => {
+    if (!token) {
+      console.log("socket or token is empty")
+      return
+    };
+    await connectSocket().then((socket => {
+      console.log("socket send to socket name declineFriendRequest")
+
+      socket.emit("declineFriendRequest", { friendRequestId, token });
+      socket.once("declineFriendRequestResponse", (response: { code: number }) => {
+        if (response.code === 200) {
+          setRequests(prev => prev.filter(item => item.id !== friendRequestId));
+          setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
+        }
+      });
+    }))
   };
 
   const renderRequestItem = ({ item }: { item: RequestItem }) => (
     <View style={[
-      styles.requestItem, 
-      { 
+      styles.requestItem,
+      {
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.card,
         padding: isLargeScreen ? 16 : 12,
       }
     ]} key={item.id}>
-      <Image 
-        source={{ uri: item.avatarUrl }} 
+      <Image
+        source={{ uri: item.avatarUrl }}
         style={[
-          styles.avatar, 
-          { 
-            width: isLargeScreen ? 64 : 56, 
-            height: isLargeScreen ? 64 : 56 
+          styles.avatar,
+          {
+            width: isLargeScreen ? 64 : 56,
+            height: isLargeScreen ? 64 : 56
           }
-        ]} 
+        ]}
       />
       <View style={styles.infoContainer}>
         <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
@@ -256,8 +271,8 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
       ) : (
         <>
           <View style={[
-            styles.headerRow, 
-            { 
+            styles.headerRow,
+            {
               backgroundColor: theme.colors.card,
               borderBottomColor: theme.colors.border,
               paddingHorizontal: isLargeScreen ? 24 : 16,
@@ -278,7 +293,7 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
             renderItem={renderRequestItem}
             contentContainerStyle={[
               styles.listContent,
-              { 
+              {
                 padding: isLargeScreen ? 24 : 16,
                 paddingBottom: 20,
               }
@@ -298,13 +313,13 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
             visible={sortModalVisible}
             onRequestClose={() => setSortModalVisible(false)}
           >
-            <Pressable 
-              style={styles.modalOverlay} 
+            <Pressable
+              style={styles.modalOverlay}
               onPress={() => setSortModalVisible(false)}
             >
               <View style={[
                 styles.modalContent,
-                { 
+                {
                   backgroundColor: theme.colors.card,
                   width: isLargeScreen ? '50%' : '80%',
                   maxWidth: 400,
@@ -346,7 +361,7 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
                     Tên Z-A
                   </Text>
                 </TouchableOpacity>
-                <Pressable 
+                <Pressable
                   onPress={() => setSortModalVisible(false)}
                   style={styles.modalCloseContainer}
                 >

@@ -19,22 +19,26 @@ const OTPVerificationScreen: React.FC = () => {
   const [resendTime, setResendTime] = useState(30);
   const [resetKey, setResetKey] = useState(0);
   const [dialog, setDialog] = useState({ visible: false, title: '', message: '' });
-  const data = (params as { data: any })?.data;
   const dispatch = useDispatch();
   const otpRef = useRef<any>(null);
+  const { data } = useLocalSearchParams();
+  const [userSend, setUserSend] = useState(null);
   const userStore = useSelector((state: RootState) => state.user);
-  const { user } = useLocalSearchParams();
-  const parsedUser = user ? JSON.parse(user as string) : null;
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   const { width } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
 
   useEffect(() => {
-    if (userStore.id) {
+    if (data) {
+      setUserSend(JSON.parse(data as string))
+    }
+  }, [data])
+  useEffect(() => {
+    if (userStore && userStore.id) {
       router.replace('/home');
     }
-  }, [userStore.id]);
+  }, [userStore]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -54,10 +58,8 @@ const OTPVerificationScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (parsedUser?.username) {
-      handleResendOtp();
-    }
-  }, [parsedUser?.username]);
+    startCountdown()
+  }, []);
 
   const startCountdown = () => {
     setResendTime(30);
@@ -90,12 +92,12 @@ const OTPVerificationScreen: React.FC = () => {
   const handleVerifyOtp = async (code: string) => {
     if (code.length === 6) {
       try {
-        if (!parsedUser?.username) {
+        if (!userSend?.email) {
           showDialog('Lỗi!', 'Không nhận được thông tin tài khoản.');
           return;
         }
 
-        await Auth.confirmSignUp(parsedUser.username, code);
+        await Auth.confirmSignUp(userSend.email, code);
         setIsSuccessModalVisible(true);
       } catch (error: any) {
         showDialog('Lỗi!', error.message || 'Xác nhận OTP thất bại.');
@@ -106,13 +108,13 @@ const OTPVerificationScreen: React.FC = () => {
   };
 
   const handleResendOtp = async () => {
-    if (!parsedUser?.username) {
+    if (!userSend?.email) {
       setDialog({ visible: true, title: 'Lỗi!', message: 'Không nhận được thông tin số điện thoại.' });
       return;
     }
 
     try {
-      await Auth.resendSignUp(parsedUser.username);
+      await Auth.resendSignUp(userSend.email);
       setResetKey((prev) => prev + 1);
       setDialog({ visible: true, title: 'Thành công', message: 'Mã OTP đã được gửi lại!' });
       startCountdown();
@@ -126,29 +128,29 @@ const OTPVerificationScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.contentContainer, { 
+      <View style={[styles.contentContainer, {
         width: isLargeScreen ? '80%' : '100%',
         maxWidth: 500,
-        paddingHorizontal: isLargeScreen ? 40 : 24 
+        paddingHorizontal: isLargeScreen ? 40 : 24
       }]}>
         {/* Header Section */}
         <View style={styles.header}>
-          <Ionicons 
-            name="lock-closed" 
-            size={isLargeScreen ? 48 : 40} 
-            color={theme.colors.primary} 
+          <Ionicons
+            name="lock-closed"
+            size={isLargeScreen ? 48 : 40}
+            color={theme.colors.primary}
             style={styles.icon}
           />
-          <Text style={[styles.title, { 
+          <Text style={[styles.title, {
             color: theme.colors.text,
-            fontSize: isLargeScreen ? 32 : 28 
+            fontSize: isLargeScreen ? 32 : 28
           }]}>Xác thực OTP</Text>
-          <Text style={[styles.subtitle, { 
+          <Text style={[styles.subtitle, {
             color: theme.colors.text,
-            fontSize: isLargeScreen ? 18 : 16 
+            fontSize: isLargeScreen ? 18 : 16
           }]}>
             Nhập mã OTP được gửi đến {'\n'}
-            <Text style={[styles.emailText, { color: theme.colors.primary }]}>{parsedUser?.username || 'email của bạn'}</Text>
+            <Text style={[styles.emailText, { color: theme.colors.primary }]}>{userSend?.email || 'email của bạn'}</Text>
           </Text>
         </View>
 
@@ -168,13 +170,13 @@ const OTPVerificationScreen: React.FC = () => {
                 borderColor: theme.colors.border,
                 backgroundColor: theme.colors.card
               }],
-              pinCodeTextStyle: { 
-                fontSize: isLargeScreen ? 20 : 18, 
+              pinCodeTextStyle: {
+                fontSize: isLargeScreen ? 20 : 18,
                 color: theme.colors.text,
                 fontWeight: '600'
               },
-              placeholderTextStyle: { 
-                color: theme.colors.text + '80' 
+              placeholderTextStyle: {
+                color: theme.colors.text + '80'
               },
             }}
             type="numeric"
@@ -183,12 +185,12 @@ const OTPVerificationScreen: React.FC = () => {
 
         {/* Action Buttons */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity 
-            disabled={isResendDisabled} 
+          <TouchableOpacity
+            disabled={isResendDisabled}
             onPress={handleResendOtp}
             style={styles.resendButton}
           >
-            <Text style={[styles.resendText, { 
+            <Text style={[styles.resendText, {
               color: isResendDisabled ? theme.colors.text + '80' : theme.colors.primary,
               fontSize: isLargeScreen ? 16 : 14
             }]}>
@@ -196,11 +198,11 @@ const OTPVerificationScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            onPress={() => router.push({ pathname: '/RegisterScreen', params: { user, data } })}
+          <TouchableOpacity
+            onPress={() => router.replace({ pathname: '/RegisterScreen', params: { data: JSON.stringify(userSend) } })}
             style={styles.changeEmailButton}
           >
-            <Text style={[styles.changeEmailText, { 
+            <Text style={[styles.changeEmailText, {
               color: theme.colors.primary,
               fontSize: isLargeScreen ? 16 : 14
             }]}>
@@ -211,7 +213,7 @@ const OTPVerificationScreen: React.FC = () => {
 
         {/* Verify Button */}
         <TouchableOpacity
-          style={[styles.verifyButton, { 
+          style={[styles.verifyButton, {
             backgroundColor: theme.colors.primary,
             paddingVertical: isLargeScreen ? 16 : 14
           }]}
@@ -232,10 +234,10 @@ const OTPVerificationScreen: React.FC = () => {
             maxWidth: 400,
             backgroundColor: theme.colors.card
           }]}>
-            <Ionicons 
-              name="checkmark-circle" 
-              size={48} 
-              color="#4CAF50" 
+            <Ionicons
+              name="checkmark-circle"
+              size={48}
+              color="#4CAF50"
               style={styles.modalIcon}
             />
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Thành công</Text>

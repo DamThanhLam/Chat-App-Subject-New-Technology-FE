@@ -14,7 +14,7 @@ import {
   FlatList,
   Dimensions,
   Platform,
-  
+
 } from "react-native";
 import { useColorScheme } from "react-native";
 import {
@@ -127,11 +127,11 @@ const FriendScreen = () => {
   const fetchGroups = async () => {
     try {
       if (!user?.id || !token) return;
-  
+
       const groupsData = await apiFetch(`/api/conversations/my-groups/${user.id}`);
-      
+
       if (!Array.isArray(groupsData)) throw new Error("Phản hồi không hợp lệ");
-  
+
       const processedGroups = await Promise.all(
         groupsData.map(async (group) => ({
           ...group,
@@ -156,7 +156,7 @@ const FriendScreen = () => {
     try {
       const friendsData = await apiFetch(`/api/friends/get-friends/${user.id}`);
       const acceptedFriends = friendsData.friends.filter(friend => friend.status === "accepted");
-  
+
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend) => {
           const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
@@ -244,7 +244,7 @@ const FriendScreen = () => {
       if (data?.users && data.users.length > 0) {
         const foundUser = data.users[0];
         setSearchResult(foundUser);
-  
+
         // Kiểm tra nếu đã là bạn bè
         const alreadyFriend = friends.some(
           (f) =>
@@ -252,7 +252,7 @@ const FriendScreen = () => {
             (f.receiverId === user.id && f.senderId === foundUser.id)
         );
         setIsAlreadyFriend(alreadyFriend);
-  
+
         // Nếu chưa là bạn bè, kiểm tra lời mời đang chờ
         if (!alreadyFriend) {
           const checkPendingData = await apiFetch(
@@ -269,7 +269,7 @@ const FriendScreen = () => {
       setSearching(false);
     }
   };
-  
+
 
   useEffect(() => {
     connectSocket().then(socket => {
@@ -289,8 +289,10 @@ const FriendScreen = () => {
       socket?.on(
         "added-to-group",
         handleNewGroup)
+      // socket.on("friendRequestAccepted", );
     });
   }, []);
+
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
 
@@ -340,7 +342,7 @@ const FriendScreen = () => {
       alert("Không thể hủy lời mời.");
     }
   };
-  
+
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
@@ -665,7 +667,7 @@ const FriendScreen = () => {
             </View>
 
             {searching && <ActivityIndicator style={{ marginTop: 10 }} color={theme.colors.primary} />}
-            
+
             {searchResult && (
               <View style={[styles.searchResultContainer, { backgroundColor: theme.colors.background }]}>
                 <Image
@@ -819,9 +821,9 @@ const FriendScreen = () => {
                 disabled={selectedFriends.length < 2 || !groupName.trim()}
                 style={[
                   styles.actionBtn,
-                  { 
-                    backgroundColor: selectedFriends.length < 2 || !groupName.trim() 
-                      ? theme.colors.border 
+                  {
+                    backgroundColor: selectedFriends.length < 2 || !groupName.trim()
+                      ? theme.colors.border
                       : theme.colors.primary,
                     opacity: selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1
                   },
@@ -840,7 +842,7 @@ const FriendScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
     paddingTop: isSmallDevice ? 10 : 20,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
@@ -848,16 +850,16 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingBottom: 20,
   },
-  loadingContainer: { 
-    flex: 1, 
-    justifyContent: "center", 
-    alignItems: "center" 
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center"
   },
   contentContainer: {
     paddingHorizontal: isSmallDevice ? 12 : 16,
     marginBottom: 20,
   },
-  
+
   // Search Bar
   searchContainer: {
     marginTop: isSmallDevice ? 8 : 16,
@@ -875,15 +877,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  searchIcon: { 
-    marginRight: 8 
+  searchIcon: {
+    marginRight: 8
   },
-  searchInput: { 
-    flex: 1, 
-    fontSize: isSmallDevice ? 14 : 16, 
-    paddingVertical: 0 
+  searchInput: {
+    flex: 1,
+    fontSize: isSmallDevice ? 14 : 16,
+    paddingVertical: 0
   },
-  
+
   // Tabs
   tabContainer: {
     flexDirection: "row",
@@ -893,14 +895,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
-  tab: { 
-    paddingVertical: 12, 
+  tab: {
+    paddingVertical: 12,
     paddingHorizontal: isSmallDevice ? 16 : 24,
     marginHorizontal: 4,
   },
-  tabText: { 
-    fontSize: isSmallDevice ? 14 : 16, 
-    fontWeight: "600" 
+  tabText: {
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "600"
   },
   activeTab: {
     borderBottomWidth: 3,
@@ -909,26 +911,26 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#007AFF',
   },
-  
+
   // Action Buttons
   actionButtons: {
     marginTop: isSmallDevice ? 12 : 16,
     marginHorizontal: isSmallDevice ? 12 : 16,
   },
   actionButton: {
-    flexDirection: "row", 
+    flexDirection: "row",
     alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
-  actionButtonText: { 
-    marginLeft: 8, 
-    fontSize: isSmallDevice ? 14 : 16, 
-    fontWeight: "500" 
+  actionButtonText: {
+    marginLeft: 8,
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "500"
   },
-  
+
   // Friend/Group Items
   itemContainer: {
     flexDirection: "row",
@@ -937,10 +939,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: isSmallDevice ? 8 : 16,
     borderBottomWidth: 1,
   },
-  avatar: { 
-    width: isSmallDevice ? 40 : 48, 
-    height: isSmallDevice ? 40 : 48, 
-    borderRadius: isSmallDevice ? 20 : 24 
+  avatar: {
+    width: isSmallDevice ? 40 : 48,
+    height: isSmallDevice ? 40 : 48,
+    borderRadius: isSmallDevice ? 20 : 24
   },
   modalAvatar: {
     width: 80,
@@ -948,16 +950,16 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     marginBottom: 16,
   },
-  name: { 
-    marginLeft: 12, 
-    fontSize: isSmallDevice ? 14 : 16, 
-    fontWeight: "500", 
-    flex: 1 
+  name: {
+    marginLeft: 12,
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "500",
+    flex: 1
   },
-  actions: { 
-    flexDirection: "row", 
-    marginLeft: "auto", 
-    gap: isSmallDevice ? 12 : 16 
+  actions: {
+    flexDirection: "row",
+    marginLeft: "auto",
+    gap: isSmallDevice ? 12 : 16
   },
   groupTitle: {
     fontSize: isSmallDevice ? 14 : 16,
@@ -966,7 +968,7 @@ const styles = StyleSheet.create({
     marginLeft: isSmallDevice ? 8 : 16,
     opacity: 0.8,
   },
-  
+
   // Group List
   groupItem: {
     flexDirection: "row",
@@ -1009,7 +1011,7 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 24,
   },
-  
+
   // Modals
   modalOverlay: {
     flex: 1,
@@ -1073,7 +1075,7 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginRight: 0,
   },
-  
+
   // Buttons
   buttonRow: {
     flexDirection: "row",
@@ -1092,12 +1094,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  buttonText: { 
-    color: "#fff", 
-    fontSize: isSmallDevice ? 14 : 16, 
-    fontWeight: "600" 
+  buttonText: {
+    color: "#fff",
+    fontSize: isSmallDevice ? 14 : 16,
+    fontWeight: "600"
   },
-  
+
   // Search Results
   searchResultContainer: {
     marginTop: 16,
@@ -1120,7 +1122,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: isSmallDevice ? 14 : 16,
   },
-  
+
   // Checkbox
   checkboxCircle: {
     marginLeft: "auto",
@@ -1137,7 +1139,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
   },
-  
+
   // Modal Footer
   modalFooter: {
     flexDirection: "row",

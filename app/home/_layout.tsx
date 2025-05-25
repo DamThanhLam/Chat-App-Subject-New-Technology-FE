@@ -9,12 +9,11 @@ import { useEffect } from "react";
 
 export default function RootLayout() {
   const pathname = usePathname();
-  const hideNav = pathname.startsWith("/home/settings"); //
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false }} />
-      {!hideNav && <BottomNavBar />}
+      <BottomNavBar />
     </>
   );
 }
@@ -26,20 +25,17 @@ function BottomNavBar() {
   // Nếu chưa đăng nhập (user.id rỗng), chuyển hướng sang màn hình login
 
   useEffect(() => {
-    if (!user.id) {
+    if (!user || !user.id) {
       return <Redirect href="/(auth)/LoginScreen" />;
     }
-  }, [user.id]);
-  useEffect(() => {
-    router.push("/home/HomeScreen")
-  }, [])
+  }, [user]);
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.push("/home/HomeScreen")} style={styles.tab}>
+      <TouchableOpacity onPress={() => router.push("/home")} style={styles.tab}>
         <Ionicons
           name="home-outline"
           size={24}
-          color={pathname.includes("HomeScreen") ? "#007AFF" : "#666"}
+          color={pathname === "/home" ? "#007AFF" : "#666"}
         />
         <Text>Home</Text>
       </TouchableOpacity>

@@ -26,6 +26,7 @@ import { updateUser } from "@/src/redux/slices/UserSlice";
 import * as ImagePicker from 'expo-image-picker';
 import { DOMAIN } from "@/src/configs/base_url";
 import * as FileSystem from "expo-file-system";
+import { showError } from "@/src/utils/announce";
 
 const ProfileScreen = () => {
   const dispatch = useDispatch();
@@ -71,7 +72,7 @@ const ProfileScreen = () => {
     if (!token || !user.id) return;
     const fetchUser = async () => {
       try {
-        const res = await fetch(DOMAIN+`:3000/api/user`, {
+        const res = await fetch(DOMAIN + `:3000/api/user`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -177,8 +178,9 @@ const ProfileScreen = () => {
           },
           body: formData,
         });
-
-        if (!uploadResp.ok) throw new Error("Avatar upload failed");
+        if (!uploadResp.ok) {
+          throw new Error(await uploadResp.json());
+        }
         const { avatar } = await uploadResp.json();
         newAvatarUrl = avatar;
       }
@@ -200,7 +202,7 @@ const ProfileScreen = () => {
       setOriginalAvatar(newAvatarUrl);
     } catch (err) {
       console.error(err);
-      Alert.alert("Error", "Không thể cập nhật, thử lại sau");
+      showError(err)
     } finally {
       setLoading(false);
     }
@@ -224,38 +226,38 @@ const ProfileScreen = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={[
-            styles.scrollContainer, 
-            { 
+            styles.scrollContainer,
+            {
               paddingHorizontal: isLargeScreen ? width * 0.15 : 16,
-              paddingTop: isLargeScreen ? 30 : 20 
+              paddingTop: isLargeScreen ? 30 : 20
             }
-          ]} 
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            <TouchableOpacity 
-              style={styles.avatarContainer} 
-              onPress={pickAvatar} 
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={pickAvatar}
               activeOpacity={0.7}
             >
               <Image
                 source={{ uri: avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png" }}
                 style={[
                   styles.avatar,
-                  { 
+                  {
                     width: isLargeScreen ? 150 : 100,
                     height: isLargeScreen ? 150 : 100,
                   }
                 ]}
               />
               <View style={[styles.editOverlay, { backgroundColor: theme.colors.primary + "80" }]}>
-                <Ionicons 
-                  name="camera" 
-                  size={isLargeScreen ? 24 : 20} 
-                  color="#fff" 
+                <Ionicons
+                  name="camera"
+                  size={isLargeScreen ? 24 : 20}
+                  color="#fff"
                 />
               </View>
             </TouchableOpacity>
@@ -264,7 +266,7 @@ const ProfileScreen = () => {
           {/* Profile Info */}
           <View style={[
             styles.infoContainer,
-            { 
+            {
               backgroundColor: theme.colors.card,
               padding: isLargeScreen ? 24 : 16,
               borderRadius: 16,
@@ -303,15 +305,17 @@ const ProfileScreen = () => {
           {/* Action Buttons */}
           <View style={[
             styles.buttonContainer,
-            { 
+            {
               marginTop: isLargeScreen ? 30 : 20,
               paddingHorizontal: isLargeScreen ? width * 0.1 : 0,
+              marginBottom: 50
+
             }
           ]}>
             <TouchableOpacity
               style={[
-                styles.resetButton, 
-                { 
+                styles.resetButton,
+                {
                   borderColor: "#FF4D4D",
                   paddingVertical: isLargeScreen ? 16 : 12,
                 }
@@ -324,8 +328,8 @@ const ProfileScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[
-                styles.saveButton, 
-                { 
+                styles.saveButton,
+                {
                   backgroundColor: theme.colors.primary,
                   paddingVertical: isLargeScreen ? 16 : 12,
                 }
@@ -367,15 +371,15 @@ const ProfileItem = ({
   isLargeScreen: boolean;
 }) => (
   <View style={[
-    styles.itemContainer, 
-    { 
+    styles.itemContainer,
+    {
       borderBottomColor: theme.colors.border,
       paddingVertical: isLargeScreen ? 16 : 12,
     }
   ]}>
     <Text style={[
-      styles.itemLabel, 
-      { 
+      styles.itemLabel,
+      {
         color: theme.colors.text,
         fontSize: isLargeScreen ? 18 : 16,
       }
@@ -399,10 +403,10 @@ const ProfileItem = ({
     />
     {showEditIcon && (
       <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-        <Ionicons 
-          name="pencil" 
-          size={isLargeScreen ? 22 : 18} 
-          color={theme.colors.text} 
+        <Ionicons
+          name="pencil"
+          size={isLargeScreen ? 22 : 18}
+          color={theme.colors.text}
         />
       </TouchableOpacity>
     )}
@@ -501,6 +505,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
+
   },
   saveText: {
     color: "#fff",

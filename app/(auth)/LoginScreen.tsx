@@ -82,7 +82,7 @@ export default function LoginScreen() {
       }
       await connectSocket()
 
-      router.push("/home/HomeScreen");
+      router.push("/home");
     } catch (error: any) {
       if (error.code === "UserNotConfirmedException") {
         router.push({

@@ -55,6 +55,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   const params = useLocalSearchParams();
   const userStore = useSelector((state: RootState) => state.user);
   const { width } = useWindowDimensions();
+  const { data } = useLocalSearchParams();
 
   const [form, setForm] = useState<FormState>({
     fullName: "",
@@ -76,22 +77,27 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const data = (route.params as { data: any })?.data;
 
   useEffect(() => {
     if (userStore.id) {
       router.replace("/home");
     }
   }, [userStore.id]);
-
   useEffect(() => {
-    if (data) {
-      setForm((prevForm) => ({
-        ...prevForm,
-        ...data,
-      }));
+    try {
+      if (data) {
+        const parsed = JSON.parse(data as string);
+        checkPasswordRules(parsed.password)
+        setForm((prevForm) => ({
+          ...prevForm,
+          ...parsed
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to parse data:', err);
     }
   }, [route.params]);
+
 
   const countryCodes = [{ label: "Vietnam (+84)", value: "+84" }];
 
@@ -122,8 +128,8 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
       newErrors.confirmPassword = "Please confirm password";
     if (form.password !== form.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
-
     setErrors(newErrors);
+    console.log(Object.keys(newErrors).length === 0)
     return (
       Object.keys(newErrors).length === 0 &&
       Object.values(passwordRules).every(Boolean)
@@ -142,6 +148,18 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             phone_number: fullPhone,
             email: form.email,
           },
+        }).catch(e => {
+          console.log(e)
+          if (e.name === "UsernameExistsException") {
+            handleResendOtp(form.email)
+            router.replace({
+              pathname: "/OTPVerificationScreen",
+              params: {
+                data: JSON.stringify(form),
+              },
+            });
+            return;
+          }
         });
         router.push({
           pathname: "/OTPVerificationScreen",
@@ -159,6 +177,13 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   const isLargeScreen = width >= 768;
   const isSmallScreen = width <= 320;
 
+  const handleResendOtp = async (email:string) => {
+    try {
+      await Auth.resendSignUp(email);
+    } catch (error: any) {
+      setDialog({ visible: true, title: 'Lỗi!', message: error.message || 'Gửi lại OTP thất bại.' });
+    }
+  };
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -170,7 +195,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
       >
         <View style={[
           styles.container,
-          { 
+          {
             paddingHorizontal: isLargeScreen ? width * 0.15 : 24,
             paddingTop: isLargeScreen ? 40 : 24,
           }
@@ -188,7 +213,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
               <TextInput
                 style={[
                   styles.input,
-                  { 
+                  {
                     borderColor: errors.fullName ? theme.colors.notification : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
@@ -212,7 +237,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
               <TextInput
                 style={[
                   styles.input,
-                  { 
+                  {
                     borderColor: errors.email ? theme.colors.notification : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
@@ -236,7 +261,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>Phone Number:</Text>
               <View style={styles.phoneInputContainer}>
-                <View style={[
+                {/* <View style={[
                   styles.countryCodeContainer,
                   { 
                     borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
@@ -253,11 +278,11 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                       <Picker.Item key={code.value} label={code.label} value={code.value} />
                     ))}
                   </Picker>
-                </View>
+                </View> */}
                 <TextInput
                   style={[
                     styles.phoneInput,
-                    { 
+                    {
                       borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
                       color: theme.colors.text,
                       backgroundColor: theme.colors.card,
@@ -282,7 +307,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
               <Text style={[styles.label, { color: theme.colors.text }]}>Password:</Text>
               <View style={[
                 styles.passwordInputContainer,
-                { 
+                {
                   borderColor: errors.password ? theme.colors.notification : theme.colors.border,
                   backgroundColor: theme.colors.card,
                 }
@@ -298,7 +323,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                   secureTextEntry={!showPassword}
                   placeholderTextColor={theme.colors.text + '80'}
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.showButton}
                 >
@@ -307,42 +332,42 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
 
-        {/* Chỉ hiển thị quy tắc nếu có nhập password và có ít nhất 1 quy tắc không thỏa mãn */}
-        {form.password && !Object.values(passwordRules).every(Boolean) && (
-          <View style={styles.passwordRules}>
-            {!passwordRules.minLength && (
-              <Text style={{ color: theme.colors.text }}>
-                ─ At least 8 characters
-              </Text>
-            )}
-            {!passwordRules.lowercase && (
-              <Text style={{ color: theme.colors.text }}>
-                ─ Lowercase letter
-              </Text>
-            )}
-            {!passwordRules.uppercase && (
-              <Text style={{ color: theme.colors.text }}>
-                ─ Uppercase letter
-              </Text>
-            )}
-            {!passwordRules.symbol && (
-              <Text style={{ color: theme.colors.text }}>
-                ─ Symbol
-              </Text>
-            )}
-          </View>
-        )}
-        {errors.password && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.password}</Text>}
-      </View>
+
+              {/* Chỉ hiển thị quy tắc nếu có nhập password và có ít nhất 1 quy tắc không thỏa mãn */}
+              {form.password && !Object.values(passwordRules).every(Boolean) && (
+                <View style={styles.passwordRules}>
+                  {!passwordRules.minLength && (
+                    <Text style={{ color: theme.colors.text }}>
+                      ─ At least 8 characters
+                    </Text>
+                  )}
+                  {!passwordRules.lowercase && (
+                    <Text style={{ color: theme.colors.text }}>
+                      ─ Lowercase letter
+                    </Text>
+                  )}
+                  {!passwordRules.uppercase && (
+                    <Text style={{ color: theme.colors.text }}>
+                      ─ Uppercase letter
+                    </Text>
+                  )}
+                  {!passwordRules.symbol && (
+                    <Text style={{ color: theme.colors.text }}>
+                      ─ Symbol
+                    </Text>
+                  )}
+                </View>
+              )}
+              {errors.password && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.password}</Text>}
+            </View>
 
             {/* Confirm Password */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
               <View style={[
                 styles.passwordInputContainer,
-                { 
+                {
                   borderColor: errors.confirmPassword ? theme.colors.notification : theme.colors.border,
                   backgroundColor: theme.colors.card,
                 }
@@ -355,7 +380,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                   secureTextEntry={!showConfirmPassword}
                   placeholderTextColor={theme.colors.text + '80'}
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   style={styles.showButton}
                 >

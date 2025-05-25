@@ -129,7 +129,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   useEffect(() => {
     if (!visible || !conversationId) return;
 
-    const socket = getSocket();
+    const socket = connectSocket();
     if (!socket) {
       console.error("Socket chưa sẵn sàng.");
       return;
@@ -140,7 +140,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       "Gửi sự kiện get-approval-status với conversationId:",
       conversationId
     );
-    socket.emit("get-approval-status", conversationId);
 
     // Lắng nghe phản hồi từ server
     const handleApprovalStatus = (data: {
@@ -156,12 +155,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     };
 
-    socket.on("approval-status", handleApprovalStatus);
+    socket.then(socket => {
+      socket.on("approval-status", handleApprovalStatus);
+    })
 
-    // Cleanup listener khi component unmount
-    return () => {
-      socket.off("approval-status", handleApprovalStatus);
-    };
   }, [visible, conversationId]);
 
   // Lấy thông tin nhóm và thành viên nhóm
@@ -640,7 +637,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       useNativeDriver: true,
     }).start(() => {
       onClose();
-      router.replace("/home/HomeScreen");
+      router.replace("/home");
     });
   };
 
@@ -1067,7 +1064,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         alignItems: "center",
                         flex: 1,
                       }}
-                      onPress={() => {}}
+                      onPress={() => { }}
                     >
                       <Text
                         style={[
@@ -1655,8 +1652,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {deleteModalVisible
                 ? "Lịch sử trò chuyện đã được xóa"
                 : deleteGroupModalVisible
-                ? "Nhóm đã được xóa"
-                : "Bạn đã rời nhóm"}
+                  ? "Nhóm đã được xóa"
+                  : "Bạn đã rời nhóm"}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
