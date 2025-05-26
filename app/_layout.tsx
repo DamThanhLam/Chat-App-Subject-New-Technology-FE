@@ -12,6 +12,7 @@ import { PersistGate } from 'redux-persist/integration/react';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { store, persistor, RootState } from '@/src/redux/store'; // ✅ Import store
+import CallDialog from '@/components/CallDialog';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,7 +21,7 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
-  
+
 
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function RootLayout() {
   return (
     <Provider store={store}> {/* ✅ WRAP App with Redux Provider */}
       <PersistGate loading={null} persistor={persistor}>
+        <CallDialog />
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="+not-found" />
