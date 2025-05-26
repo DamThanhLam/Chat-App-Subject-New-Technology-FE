@@ -5,7 +5,7 @@ import { persistStore, persistReducer } from "redux-persist";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import storage from "redux-persist/lib/storage"; // Local storage for web
 import { combineReducers } from "redux";
-
+import callReducer from "./slices/CallSlice";
 import userReducer from "./slices/UserSlice";
 
 const persistConfig = {
@@ -19,6 +19,7 @@ const rootReducer = combineReducers({
   user: userReducer,
   messages: messageReducer,
   conversation: conversationReducer,
+  call: callReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
