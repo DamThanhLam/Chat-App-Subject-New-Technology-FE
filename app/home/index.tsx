@@ -41,7 +41,6 @@ interface GroupConversation {
   participants: string[];
   lastMessage: Message | null;
   avatarUrl?: string;
-  avatarUrl?: string;
 }
 
 interface CombinedConversation {
@@ -83,8 +82,6 @@ const HomeScreen = () => {
   const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const DEFAULT_AVATAR =
-    "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
   const DEFAULT_AVATAR =
     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
@@ -174,15 +171,6 @@ const HomeScreen = () => {
         });
       }
 
-      const groupConversationsList: CombinedConversation[] =
-        groupConversations.map((group) => ({
-          type: "group",
-          id: group.id,
-          displayName: group.groupName || "Nhóm chat",
-          avatar: group.avatarUrl || DEFAULT_AVATAR,
-          lastMessage: group.lastMessage,
-          participantsCount: group.participants.length,
-        }));
       const groupConversationsList: CombinedConversation[] =
         groupConversations.map((group) => ({
           type: "group",
@@ -462,10 +450,10 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-        ? "Emoji"
-        : item.lastMessage?.contentType === "file"
-        ? "File"
-        : "";
+          ? "Emoji"
+          : item.lastMessage?.contentType === "file"
+            ? "File"
+            : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (
@@ -538,7 +526,7 @@ const HomeScreen = () => {
     <SafeAreaView
       style={[
         styles.safeContainer,
-        { backgroundColor: theme.colors.background },
+        { backgroundColor: theme.colors.background }
       ]}
     >
       <View
@@ -573,14 +561,15 @@ const HomeScreen = () => {
               padding: 20,
             }}
           >
-          <Text
-            style={{
-              color: theme.colors.text,
-              textAlign: "center",
-              padding: 20,
-            }}
-          >
-            Đang tải...
+            <Text
+              style={{
+                color: theme.colors.text,
+                textAlign: "center",
+                padding: 20,
+              }}
+            >
+              Đang tải...
+            </Text>
           </Text>
         ) : (
           <FlatList

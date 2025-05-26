@@ -92,7 +92,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GroupChatScreen = () => {
   const [userID1, setUserID1] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
-  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [optionsVisible, setOptionsVisible] = useState(false); // Menu tùy chọn khác? (Có thể trùng với menuVisible?)
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -120,13 +120,11 @@ const GroupChatScreen = () => {
   const [groupName, setGroupName] = useState("Group Chat");
   const [isChatting, setIsChatting] = useState(false);
   const [isLeader, setIsleader] = useState(false);
-  const isRemoved = useRef(false);
   useEffect(() => {
     if (flatListRef.current && conversation.length > 0) {
       flatListRef.current.scrollToEnd({ animated: false });
     }
   }, [conversation]);
-
   // Authentication: get userID and token
   useEffect(() => {
     const initAuth = async () => {
@@ -168,8 +166,8 @@ const GroupChatScreen = () => {
               console.log(udata);
               return {
                 _id: uid,
-                name: udata.username || udata.name || "Unknown",
-                image: udata.avatarUrl || udata.urlAVT || "",
+                name: udata.username || "Unknown",
+                image: udata.avatarUrl || "",
               };
             } catch (e) {
               console.log(e.message);
@@ -187,6 +185,7 @@ const GroupChatScreen = () => {
   }, [conversationId, token, userID1]);
 
   const handleEmojiSelectMobile = (emoji: EmojiType) => {
+    // dùng emoji.emoji để nối vào message
     setMessage((m) => {
       if (m) {
         return m + emoji.emoji;
@@ -195,7 +194,6 @@ const GroupChatScreen = () => {
     });
     setShowEmojiPicker(false);
   };
-
   // Fetch group messages history
   useEffect(() => {
     if (!conversationId || !token) return;
@@ -220,10 +218,7 @@ const GroupChatScreen = () => {
   // Socket.IO for group chat
   useEffect(() => {
     let socket: any;
-
-    // Skip if the group is already marked as removed
-    if (isRemoved.current) return;
-
+    let isRemoved = false;
     const handleNew = ({
       message: newMsg,
       conversationId: cid,
@@ -247,7 +242,6 @@ const GroupChatScreen = () => {
         });
       }
     };
-
     // Handle group deletion
     const handleGroupDeleted = ({
       conversationId: cid,
@@ -255,19 +249,14 @@ const GroupChatScreen = () => {
       conversationId: string;
     }) => {
       if (cid === conversationId) {
-        // Use a ref to track if notification was already shown
-        if (isRemoved.current) return; // Skip if already processed
-        isRemoved.current = true; // Mark as processed
-
         const alertMessage =
           "Nhóm đã giải tán. Bạn sẽ được chuyển về trang chính.";
         Platform.OS === "web"
           ? window.alert(alertMessage)
           : Alert.alert("Thông báo", alertMessage);
-        router.replace("/home");
+        router.replace("/home/HomeScreen");
       }
     };
-
     const handleRemovedFromGroup = ({
       conversationId: cid,
       message,
@@ -281,10 +270,9 @@ const GroupChatScreen = () => {
           : Alert.alert("Thông báo", message);
 
         // Navigate back to home screen
-        router.replace("/home");
+        router.replace("/home/HomeScreen");
       }
     };
-
     const handleUserLeft = ({
       userId,
       username,
@@ -294,39 +282,19 @@ const GroupChatScreen = () => {
       userId: string;
       username: string;
       conversationId: string;
-      message?: any;
     }) => {
       if (cid === conversationId) {
+        // Update participants list
         if (userId === userID1) {
           router.back();
-          return; // Exit early if current user left
         }
-
-        // Update participants list first
         setGroupParticipants((prev) => prev.filter((p) => p._id !== userId));
-
-        // Only add the message to conversation if it's valid and has the required format
-        if (message && typeof message === "object" && message.createdAt) {
-          setConversation((prev) => [...prev, message]);
-        } else if (username) {
-          // Create a system message if the message object is not valid
-          const systemMessage: Message = {
-            id: `system-${Date.now()}`,
-            conversationId: conversationId,
-            senderId: "system",
-            message: `${username} đã rời khỏi nhóm`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            readed: [],
-            messageType: "group",
-            contentType: "text",
-            status: "sended",
-          };
-          setConversation((prev) => [...prev, systemMessage]);
-        }
+        setConversation((pre) => [...pre, message]);
+        setGroupParticipants((pre) => {
+          return pre.filter((item) => item._id != userId);
+        });
       }
     };
-
     connectSocket()
       .then(() => {
         socket = getSocket();
@@ -361,8 +329,8 @@ const GroupChatScreen = () => {
                   ...pre,
                   {
                     _id: userJoin.id,
-                    name: userJoin.name || userJoin.username || "Unknown",
-                    image: userJoin.urlAVT || userJoin.avatarUrl || "",
+                    name: userJoin.name || "Unknown",
+                    image: userJoin.urlAVT || "",
                   },
                 ]);
             }
@@ -378,8 +346,8 @@ const GroupChatScreen = () => {
                   ...pre,
                   {
                     _id: userJoin.id,
-                    name: userJoin.name || userJoin.username || "Unknown",
-                    image: userJoin.urlAVT || userJoin.avatarUrl || "",
+                    name: userJoin.name || "Unknown",
+                    image: userJoin.urlAVT || "",
                   },
                 ]);
             }
@@ -399,7 +367,6 @@ const GroupChatScreen = () => {
 
     return () => {
       if (socket) {
-        console.log("Cleaning up socket listeners for GroupChatScreen");
         socket.emit("leave-group", conversationId);
         socket.off("message-deleted");
         socket.off("message-recalled");
@@ -425,16 +392,18 @@ const GroupChatScreen = () => {
   }, [conversationId]);
 
   const openSettings = useCallback(() => {
+    // Tránh mở lại nếu đã mở hoặc các menu khác đang mở
     if (settingsVisible || menuVisible || optionsVisible) return;
 
-    slideAnim.setValue(SCREEN_WIDTH);
+    slideAnim.setValue(SCREEN_WIDTH); // Bắt đầu từ ngoài màn hình
     Animated.timing(slideAnim, {
-      toValue: 0,
+      toValue: 0, // Trượt vào
       duration: 200,
       useNativeDriver: true,
     }).start(() => setSettingsVisible(true));
-  }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
+  }, [settingsVisible, menuVisible, optionsVisible, slideAnim]); // Dependencies cho useCallback
 
+  // Send text message
   const sendTextMessage = () => {
     if (!message.trim()) return;
     const socket = getSocket();
@@ -463,79 +432,53 @@ const GroupChatScreen = () => {
       tempId,
     });
   };
-
+  // 2. Mobile: chọn nhiều ảnh rồi upload
   const handleMobileMultiImageSelect = async (
     selectedAssets: MediaLibrary.Asset[]
   ) => {
     try {
+      // map sang định dạng cần thiết
       const files = selectedAssets.map((asset) => ({
         uri: asset.uri,
         name: asset.filename,
       }));
-
       // 1) upload lên server, nhận mảng URL
       const imagesUpload = await uploadFilesToServer(files);
-
+      setConversation((prev) => [...prev, optimistic]);
+      setMessage("");
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
       // 2) emit socket cho mỗi URL hoặc gộp
       imagesUpload.forEach((image: any) => {
-        // Create a temporary optimistic message for each uploaded image
-        const tempId = `temp-file-${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(2, 9)}`;
-
-        const optimisticMessage: Message = {
-          id: tempId,
-          conversationId,
-          senderId: userID1,
-          message: {
-            data: image.url,
-            filename: image.filename,
-            size: 0,
-            type: "image",
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          readed: [],
-          messageType: "group",
-          contentType: "file",
-          status: "sended",
-        };
-
-        // Add the optimistic message to the conversation
-        setConversation((prev) => [...prev, optimisticMessage]);
-
-        // Emit the actual message
         getSocket().emit("group-message", {
           conversationId: conversationId,
           message: { data: image.url, filename: image.filename },
           messageType: "group",
           contentType: "file",
-          tempId,
         });
       });
-
-      setTimeout(
-        () => flatListRef.current?.scrollToEnd({ animated: true }),
-        100
-      );
       setShowImagePicker(false);
     } catch (error: any) {
       console.error("Upload images error:", error);
       Alert.alert("Error", error.message);
     }
   };
-
+  // Upload helper
   async function uploadFilesToServer(
     files: Array<{ uri: string | File; name: string }>
   ) {
     const formData = new FormData();
     files.forEach((file) => {
       if (Platform.OS === "web" && file.uri instanceof File) {
+        // Web: append trực tiếp File object
         formData.append("images", file.uri, file.name);
       } else {
+        // Mobile: sử dụng thông tin hợp lệ
         formData.append("images", {
           uri: file.uri,
-          name: file.name,
+          name: file.name, // ✅ Đúng key
           type: "application/octet-stream",
         } as any);
       }
@@ -558,13 +501,13 @@ const GroupChatScreen = () => {
     return data.images;
   }
 
+  // Image selection & send
   const toggleSelectImage = (asset: MediaLibrary.Asset) => {
     setTempSelectedImages((prev) => {
       const exists = prev.find((a) => a.id === asset.id);
       return exists ? prev.filter((a) => a.id !== asset.id) : [...prev, asset];
     });
   };
-
   const sendSelectedImages = async () => {
     console.log(tempSelectedImages.length);
     if (tempSelectedImages.length === 0) return;
@@ -582,28 +525,30 @@ const GroupChatScreen = () => {
     });
     setDeviceImages(media.assets);
   };
-
   const getDeviceFiles = async () => {
     try {
+      // Gọi DocumentPicker với option multiple: true (chỉ hỗ trợ nhiều file trên web)
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: true,
-        multiple: true,
+        multiple: true, // Trên iOS chỉ có thể chọn 1 file
       });
       console.log("DocumentPicker result:", result);
 
       let files: Array<{ name: string; size?: number; uri: string }> = [];
 
       if (Platform.OS === "web") {
+        // Trên web, DocumentPicker trả về đối tượng có trường assets (mảng các file)
         if (result && (result as any).assets) {
           files = (result as any).assets;
         }
       } else {
+        // Trên mobile (iOS/Android), kiểm tra xem người dùng đã chọn file thành công chưa
         if (result.type === "success") {
-          files = [result];
+          files = [result]; // Chỉ có 1 file được chọn
         } else if (result.type === "cancel") {
           console.log("Người dùng hủy bỏ việc chọn file.");
-          return;
+          return; // Không thực hiện gì nếu hủy
         }
       }
 
@@ -643,27 +588,24 @@ const GroupChatScreen = () => {
       Alert.alert("Error", "Không thể truy cập file. Vui lòng thử lại.");
     }
   };
-
   const handleFileOptionPress = () => {
     setOptionsVisible(false);
     setShowFilePicker(true);
     getDeviceFiles();
   };
-
   useEffect(() => {
     if (showImagePicker && Platform.OS !== "web") loadDeviceImages();
   }, [showImagePicker]);
 
+  // Toggles
   const toggleEmojiPicker = () => {
     setShowEmojiPicker((v) => !v);
     setShowImagePicker(false);
     setFilePickerVisible(false);
     if (showEmojiPicker) Keyboard.dismiss();
   };
-
   const handleEmojiClick = (e: EmojiClickData) =>
     setMessage((m) => m + e.emoji);
-
   const openImagePicker = () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
@@ -671,13 +613,12 @@ const GroupChatScreen = () => {
       setFilePickerVisible(true);
     }
   };
-
   const uriToBlob = async (uri: string): Promise<Blob> => {
     const response = await fetch(uri);
     const blob = await response.blob();
     return blob;
   };
-
+  // Hàm upload
   const handleFileSelected = async (files: DeviceFile[]) => {
     console.log(files);
     if (files.length === 0) return;
@@ -687,7 +628,7 @@ const GroupChatScreen = () => {
         files.map(async (file) => {
           const blob = await uriToBlob(file.uri);
           return {
-            uri: file.uri,
+            uri: file.uri, // optional
             name: file.name,
             type: blob.type || "application/octet-stream",
             blob: blob,
@@ -695,7 +636,7 @@ const GroupChatScreen = () => {
         })
       );
       console.log(uploadFiles);
-      const urls = await uploadFilesToServer(uploadFiles);
+      const urls = await uploadFilesToServer(uploadFiles); // custom logic
 
       urls.forEach((image: any) => {
         getSocket().emit("group-message", {
@@ -710,7 +651,6 @@ const GroupChatScreen = () => {
       Alert.alert("Upload thất bại", error.message);
     }
   };
-
   const handleMessageSelect = (msgId: string) => {
     const idx = conversation.findIndex((m) => m.id === msgId);
     if (idx >= 0)
@@ -720,25 +660,26 @@ const GroupChatScreen = () => {
         viewPosition: 0.5,
       });
   };
-
   const closeSettings = useCallback(() => {
     setSettingsVisible(false);
     Animated.timing(slideAnim, {
-      toValue: SCREEN_WIDTH,
+      toValue: SCREEN_WIDTH, // Trượt ra ngoài
       duration: 200,
       useNativeDriver: true,
     }).start();
-  }, [slideAnim]);
+  }, [slideAnim]); // Dependencies cho useCallback
 
   const closeMenu = () => {
     setMenuVisible(false);
     setSelectedMessage(null);
   };
 
+  // 3. Web: chọn nhiều file qua input[type="file"]
   const onWebFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     try {
+      // map sang định dạng cho upload
       const uploadFiles = files.map((f) => ({
         uri: f,
         name: f.name,
@@ -759,7 +700,6 @@ const GroupChatScreen = () => {
       e.target.value = "";
     }
   };
-
   return (
     <PaperProvider theme={theme}>
       {/* Hidden web file input */}
@@ -769,7 +709,7 @@ const GroupChatScreen = () => {
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={() => {}}
+          onChange={() => { }}
         />
       )}
 
@@ -821,85 +761,71 @@ const GroupChatScreen = () => {
       <FlatList
         data={conversation}
         ref={flatListRef}
-        keyExtractor={(item) =>
-          item ? item.id : `fallback-${Date.now()}-${Math.random()}`
-        }
+        keyExtractor={(item) => (item ? item.id : "")}
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }}
         renderItem={({ item }) => {
-          // Skip rendering if item is null or undefined
-          if (!item || !item.createdAt) {
-            console.warn("Skipping invalid message item:", item);
-            return null;
-          }
-
           let showDate = false;
           let stringDate = "";
-
-          try {
-            let createdAt = new Date(item.createdAt);
-            const vietnamTime = createdAt.toLocaleString("vi-VN", {
-              timeZone: "Asia/Ho_Chi_Minh",
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            });
-            let dateParts = vietnamTime.split("/");
-            const formattedDate = new Date(
-              `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
-            );
-            if (!dateBefore.current) {
-              showDate = true;
-              stringDate =
-                formattedDate.getFullYear() +
-                "/" +
-                (formattedDate.getMonth() + 1) +
-                "/" +
-                formattedDate.getDate();
-            }
-            if (
-              dateBefore.current &&
-              (dateBefore.current.getDate() != createdAt.getDate() ||
-                dateBefore.current.getMonth() != createdAt.getMonth() ||
-                dateBefore.current.getFullYear() != createdAt.getFullYear())
-            ) {
-              showDate = true;
-              stringDate =
-                formattedDate.getFullYear() +
-                "/" +
-                (formattedDate.getMonth() + 1) +
-                "/" +
-                formattedDate.getDate();
-            }
-            const isDeleted = item.status === "deleted";
-            const isRecalled = item.status === "recalled";
-            const isFile = item.contentType === "file";
-            const messageTime = format(createdAt, "HH:mm");
-            dateBefore.current = createdAt;
-            const sender = groupParticipants.find(
-              (p) => p?._id === item.senderId || p?.id === item.senderId
-            );
-
-            return (
-              <MessageItem
-                item={item}
-                userID1={userID1}
-                theme={theme}
-                showDate={showDate}
-                stringDate={stringDate}
-                isDeleted={isDeleted}
-                isRecalled={isRecalled}
-                isFile={isFile}
-                messageTime={messageTime}
-                anotherUser={sender}
-                isGroupChat={true}
-              />
-            );
-          } catch (error) {
-            console.error("Error rendering message:", error, item);
-            return null;
+          let createdAt = new Date(item.createdAt);
+          const vietnamTime = createdAt.toLocaleString("vi-VN", {
+            timeZone: "Asia/Ho_Chi_Minh",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          let dateParts = vietnamTime.split("/");
+          const formattedDate = new Date(
+            `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
+          );
+          if (!dateBefore.current) {
+            showDate = true;
+            stringDate =
+              formattedDate.getFullYear() +
+              "/" +
+              (formattedDate.getMonth() + 1) +
+              "/" +
+              formattedDate.getDate();
           }
+          if (
+            dateBefore.current &&
+            (dateBefore.current.getDate() != createdAt.getDate() ||
+              dateBefore.current.getMonth() != createdAt.getMonth() ||
+              dateBefore.current.getFullYear() != createdAt.getFullYear())
+          ) {
+            showDate = true;
+            stringDate =
+              formattedDate.getFullYear() +
+              "/" +
+              (formattedDate.getMonth() + 1) +
+              "/" +
+              formattedDate.getDate();
+          }
+          const isDeleted = item.status === "deleted";
+          const isRecalled = item.status === "recalled";
+          const isFile = item.contentType === "file";
+          const messageTime = format(new Date(item.createdAt), "HH:mm");
+          dateBefore.current = createdAt;
+          const sender = groupParticipants.find(
+            (p) => p._id === item.senderId || p.id === item.senderId
+          );
+
+          return (
+            <MessageItem
+              item={item}
+              userID1={userID1}
+              theme={theme}
+              showDate={showDate}
+              stringDate={stringDate}
+              isDeleted={isDeleted}
+              isRecalled={isRecalled}
+              isFile={isFile}
+              messageTime={messageTime}
+              anotherUser={sender}
+              isGroupChat={true}
+            />
+          );
         }}
         contentContainerStyle={styles.messagesContainer}
         onScrollToIndexFailed={(info) => {
@@ -935,7 +861,6 @@ const GroupChatScreen = () => {
         </View>
       )}
 
-
       {showEmojiPicker && Platform.OS !== "web" && (
         <EmojiPickerMobile
           open={showEmojiPicker}
@@ -967,174 +892,115 @@ const GroupChatScreen = () => {
             </TouchableOpacity>
           </View>
 
-              <FlatList
-                data={deviceImages}
-                numColumns={3}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => {
-                  const selected = !!tempSelectedImages.find(
-                    (a) => a.id === item.id
-                  );
-                  return (
-                    <TouchableOpacity
-                      onPress={() => toggleSelectImage(item)}
-                      style={[
-                        styles.imageItem,
-                        selected && {
-                          borderWidth: 2,
-                          borderColor: theme.colors.primary,
-                        },
-                      ]}
-                    >
-                      <Image
-                        source={{ uri: item.uri }}
-                        style={styles.imageThumbnail}
-                      />
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-
-              <View
-                style={{
-                  padding: 10,
-                  borderTopWidth: 1,
-                  borderColor: theme.colors.border,
-                }}
-              >
-                <Button
-                  disabled={tempSelectedImages.length === 0}
-                  onPress={sendSelectedImages}
-                >
-                  Gửi {tempSelectedImages.length} ảnh
-                </Button>
-              </View>
-            </View>
-          )}
-
-          {/* Input Area */}
-          <View
-            style={[
-              styles.inputContainer,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
-            <TouchableOpacity
-              onPress={toggleEmojiPicker}
-              style={[
-                styles.iconSpacing,
-                { display: isChatting || isLeader ? "flex" : "none" },
-              ]}
-            >
-              <FontAwesome name="smile-o" size={24} color="#007bff" />
-            </TouchableOpacity>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.background,
-                  color: theme.colors.text,
-                },
-              ]}
-              editable={isChatting || isLeader}
-              value={message}
-              onChangeText={setMessage}
-              placeholder={
-                isChatting || isLeader
-                  ? "Type a message..."
-                  : "Nhóm trưởng đã khá chat"
-              }
-              placeholderTextColor="#666666"
-            />
-            {message.trim() === "" ? (
-              <>
-                {Platform.OS === "web" && (
-                  <input
-                    type="file"
-                    multiple
-                    style={{ display: "none" }}
-                    ref={fileInputRef}
-                    onChange={onWebFilesChange}
-                    disabled={!(isChatting || isLeader)}
-                  />
-                )}
+          <FlatList
+            data={deviceImages}
+            numColumns={3}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const selected = !!tempSelectedImages.find(
+                (a) => a.id === item.id
+              );
+              return (
                 <TouchableOpacity
-                  onPress={openImagePicker}
-                  style={styles.iconSpacing}
-                  disabled={!(isChatting || isLeader)}
+                  onPress={() => toggleSelectImage(item)}
+                  style={[
+                    styles.imageItem,
+                    selected && {
+                      borderWidth: 2,
+                      borderColor: theme.colors.primary,
+                    },
+                  ]}
                 >
-                  <FontAwesome name="image" size={24} color="#007bff" />
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.imageThumbnail}
+                  />
                 </TouchableOpacity>
-              </>
-            ) : isChatting || isLeader ? (
-              <Button onPress={sendTextMessage}>Send</Button>
-            ) : (
-              <></>
-            )}
-          </View>
-        </View>
-      </View>
+              );
+            }}
+          />
 
-      {/* Modals and Panels */}
-      <Modal visible={menuVisible} transparent animationType="fade">
-        <View style={styles.modalBackground}>
           <View
-            style={[
-              styles.menuContainer,
-              { backgroundColor: theme.colors.card },
-            ]}
+            style={{
+              padding: 10,
+              borderTopWidth: 1,
+              borderColor: theme.colors.border,
+            }}
           >
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Reply")}
+            <Button
+              disabled={tempSelectedImages.length === 0}
+              onPress={sendSelectedImages}
             >
-              <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Reply
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Forward")}
-            >
-              <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Forward
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Copy")}
-            >
-              <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Copy
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Save to Cloud")}
-            >
-              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Cloud
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.closeButton,
-                { backgroundColor: theme.colors.border },
-              ]}
-              onPress={closeMenu}
-            >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Close
-              </Text>
-            </TouchableOpacity>
+              Gửi {tempSelectedImages.length} ảnh
+            </Button>
           </View>
         </View>
-      </Modal>
+      )}
+
+
+
+
+      {/* Input Area */}
+      <View
+        style={[
+          styles.inputContainer,
+          { backgroundColor: theme.colors.card },
+        ]}
+
+      >
+        <TouchableOpacity
+          onPress={toggleEmojiPicker}
+          style={[
+            styles.iconSpacing,
+            { display: isChatting || isLeader ? "flex" : "none" },
+          ]}
+        >
+          <FontAwesome name="smile-o" size={24} color="#007bff" />
+        </TouchableOpacity>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.background,
+              color: theme.colors.text,
+            },
+          ]}
+          editable={isChatting || isLeader}
+          value={message}
+          onChangeText={setMessage}
+          placeholder={
+            isChatting || isLeader
+              ? "Type a message..."
+              : "Nhóm trưởng đã khá chat"
+          }
+          placeholderTextColor="#666666"
+        />
+        {message.trim() === "" ? (
+          <>
+            {Platform.OS === "web" && (
+              <input
+                type="file"
+                multiple
+                style={{ display: "none" }}
+                ref={fileInputRef}
+                onChange={onWebFilesChange}
+                disabled={!(isChatting || isLeader)}
+              />
+            )}
+            <TouchableOpacity
+              onPress={openImagePicker}
+              style={styles.iconSpacing}
+              disabled={!(isChatting || isLeader)}
+            >
+              <FontAwesome name="image" size={24} color="#007bff" />
+            </TouchableOpacity>
+          </>
+        ) : isChatting || isLeader ? (
+          <Button onPress={sendTextMessage}>Send</Button>
+        ) : (
+          <></>
+        )}
+      </View>
 
       <SettingsPanel
         visible={settingsVisible}
@@ -1154,101 +1020,9 @@ const GroupChatScreen = () => {
         onClose={() => setFilePickerVisible(false)}
         onFileSelected={handleFileSelected}
       />
-
-      <View
-        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
-      >
-        <TouchableOpacity
-          onPress={toggleEmojiPicker}
-          style={[
-            styles.iconSpacing,
-            { display: isChatting || isLeader ? "flex" : "none" },
-          ]}
-          style={[
-            styles.iconSpacing,
-            { display: isChatting || isLeader ? "flex" : "none" },
-          ]}
-        >
-          <FontAwesome
-            name="smile-o"
-            size={24}
-            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
-          />
-        </TouchableOpacity>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.background,
-              color: theme.colors.text,
-            },
-          ]}
-          editable={isChatting || isLeader}
-          value={message}
-          onChangeText={setMessage}
-          placeholder={
-            isChatting || isLeader
-              ? "Type a message..."
-              : "Nhóm trưởng đã khá chat"
-          }
-          placeholder={
-            isChatting || isLeader
-              ? "Type a message..."
-              : "Nhóm trưởng đã khá chat"
-          }
-          placeholderTextColor={theme.colors.text}
-        />
-        {message.trim() === "" ? (
-          <>
-            <TouchableOpacity
-              onPress={() => alert("Record")}
-              style={styles.iconSpacing}
-              disabled={!(isChatting || isLeader)}
-            >
-              <FontAwesome
-                name="microphone"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-            {/* Hidden web file input */}
-            {Platform.OS === "web" && (
-              <input
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                ref={fileInputRef}
-                onChange={onWebFilesChange}
-                disabled={!(isChatting || isLeader)}
-              />
-            )}
-
-            <TouchableOpacity
-              onPress={openImagePicker}
-              style={styles.iconSpacing}
-              disabled={!(isChatting || isLeader)}
-            >
-              <FontAwesome
-                name="image"
-                size={24}
-                color={
-                  showImagePicker ? theme.colors.primary : theme.colors.text
-                }
-              />
-            </TouchableOpacity>
-          </>
-        ) : isChatting || isLeader ? (
-          <Button onPress={sendTextMessage}>Send</Button>
-        ) : (
-          <></>
-        )}
-        ) : isChatting || isLeader ? (
-          <Button onPress={sendTextMessage}>Send</Button>
-        ) : (
-          <></>
-        )}
-      </View>
-    </PaperProvider>
+      
+     
+    </PaperProvider >
   );
 };
 
@@ -1257,60 +1031,41 @@ export default GroupChatScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: "row",
-    backgroundColor: "#e0e0e0", // Updated to gray background
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: "#f7f8fa", // Softer background for better contrast
   },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: SCREEN_WIDTH * 0.04, // 4% of screen width
     paddingVertical: 12,
+    backgroundColor: "transparent",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
-    elevation: 3,
+    elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-  },
-  participantItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  participantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  participantName: {
-    flex: 1,
-    fontSize: 14,
-    color: "#000000",
-  },
-  chatContainer: {
-    flex: 1,
-    flexDirection: "column",
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 40,
   },
   headerTitleContainer: {
     flex: 1,
-    paddingLeft: SCREEN_WIDTH * 0.02,
+    paddingLeft: SCREEN_WIDTH * 0.03, // 3% of screen width
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: SCREEN_WIDTH * 0.05, // Responsive font size (5% of screen width)
     fontWeight: "700",
-    flex: 1,
-    paddingLeft: 12,
+    lineHeight: SCREEN_WIDTH * 0.06,
+    color: "#1a1a1a",
   },
   participantsText: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.035, // Responsive font size
     fontWeight: "400",
-    color: "#666666",
+    lineHeight: SCREEN_WIDTH * 0.045,
+    opacity: 0.6,
+    color: "#666",
     marginTop: 2,
   },
   headerIcons: {
@@ -1318,36 +1073,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconSpacing: {
-    marginHorizontal: SCREEN_WIDTH * 0.01,
-    padding: 8,
+    marginHorizontal: SCREEN_WIDTH * 0.03, // Responsive spacing
+    padding: 8, // Larger touch area
   },
   messagesContainer: {
-    flexGrow: 1,
-    paddingHorizontal: SCREEN_WIDTH * 0.02,
-    paddingVertical: 10,
-    backgroundColor: "#e0e0e0", // Updated to gray background
-  },
-  dateSeparatorContainer: {
-    alignSelf: "center",
-    marginVertical: 10,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  dateSeparatorText: {
-    fontSize: 12,
-    color: "#666666",
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
+    paddingBottom: 20,
+    paddingTop: 10,
+    backgroundColor: "#f7f8fa",
   },
   sentMessageContainer: {
     justifyContent: "flex-end",
-    marginLeft: SCREEN_WIDTH * 0.2,
-    marginVertical: 8,
+    marginLeft: SCREEN_WIDTH * 0.15, // 15% of screen width
+    marginVertical: 6,
   },
   receivedMessageContainer: {
     justifyContent: "flex-start",
-    marginRight: SCREEN_WIDTH * 0.2,
-    marginVertical: 8,
+    marginRight: SCREEN_WIDTH * 0.15,
+    marginVertical: 6,
   },
   messageContainer: {
     flexDirection: "row",
@@ -1355,21 +1098,20 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   recalledMessageContainer: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: SCREEN_WIDTH * 0.1, // 10% of screen width
+    height: SCREEN_WIDTH * 0.1,
+    borderRadius: SCREEN_WIDTH * 0.05,
     marginRight: 10,
     borderWidth: 1,
     borderColor: "#e0e0e0",
   },
   avatarPlaceholder: {
-    width: 40,
+    width: SCREEN_WIDTH * 0.1,
   },
   threeDotContainer: {
-    position: "absolute",
     top: 5,
     right: 5,
     zIndex: 10,
@@ -1377,158 +1119,168 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 12,
     borderRadius: 20,
-    maxWidth: "80%",
-    borderWidth: 1,
-    borderColor: "#e0e0e0", // Added border to match the image
+    maxWidth: "80%", // Responsive max width
+    backgroundColor: "#fff",
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3,
   },
   messageText: {
-    fontSize: 14,
-    color: "#ffffff", // Default text color (will be overridden in MessageItem)
+    fontSize: SCREEN_WIDTH * 0.04, // Responsive font size
+    lineHeight: SCREEN_WIDTH * 0.055,
+    color: "#1a1a1a",
     fontWeight: "400",
   },
   recalledMessageText: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.035,
     fontStyle: "italic",
-    color: "#888888",
+    color: "#888",
+    lineHeight: SCREEN_WIDTH * 0.05,
   },
   messageTime: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: SCREEN_WIDTH * 0.03,
+    marginTop: 6,
     opacity: 0.7,
-    color: "#666666",
+    color: "#888",
     alignSelf: "flex-end",
   },
   messageImage: {
-    width: SCREEN_WIDTH * 0.5,
-    height: SCREEN_WIDTH * 0.5,
+    width: SCREEN_WIDTH * 0.55, // Responsive image width
+    height: SCREEN_WIDTH * 0.55,
     borderRadius: 16,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   imageTimeText: {
-    fontSize: 12,
+    fontSize: SCREEN_WIDTH * 0.03,
     textAlign: "right",
     opacity: 0.7,
-    color: "#666666",
+    color: "#888",
   },
   fileContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 10,
+    padding: 12,
     borderRadius: 16,
-    backgroundColor: "#ffffff",
-    maxWidth: "75%",
-    elevation: 1,
-    shadowColor: "#e0e0e0",
+    backgroundColor: "#f5f5f5",
+    maxWidth: "80%",
+    elevation: 2,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   fileInfo: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   fileName: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.038,
     fontWeight: "500",
-    color: "#333333",
+    color: "#1a1a1a",
+    lineHeight: SCREEN_WIDTH * 0.05,
   },
   fileTimeText: {
-    fontSize: 12,
+    fontSize: SCREEN_WIDTH * 0.03,
     opacity: 0.7,
     marginTop: 4,
-    color: "#666666",
+    color: "#888",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
-    paddingHorizontal: SCREEN_WIDTH * 0.02,
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    backgroundColor: "#ffffff",
+    borderColor: "#e0e0e0",
+    backgroundColor: "#fff",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   input: {
     flex: 1,
-    height: 40,
-    borderRadius: 20,
+    height: 48,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    marginHorizontal: 10,
-    backgroundColor: "#f8f8f8",
+    marginHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    fontSize: 14,
-    color: "#000000",
+    borderColor: "#ddd",
+    backgroundColor: "#f9f9f9",
+    fontSize: SCREEN_WIDTH * 0.04,
+    lineHeight: SCREEN_WIDTH * 0.055,
   },
   modalBackground: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
   menuContainer: {
-    width: SCREEN_WIDTH * 0.7,
+    width: SCREEN_WIDTH * 0.6, // 60% of screen width
     borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#ffffff",
-    elevation: 6,
+    padding: 20,
+    backgroundColor: "#fff",
+    elevation: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 6,
   },
   menuItem: {
-    paddingVertical: 12,
+    paddingVertical: 14,
     width: "100%",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderColor: "#eee",
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     gap: 12,
   },
   menuText: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.04,
     fontWeight: "500",
-    color: "#333333",
+    color: "#333",
+    lineHeight: SCREEN_WIDTH * 0.055,
   },
   closeButton: {
-    marginTop: 16,
-    paddingVertical: 12,
+    marginTop: 20,
+    paddingVertical: 14,
     width: "100%",
     alignItems: "center",
     borderRadius: 12,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#f5f5f5",
   },
   optionsContainer: {
-    width: SCREEN_WIDTH * 0.7,
+    width: SCREEN_WIDTH * 0.6,
     borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#ffffff",
-    elevation: 6,
+    padding: 20,
+    backgroundColor: "#fff",
+    elevation: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 6,
   },
   optionItem: {
-    paddingVertical: 12,
+    paddingVertical: 14,
     width: "100%",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderColor: "#eee",
   },
   optionText: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.04,
     fontWeight: "500",
-    color: "#333333",
+    color: "#333",
+    lineHeight: SCREEN_WIDTH * 0.055,
   },
   settingsModalBackground: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   settingsPanel: {
     position: "absolute",
@@ -1536,36 +1288,38 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SCREEN_WIDTH * 0.75,
-    backgroundColor: "#ffffff",
-    elevation: 6,
+    backgroundColor: "#fff",
+    elevation: 8,
     shadowColor: "#000",
     shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
   },
   settingsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: SCREEN_WIDTH * 0.04,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
   settingsTitle: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH * 0.05,
     fontWeight: "600",
     marginLeft: 12,
-    color: "#000000",
+    color: "#1a1a1a",
+    lineHeight: SCREEN_WIDTH * 0.06,
   },
   userInfo: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: 30,
   },
   userName: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH * 0.05,
     fontWeight: "600",
     marginTop: 12,
-    color: "#000000",
+    color: "#1a1a1a",
+    lineHeight: SCREEN_WIDTH * 0.06,
   },
   settingsOptions: {
     flex: 1,
@@ -1573,16 +1327,17 @@ const styles = StyleSheet.create({
   settingsItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: "#eee",
     paddingHorizontal: SCREEN_WIDTH * 0.05,
   },
   settingsText: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH * 0.042,
     marginLeft: 12,
-    color: "#333333",
+    color: "#333",
     fontWeight: "500",
+    lineHeight: SCREEN_WIDTH * 0.055,
   },
   emojiPickerContainer: {
     position: "absolute",
@@ -1590,28 +1345,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1000,
-    backgroundColor: "#ffffff",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
+    backgroundColor: "#fff",
+    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -1 },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   imagePickerContainer: {
     position: "absolute",
-    bottom: 60,
+    bottom: 70,
     left: 0,
     right: 0,
-    height: SCREEN_WIDTH * 0.9,
+    height: SCREEN_WIDTH * 0.8, // Responsive height
     zIndex: 1000,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
     elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -1 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   imagePickerHeader: {
@@ -1623,14 +1379,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e0e0e0",
   },
   imagePickerTitle: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH * 0.045,
     fontWeight: "600",
-    color: "#000000",
+    color: "#1a1a1a",
+    lineHeight: SCREEN_WIDTH * 0.055,
   },
   imageItem: {
     flex: 1,
     aspectRatio: 1,
-    padding: 6,
+    padding: 4,
   },
   imageThumbnail: {
     width: "100%",
