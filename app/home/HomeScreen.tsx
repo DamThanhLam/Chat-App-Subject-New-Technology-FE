@@ -39,6 +39,7 @@ interface GroupConversation {
   groupName: string;
   participants: string[];
   lastMessage: Message | null;
+  avatarUrl?: string;
 }
 
 interface CombinedConversation {
@@ -80,7 +81,8 @@ const HomeScreen = () => {
   const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
+  const DEFAULT_AVATAR =
+    "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
   // Lấy userId hiện tại
   useEffect(() => {
@@ -123,48 +125,76 @@ const HomeScreen = () => {
         friend.senderId === userId ? friend.receiverId : friend.senderId
       );
 
-      // Lấy thông tin của người bạn qua API
-      const enrichedFriends = await Promise.all(
-        acceptedFriends.map(async (friend) => {
-          const otherUserId = friend.senderId === userId ? friend.receiverId : friend.senderId;
-          try {
-            const userData = await apiFetch(`${API_BASE_URL}/user/${otherUserId}`);
-            return {
-              ...friend,
-              displayName: userData.name || otherUserId,
-              avatarUrl: userData.avatarUrl || DEFAULT_AVATAR,
+      const userInfoMap: Record<
+        string,
+        { displayName: string; avatar?: string }
+      > = {};
+
+      try {
+        const usersData = await Promise.all(
+          friendIds.map((id) =>
+            apiFetch(`${API_BASE_URL}/user/${id}`).catch(() => null)
+          )
+        );
+
+        friendIds.forEach((id, index) => {
+          const userData = usersData[index];
+          if (userData) {
+            userInfoMap[id] = {
+              displayName: userData.name || id,
+              avatar: userData.avatarUrl,
             };
-          } catch (error) {
-            console.error(`Error fetching user data for ${otherUserId}:`, error);
-            return {
-              ...friend,
-              displayName: otherUserId,
-              avatarUrl: DEFAULT_AVATAR,
+          } else {
+            userInfoMap[id] = {
+              displayName: id,
+              avatar: DEFAULT_AVATAR,
             };
           }
-        })
-      );
+        });
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        friendIds.forEach((id) => {
+          userInfoMap[id] = {
+            displayName: id,
+            avatar: DEFAULT_AVATAR,
+          };
+        });
+      }
 
-      for (const friend of enrichedFriends) {
-        const friendId = friend.senderId === userId ? friend.receiverId : friend.senderId;
+      for (const friend of acceptedFriends) {
+        const friendId =
+          friend.senderId === userId ? friend.receiverId : friend.senderId;
+        const nickName = await getNickname(friendId);
+
         const lastMessage = await fetchLatestMessage(friendId);
+        console.log("Last message:", lastMessage);
+
+        const userInfo = userMap[friendId] || {
+          displayName: friendId,
+          avatar: null,
+        };
         privateConversations.push({
           type: "private",
           id: friendId,
-          displayName: friend.displayName,
-          avatar: friend.avatarUrl,
+          displayName: nickName?.nickname || userInfo.displayName,
+          avatar:
+            friend.senderId === userId
+              ? friend.senderAVT
+              : userInfo.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
           lastMessage,
         });
       }
 
-      const groupConversationsList: CombinedConversation[] = groupConversations.map((group) => ({
-        type: "group",
-        id: group.id,
-        displayName: group.groupName || "Nhóm chat",
-        avatar: group.avatarUrl || DEFAULT_AVATAR,
-        lastMessage: group.lastMessage,
-        participantsCount: group.participants.length,
-      }));
+      const groupConversationsList: CombinedConversation[] =
+        groupConversations.map((group) => ({
+          type: "group",
+          id: group.id,
+          displayName: group.groupName || "Nhóm chat",
+          avatar: group.avatarUrl || DEFAULT_AVATAR,
+          lastMessage: group.lastMessage,
+          participantsCount: group.participants.length,
+        }));
 
       const combinedList = [...privateConversations, ...groupConversationsList].sort(
         (a, b) => {
@@ -513,7 +543,13 @@ const HomeScreen = () => {
         </View>
 
         {loading ? (
-          <Text style={{ color: theme.colors.text, textAlign: "center", padding: 20 }}>
+          <Text
+            style={{
+              color: theme.colors.text,
+              textAlign: "center",
+              padding: 20,
+            }}
+          >
             Đang tải...
           </Text>
         ) : (
