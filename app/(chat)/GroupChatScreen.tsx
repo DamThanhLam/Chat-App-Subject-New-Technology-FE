@@ -120,6 +120,7 @@ const GroupChatScreen = () => {
   const [groupName, setGroupName] = useState("Group Chat");
   const [isChatting, setIsChatting] = useState(false);
   const [isLeader, setIsleader] = useState(false);
+  const isRemoved = useRef(false);
   useEffect(() => {
     if (flatListRef.current && conversation.length > 0) {
       flatListRef.current.scrollToEnd({ animated: false });
@@ -166,8 +167,8 @@ const GroupChatScreen = () => {
               console.log(udata);
               return {
                 _id: uid,
-                name: udata.username || "Unknown",
-                image: udata.avatarUrl || "",
+                name: udata.username || udata.name || "Unknown",
+                image: udata.avatarUrl || udata.urlAVT || "",
               };
             } catch (e) {
               console.log(e.message);
@@ -218,7 +219,10 @@ const GroupChatScreen = () => {
   // Socket.IO for group chat
   useEffect(() => {
     let socket: any;
-    let isRemoved = false;
+
+    // Skip if the group is already marked as removed
+    if (isRemoved.current) return;
+
     const handleNew = ({
       message: newMsg,
       conversationId: cid,
@@ -249,12 +253,16 @@ const GroupChatScreen = () => {
       conversationId: string;
     }) => {
       if (cid === conversationId) {
+        // Use a ref to track if notification was already shown
+        if (isRemoved.current) return; // Skip if already processed
+        isRemoved.current = true; // Mark as processed
+
         const alertMessage =
           "Nhóm đã giải tán. Bạn sẽ được chuyển về trang chính.";
         Platform.OS === "web"
           ? window.alert(alertMessage)
           : Alert.alert("Thông báo", alertMessage);
-        router.replace("/home/HomeScreen");
+        router.replace("/home");
       }
     };
     const handleRemovedFromGroup = ({
@@ -270,7 +278,7 @@ const GroupChatScreen = () => {
           : Alert.alert("Thông báo", message);
 
         // Navigate back to home screen
-        router.replace("/home/HomeScreen");
+        router.replace("/home");
       }
     };
     const handleUserLeft = ({
@@ -282,17 +290,37 @@ const GroupChatScreen = () => {
       userId: string;
       username: string;
       conversationId: string;
+      message?: any;
     }) => {
       if (cid === conversationId) {
         // Update participants list
         if (userId === userID1) {
           router.back();
+          return; // Exit early if current user left
         }
+
+        // Update participants list first
         setGroupParticipants((prev) => prev.filter((p) => p._id !== userId));
-        setConversation((pre) => [...pre, message]);
-        setGroupParticipants((pre) => {
-          return pre.filter((item) => item._id != userId);
-        });
+
+        // Only add the message to conversation if it's valid and has the required format
+        if (message && typeof message === "object" && message.createdAt) {
+          setConversation((prev) => [...prev, message]);
+        } else if (username) {
+          // Create a system message if the message object is not valid
+          const systemMessage: Message = {
+            id: `system-${Date.now()}`,
+            conversationId: conversationId,
+            senderId: "system",
+            message: `${username} đã rời khỏi nhóm`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            readed: [],
+            messageType: "group",
+            contentType: "text",
+            status: "sended",
+          };
+          setConversation((prev) => [...prev, systemMessage]);
+        }
       }
     };
     connectSocket()
@@ -329,8 +357,8 @@ const GroupChatScreen = () => {
                   ...pre,
                   {
                     _id: userJoin.id,
-                    name: userJoin.name || "Unknown",
-                    image: userJoin.urlAVT || "",
+                    name: userJoin.name || userJoin.username || "Unknown",
+                    image: userJoin.urlAVT || userJoin.avatarUrl || "",
                   },
                 ]);
             }
@@ -346,8 +374,8 @@ const GroupChatScreen = () => {
                   ...pre,
                   {
                     _id: userJoin.id,
-                    name: userJoin.name || "Unknown",
-                    image: userJoin.urlAVT || "",
+                    name: userJoin.name || userJoin.username || "Unknown",
+                    image: userJoin.urlAVT || userJoin.avatarUrl || "",
                   },
                 ]);
             }
@@ -367,6 +395,7 @@ const GroupChatScreen = () => {
 
     return () => {
       if (socket) {
+        console.log("Cleaning up socket listeners for GroupChatScreen");
         socket.emit("leave-group", conversationId);
         socket.off("message-deleted");
         socket.off("message-recalled");
@@ -442,23 +471,52 @@ const GroupChatScreen = () => {
         uri: asset.uri,
         name: asset.filename,
       }));
+
       // 1) upload lên server, nhận mảng URL
       const imagesUpload = await uploadFilesToServer(files);
-      setConversation((prev) => [...prev, optimistic]);
-      setMessage("");
-      setTimeout(
-        () => flatListRef.current?.scrollToEnd({ animated: true }),
-        100
-      );
+
       // 2) emit socket cho mỗi URL hoặc gộp
       imagesUpload.forEach((image: any) => {
+        // Create a temporary optimistic message for each uploaded image
+        const tempId = `temp-file-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 9)}`;
+
+        const optimisticMessage: Message = {
+          id: tempId,
+          conversationId,
+          senderId: userID1,
+          message: {
+            data: image.url,
+            filename: image.filename,
+            size: 0,
+            type: "image",
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          readed: [],
+          messageType: "group",
+          contentType: "file",
+          status: "sended",
+        };
+
+        // Add the optimistic message to the conversation
+        setConversation((prev) => [...prev, optimisticMessage]);
+
+        // Emit the actual message
         getSocket().emit("group-message", {
           conversationId: conversationId,
           message: { data: image.url, filename: image.filename },
           messageType: "group",
           contentType: "file",
+          tempId,
         });
       });
+
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
       setShowImagePicker(false);
     } catch (error: any) {
       console.error("Upload images error:", error);
@@ -761,71 +819,85 @@ const GroupChatScreen = () => {
       <FlatList
         data={conversation}
         ref={flatListRef}
-        keyExtractor={(item) => (item ? item.id : "")}
+        keyExtractor={(item) =>
+          item ? item.id : `fallback-${Date.now()}-${Math.random()}`
+        }
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }}
         renderItem={({ item }) => {
+          // Skip rendering if item is null or undefined
+          if (!item || !item.createdAt) {
+            console.warn("Skipping invalid message item:", item);
+            return null;
+          }
+
           let showDate = false;
           let stringDate = "";
-          let createdAt = new Date(item.createdAt);
-          const vietnamTime = createdAt.toLocaleString("vi-VN", {
-            timeZone: "Asia/Ho_Chi_Minh",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          });
-          let dateParts = vietnamTime.split("/");
-          const formattedDate = new Date(
-            `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
-          );
-          if (!dateBefore.current) {
-            showDate = true;
-            stringDate =
-              formattedDate.getFullYear() +
-              "/" +
-              (formattedDate.getMonth() + 1) +
-              "/" +
-              formattedDate.getDate();
-          }
-          if (
-            dateBefore.current &&
-            (dateBefore.current.getDate() != createdAt.getDate() ||
-              dateBefore.current.getMonth() != createdAt.getMonth() ||
-              dateBefore.current.getFullYear() != createdAt.getFullYear())
-          ) {
-            showDate = true;
-            stringDate =
-              formattedDate.getFullYear() +
-              "/" +
-              (formattedDate.getMonth() + 1) +
-              "/" +
-              formattedDate.getDate();
-          }
-          const isDeleted = item.status === "deleted";
-          const isRecalled = item.status === "recalled";
-          const isFile = item.contentType === "file";
-          const messageTime = format(new Date(item.createdAt), "HH:mm");
-          dateBefore.current = createdAt;
-          const sender = groupParticipants.find(
-            (p) => p._id === item.senderId || p.id === item.senderId
-          );
 
-          return (
-            <MessageItem
-              item={item}
-              userID1={userID1}
-              theme={theme}
-              showDate={showDate}
-              stringDate={stringDate}
-              isDeleted={isDeleted}
-              isRecalled={isRecalled}
-              isFile={isFile}
-              messageTime={messageTime}
-              anotherUser={sender}
-              isGroupChat={true}
-            />
-          );
+          try {
+            let createdAt = new Date(item.createdAt);
+            const vietnamTime = createdAt.toLocaleString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            let dateParts = vietnamTime.split("/");
+            const formattedDate = new Date(
+              `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
+            );
+            if (!dateBefore.current) {
+              showDate = true;
+              stringDate =
+                formattedDate.getFullYear() +
+                "/" +
+                (formattedDate.getMonth() + 1) +
+                "/" +
+                formattedDate.getDate();
+            }
+            if (
+              dateBefore.current &&
+              (dateBefore.current.getDate() != createdAt.getDate() ||
+                dateBefore.current.getMonth() != createdAt.getMonth() ||
+                dateBefore.current.getFullYear() != createdAt.getFullYear())
+            ) {
+              showDate = true;
+              stringDate =
+                formattedDate.getFullYear() +
+                "/" +
+                (formattedDate.getMonth() + 1) +
+                "/" +
+                formattedDate.getDate();
+            }
+            const isDeleted = item.status === "deleted";
+            const isRecalled = item.status === "recalled";
+            const isFile = item.contentType === "file";
+            const messageTime = format(createdAt, "HH:mm");
+            dateBefore.current = createdAt;
+            const sender = groupParticipants.find(
+              (p) => p?._id === item.senderId || p?.id === item.senderId
+            );
+
+            return (
+              <MessageItem
+                item={item}
+                userID1={userID1}
+                theme={theme}
+                showDate={showDate}
+                stringDate={stringDate}
+                isDeleted={isDeleted}
+                isRecalled={isRecalled}
+                isFile={isFile}
+                messageTime={messageTime}
+                anotherUser={sender}
+                isGroupChat={true}
+              />
+            );
+          } catch (error) {
+            console.error("Error rendering message:", error, item);
+            return null;
+          }
         }}
         contentContainerStyle={styles.messagesContainer}
         onScrollToIndexFailed={(info) => {

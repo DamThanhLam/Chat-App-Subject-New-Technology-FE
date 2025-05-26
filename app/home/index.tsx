@@ -40,6 +40,7 @@ interface GroupConversation {
   groupName: string;
   participants: string[];
   lastMessage: Message | null;
+  avatarUrl?: string;
 }
 
 interface CombinedConversation {
@@ -81,7 +82,8 @@ const HomeScreen = () => {
   const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
+  const DEFAULT_AVATAR =
+    "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
   // Lấy userId hiện tại
   useEffect(() => {
@@ -127,16 +129,22 @@ const HomeScreen = () => {
       // Lấy thông tin của người bạn qua API
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend) => {
-          const otherUserId = friend.senderId === userId ? friend.receiverId : friend.senderId;
+          const otherUserId =
+            friend.senderId === userId ? friend.receiverId : friend.senderId;
           try {
-            const userData = await apiFetch(`${API_BASE_URL}/user/${otherUserId}`);
+            const userData = await apiFetch(
+              `${API_BASE_URL}/user/${otherUserId}`
+            );
             return {
               ...friend,
               displayName: userData.name || otherUserId,
               avatarUrl: userData.avatarUrl || DEFAULT_AVATAR,
             };
           } catch (error) {
-            console.error(`Error fetching user data for ${otherUserId}:`, error);
+            console.error(
+              `Error fetching user data for ${otherUserId}:`,
+              error
+            );
             return {
               ...friend,
               displayName: otherUserId,
@@ -146,7 +154,7 @@ const HomeScreen = () => {
         })
       );
 
-      for (const friend of acceptedFriends) {
+      for (const friend of enrichedFriends) {
         const friendId =
           friend.senderId === userId ? friend.receiverId : friend.senderId;
         const nickName = await getNickname(friendId);
@@ -154,47 +162,37 @@ const HomeScreen = () => {
         const lastMessage = await fetchLatestMessage(friendId);
         console.log("Last message:", lastMessage);
 
-        const userInfo = userMap[friendId] || {
-          displayName: friendId,
-          avatar: null,
-        };
         privateConversations.push({
           type: "private",
           id: friendId,
-          displayName: nickName?.nickname || userInfo.displayName,
-          avatar:
-            friend.senderId === userId
-              ? friend.senderAVT
-              : userInfo.avatar ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          displayName: nickName?.nickname || friend.displayName,
+          avatar: friend.avatarUrl || DEFAULT_AVATAR,
           lastMessage,
         });
       }
 
-      const groupConversationsList: CombinedConversation[] = groupConversations.map((group) => ({
-        type: "group",
-        id: group.id,
-        displayName: group.groupName || "Nhóm chat",
-        avatar: group.avatarUrl || DEFAULT_AVATAR,
-        lastMessage: group.lastMessage,
-        participantsCount: group.participants.length,
-      }));
+      const groupConversationsList: CombinedConversation[] =
+        groupConversations.map((group) => ({
+          type: "group",
+          id: group.id,
+          displayName: group.groupName || "Nhóm chat",
+          avatar: group.avatarUrl || DEFAULT_AVATAR,
+          lastMessage: group.lastMessage,
+          participantsCount: group.participants.length,
+        }));
 
-      const combinedList = [...privateConversations, ...groupConversationsList]
-        .filter(
-          (conv) =>
-            conv.type === "group" ||
-            (conv.type === "private" && conv.lastMessage)
-        )
-        .sort((a, b) => {
-          const timeA = a.lastMessage
-            ? new Date(a.lastMessage.createdAt).getTime()
-            : 0;
-          const timeB = b.lastMessage
-            ? new Date(b.lastMessage.createdAt).getTime()
-            : 0;
-          return timeB - timeA;
-        });
+      const combinedList = [
+        ...privateConversations,
+        ...groupConversationsList,
+      ].sort((a, b) => {
+        const timeA = a.lastMessage
+          ? new Date(a.lastMessage.createdAt).getTime()
+          : 0;
+        const timeB = b.lastMessage
+          ? new Date(b.lastMessage.createdAt).getTime()
+          : 0;
+        return timeB - timeA;
+      });
 
       setDisplayConversations(combinedList);
       console.log("Fetched conversations:", combinedList);
@@ -556,7 +554,13 @@ const HomeScreen = () => {
         </View>
 
         {loading ? (
-          <Text style={{ color: theme.colors.text, textAlign: "center", padding: 20 }}>
+          <Text
+            style={{
+              color: theme.colors.text,
+              textAlign: "center",
+              padding: 20,
+            }}
+          >
             Đang tải...
           </Text>
         ) : (

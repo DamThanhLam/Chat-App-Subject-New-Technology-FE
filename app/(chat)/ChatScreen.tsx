@@ -270,7 +270,6 @@ const ChatScreen = () => {
 
       socket.on("result", handleNew);
       socket.on("private-message", handleNew);
-      
     });
 
     return () => {
@@ -650,13 +649,14 @@ const ChatScreen = () => {
           ]}
         >
           <TouchableOpacity onPress={() => router.back()}>
-            <FontAwesome
-              name="arrow-left"
-              size={24}
-              color={iconColor}
-            />
+            <FontAwesome name="arrow-left" size={24} color={iconColor} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text },
+            ]}
+          >
             {nickname || anotherUser?.name || "Chat"}
           </Text>
           <View style={styles.headerIcons}>
@@ -664,26 +664,15 @@ const ChatScreen = () => {
               onPress={() => alert("Call")}
               style={styles.iconButton}
             >
-              <FontAwesome
-                name="phone"
-                size={24}
-                color={iconColor}
-              />
+              <FontAwesome name="phone" size={24} color={iconColor} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => alert("Video")}
               style={styles.iconButton}
             >
-              <FontAwesome
-                name="video-camera"
-                size={24}
-                color={iconColor}
-              />
+              <FontAwesome name="video-camera" size={24} color={iconColor} />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={openSettings}
-              style={styles.iconButton}
-            >
+            <TouchableOpacity onPress={openSettings} style={styles.iconButton}>
               <FontAwesome name="list" size={24} color={iconColor} />
             </TouchableOpacity>
           </View>
@@ -790,7 +779,13 @@ const ChatScreen = () => {
           <View style={styles.imagePickerContainer}>
             <View style={styles.imagePickerHeader}>
               <Text
-                style={[styles.imagePickerTitle, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}
+                style={[
+                  styles.imagePickerTitle,
+                  {
+                    color:
+                      colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                  },
+                ]}
               >
                 Select Images ({tempSelectedImages.length})
               </Text>
@@ -849,13 +844,30 @@ const ChatScreen = () => {
 
         <Modal visible={menuVisible} transparent animationType="fade">
           <View style={styles.modalBackground}>
-            <View style={[styles.menuContainer, { backgroundColor: theme.colors.card }]}>
+            <View
+              style={[
+                styles.menuContainer,
+                { backgroundColor: theme.colors.card },
+              ]}
+            >
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => alert("Reply")}
               >
-                <FontAwesome name="reply" size={20} color={colorScheme === "dark" ? "#ffffff" : theme.colors.text} />
-                <Text style={[styles.menuText, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+                <FontAwesome
+                  name="reply"
+                  size={20}
+                  color={colorScheme === "dark" ? "#ffffff" : theme.colors.text}
+                />
+                <Text
+                  style={[
+                    styles.menuText,
+                    {
+                      color:
+                        colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                    },
+                  ]}
+                >
                   Reply
                 </Text>
               </TouchableOpacity>
@@ -863,8 +875,20 @@ const ChatScreen = () => {
                 style={styles.menuItem}
                 onPress={() => alert("Forward")}
               >
-                <FontAwesome name="share" size={20} color={colorScheme === "dark" ? "#ffffff" : theme.colors.text} />
-                <Text style={[styles.menuText, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+                <FontAwesome
+                  name="share"
+                  size={20}
+                  color={colorScheme === "dark" ? "#ffffff" : theme.colors.text}
+                />
+                <Text
+                  style={[
+                    styles.menuText,
+                    {
+                      color:
+                        colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                    },
+                  ]}
+                >
                   Forward
                 </Text>
               </TouchableOpacity>
@@ -872,8 +896,20 @@ const ChatScreen = () => {
                 style={styles.menuItem}
                 onPress={() => alert("Copy")}
               >
-                <FontAwesome name="copy" size={20} color={colorScheme === "dark" ? "#ffffff" : theme.colors.text} />
-                <Text style={[styles.menuText, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+                <FontAwesome
+                  name="copy"
+                  size={20}
+                  color={colorScheme === "dark" ? "#ffffff" : theme.colors.text}
+                />
+                <Text
+                  style={[
+                    styles.menuText,
+                    {
+                      color:
+                        colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                    },
+                  ]}
+                >
                   Copy
                 </Text>
               </TouchableOpacity>
@@ -881,16 +917,33 @@ const ChatScreen = () => {
                 style={styles.menuItem}
                 onPress={() => alert("Save to Cloud")}
               >
-                <FontAwesome name="cloud" size={20} color={colorScheme === "dark" ? "#ffffff" : theme.colors.text} />
-                <Text style={[styles.menuText, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+                <FontAwesome
+                  name="cloud"
+                  size={20}
+                  color={colorScheme === "dark" ? "#ffffff" : theme.colors.text}
+                />
+                <Text
+                  style={[
+                    styles.menuText,
+                    {
+                      color:
+                        colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                    },
+                  ]}
+                >
                   Cloud
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={closeMenu}
-              >
-                <Text style={[styles.menuText, { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text }]}>
+              <TouchableOpacity style={styles.closeButton} onPress={closeMenu}>
+                <Text
+                  style={[
+                    styles.menuText,
+                    {
+                      color:
+                        colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                    },
+                  ]}
+                >
                   Close
                 </Text>
               </TouchableOpacity>
@@ -918,7 +971,12 @@ const ChatScreen = () => {
           onFileSelected={handleFileSelected}
         />
 
-        <View style={[styles.inputContainer, { backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff" }]}>
+        <View
+          style={[
+            styles.inputContainer,
+            { backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff" },
+          ]}
+        >
           <TouchableOpacity
             onPress={toggleEmojiPicker}
             style={styles.iconButton}
@@ -934,13 +992,16 @@ const ChatScreen = () => {
               styles.input,
               {
                 color: colorScheme === "dark" ? "#ffffff" : theme.colors.text,
-                backgroundColor: colorScheme === "dark" ? "#333333" : theme.colors.card,
+                backgroundColor:
+                  colorScheme === "dark" ? "#333333" : theme.colors.card,
               },
             ]}
             value={message}
             onChangeText={setMessage}
             placeholder="Type a message..."
-            placeholderTextColor={colorScheme === "dark" ? "#aaaaaa" : theme.colors.text}
+            placeholderTextColor={
+              colorScheme === "dark" ? "#aaaaaa" : theme.colors.text
+            }
           />
           {message.trim() === "" ? (
             <>
@@ -948,11 +1009,7 @@ const ChatScreen = () => {
                 onPress={() => alert("Record")}
                 style={styles.iconButton}
               >
-                <FontAwesome
-                  name="microphone"
-                  size={24}
-                  color={iconColor}
-                />
+                <FontAwesome name="microphone" size={24} color={iconColor} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={openImagePicker}
@@ -961,9 +1018,7 @@ const ChatScreen = () => {
                 <FontAwesome
                   name="image"
                   size={24}
-                  color={
-                    showImagePicker ? theme.colors.primary : iconColor
-                  }
+                  color={showImagePicker ? theme.colors.primary : iconColor}
                 />
               </TouchableOpacity>
             </>

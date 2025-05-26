@@ -32,6 +32,30 @@ export const connectSocket = async () => {
 
   if (!socket || !socket.connected) {
     const newSocket = initSocket(jwtToken);
+
+    // Remove existing listeners if any before reconnecting
+    if (socket) {
+      // List of events to clean up to avoid duplicates
+      const eventsToCleanup = [
+        "group-deleted",
+        "removed-from-group",
+        "userLeft",
+        "group-message",
+        "message-deleted",
+        "message-recalled",
+        "group-renamed",
+        "userJoinedGroup",
+        "reponse-approve-into-group",
+        "response-invite-join-group",
+        "block-chatting",
+      ];
+
+      // Clean up all potentially duplicated listeners
+      eventsToCleanup.forEach((event) => {
+        socket?.off(event);
+      });
+    }
+
     newSocket.connect();
     newSocket.emit("join");
 

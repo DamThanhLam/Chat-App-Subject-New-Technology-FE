@@ -126,6 +126,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [isApprovalRequired, setIsApprovalRequired] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
+  const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
+
+  // Fetch friend's avatar for single chat
+  useEffect(() => {
+    if (visible && !isGroupChat && targetUserId) {
+      const fetchFriendInfo = async () => {
+        try {
+          const headers = await getAuthHeaders();
+          const response = await fetch(`${API_BASE_URL}/user/${targetUserId}`, {
+            method: "GET",
+            headers,
+          });
+
+          if (!response.ok) {
+            throw new Error("Không thể lấy thông tin người dùng");
+          }
+
+          const userData = await response.json();
+          setFriendAvatar(
+            userData.avatarUrl ||
+              userData.urlAVT ||
+              userData.image ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+          );
+        } catch (error: any) {
+          console.error("Lỗi khi lấy thông tin người dùng:", error.message);
+          setFriendAvatar(
+            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+          );
+        }
+      };
+      fetchFriendInfo();
+    }
+  }, [visible, isGroupChat, targetUserId]);
+
   useEffect(() => {
     if (!visible || !conversationId) return;
 
@@ -155,10 +190,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     };
 
-    socket.then(socket => {
+    socket.then((socket) => {
       socket.on("approval-status", handleApprovalStatus);
-    })
-
+    });
   }, [visible, conversationId]);
 
   // Lấy thông tin nhóm và thành viên nhóm
@@ -204,9 +238,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                 return {
                   _id: item.id,
-                  name: userData.username || item.id,
+                  name: userData.username || userData.name || item.id,
                   urlAVT:
                     userData.urlAVT ||
+                    userData.avatarUrl ||
                     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
                 };
               } catch (error: any) {
@@ -317,9 +352,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               ...prev,
               {
                 _id: userJoin.id,
-                name: userJoin.name || "Unknown",
+                name: userJoin.name || userJoin.username || "Unknown",
                 urlAVT:
                   userJoin.urlAVT ||
+                  userJoin.avatarUrl ||
                   "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
               },
             ]);
@@ -336,9 +372,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 ...pre,
                 {
                   _id: userJoin.id,
-                  name: userJoin.name || "Unknown",
+                  name: userJoin.name || userJoin.username || "Unknown",
                   urlAVT:
                     userJoin.urlAVT ||
+                    userJoin.avatarUrl ||
                     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
                 },
               ]);
@@ -890,11 +927,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </Text>
             </View>
             <View style={styles.userInfo}>
-              <FontAwesome
-                name="user-circle"
-                size={60}
-                color={theme.colors.text}
-              />
+              {isGroupChat ? (
+                <FontAwesome name="users" size={60} color={theme.colors.text} />
+              ) : (
+                <Image
+                  source={{
+                    uri:
+                      friendAvatar ||
+                      "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                  }}
+                  style={styles.userAvatar}
+                />
+              )}
               <Text style={[styles.userName, { color: theme.colors.text }]}>
                 {isGroupChat
                   ? conversationDetails?.groupName || "Nhóm chat"
@@ -1064,7 +1108,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         alignItems: "center",
                         flex: 1,
                       }}
-                      onPress={() => { }}
+                      onPress={() => {}}
                     >
                       <Text
                         style={[
@@ -1652,8 +1696,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {deleteModalVisible
                 ? "Lịch sử trò chuyện đã được xóa"
                 : deleteGroupModalVisible
-                  ? "Nhóm đã được xóa"
-                  : "Bạn đã rời nhóm"}
+                ? "Nhóm đã được xóa"
+                : "Bạn đã rời nhóm"}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -2016,7 +2060,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               { color: theme.colors.text },
                             ]}
                           >
-                            {formatFileSize(item.size)}{" "}
                             <FontAwesome
                               name="cloud"
                               size={12}
@@ -2172,6 +2215,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginTop: 10,
+  },
+  userAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 10,
   },
   settingsOptions: {
     flex: 1,
