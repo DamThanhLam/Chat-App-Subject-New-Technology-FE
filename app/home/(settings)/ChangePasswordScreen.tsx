@@ -28,10 +28,25 @@ const ChangePasswordScreen = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordRules, setPasswordRules] = useState({
+    minLength: false,
+    lowercase: false,
+    uppercase: false,
+    symbol: false,
+  });
 
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const { width } = useWindowDimensions();
+
+  const checkPasswordRules = (password: string) => {
+    setPasswordRules({
+      minLength: password.length >= 8,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password),
+    });
+  };
 
   const handleChangePassword = async () => {
     setError("");
@@ -47,6 +62,11 @@ const ChangePasswordScreen = () => {
       return;
     }
 
+    if (!Object.values(passwordRules).every(Boolean)) {
+      setError("Password does not meet all requirements.");
+      return;
+    }
+
     setLoading(true);
     try {
       const user = await Auth.currentAuthenticatedUser();
@@ -55,6 +75,12 @@ const ChangePasswordScreen = () => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setPasswordRules({
+        minLength: false,
+        lowercase: false,
+        uppercase: false,
+        symbol: false,
+      });
     } catch (err) {
       console.log("Change password error:", err);
       setError(err.message || "Failed to change password.");
@@ -67,114 +93,306 @@ const ChangePasswordScreen = () => {
   const isSmallScreen = width <= 320;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
+    >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.card,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Change Password</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Change Password
+        </Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Content */}
-      <View style={[styles.container, { paddingHorizontal: isLargeScreen ? width * 0.2 : 16 }]}>
-        <View style={[styles.formContainer, { backgroundColor: theme.colors.card }]}>
+      <View
+        style={[
+          styles.container,
+          { paddingHorizontal: isLargeScreen ? width * 0.2 : 16 },
+        ]}
+      >
+        <View
+          style={[
+            styles.formContainer,
+            {
+              backgroundColor: theme.colors.card,
+              shadowColor: theme.colors.border,
+            },
+          ]}
+        >
           {/* Current Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>Current Password</Text>
-            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              Current Password
+            </Text>
+            <View
+              style={[
+                styles.passwordInputContainer,
+                {
+                  borderColor: error
+                    ? theme.colors.notification
+                    : theme.colors.border,
+                  backgroundColor: theme.dark
+                    ? "rgba(255,255,255,0.05)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+            >
               <TextInput
-                style={[styles.input, { color: theme.colors.text }]}
+                style={[
+                  styles.input,
+                  { color: theme.colors.text, fontStyle: "italic" },
+                ]}
                 placeholder="Enter current password"
-                placeholderTextColor={theme.colors.text + '80'}
+                placeholderTextColor={theme.colors.text + "80"}
                 secureTextEntry={!showCurrentPassword}
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowCurrentPassword(!showCurrentPassword)}
                 style={styles.showButton}
               >
-                <Text style={[styles.showText, { color: theme.colors.primary }]}>
-                  {showCurrentPassword ? "HIDE" : "SHOW"}
-                </Text>
+                <Ionicons
+                  name={showCurrentPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.colors.text + "80"}
+                />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* New Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>New Password</Text>
-            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              New Password
+            </Text>
+            <View
+              style={[
+                styles.passwordInputContainer,
+                {
+                  borderColor: error
+                    ? theme.colors.notification
+                    : theme.colors.border,
+                  backgroundColor: theme.dark
+                    ? "rgba(255,255,255,0.05)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+            >
               <TextInput
-                style={[styles.input, { color: theme.colors.text }]}
+                style={[
+                  styles.input,
+                  { color: theme.colors.text, fontStyle: "italic" },
+                ]}
                 placeholder="Enter new password"
-                placeholderTextColor={theme.colors.text + '80'}
+                placeholderTextColor={theme.colors.text + "80"}
                 secureTextEntry={!showNewPassword}
                 value={newPassword}
-                onChangeText={setNewPassword}
+                onChangeText={(text) => {
+                  setNewPassword(text);
+                  checkPasswordRules(text);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowNewPassword(!showNewPassword)}
                 style={styles.showButton}
               >
-                <Text style={[styles.showText, { color: theme.colors.primary }]}>
-                  {showNewPassword ? "HIDE" : "SHOW"}
-                </Text>
+                <Ionicons
+                  name={showNewPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.colors.text + "80"}
+                />
               </TouchableOpacity>
             </View>
+
+            {/* Password Rules */}
+            {newPassword && !Object.values(passwordRules).every(Boolean) && (
+              <View style={styles.passwordRules}>
+                <Text
+                  style={[
+                    styles.passwordRuleTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  Password must contain:
+                </Text>
+                {!passwordRules.minLength && (
+                  <Text
+                    style={[
+                      styles.passwordRule,
+                      { color: theme.dark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    • At least 8 characters
+                  </Text>
+                )}
+                {!passwordRules.lowercase && (
+                  <Text
+                    style={[
+                      styles.passwordRule,
+                      { color: theme.dark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    • At least one lowercase letter
+                  </Text>
+                )}
+                {!passwordRules.uppercase && (
+                  <Text
+                    style={[
+                      styles.passwordRule,
+                      { color: theme.dark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    • At least one uppercase letter
+                  </Text>
+                )}
+                {!passwordRules.symbol && (
+                  <Text
+                    style={[
+                      styles.passwordRule,
+                      { color: theme.dark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    • At least one symbol (!@#$%^&* etc.)
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Confirm Password */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
-            <View style={[styles.passwordInputContainer, { borderColor: theme.colors.border }]}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              Confirm New Password
+            </Text>
+            <View
+              style={[
+                styles.passwordInputContainer,
+                {
+                  borderColor: error
+                    ? theme.colors.notification
+                    : theme.colors.border,
+                  backgroundColor: theme.dark
+                    ? "rgba(255,255,255,0.05)"
+                    : "rgba(0,0,0,0.05)",
+                },
+              ]}
+            >
               <TextInput
-                style={[styles.input, { color: theme.colors.text }]}
+                style={[
+                  styles.input,
+                  {
+                    color: theme.colors.text,
+                    fontStyle: "italic",
+                  },
+                ]}
                 placeholder="Re-enter new password"
-                placeholderTextColor={theme.colors.text + '80'}
+                placeholderTextColor={theme.colors.text + "80"}
                 secureTextEntry={!showConfirmPassword}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 style={styles.showButton}
               >
-                <Text style={[styles.showText, { color: theme.colors.primary }]}>
-                  {showConfirmPassword ? "HIDE" : "SHOW"}
-                </Text>
+                <Ionicons
+                  name={showConfirmPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.colors.text + "80"}
+                />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Messages */}
           {error !== "" && (
-            <View style={[styles.messageContainer, { backgroundColor: theme.colors.notification + '20' }]}>
-              <Ionicons name="warning" size={18} color={theme.colors.notification} />
-              <Text style={[styles.errorText, { color: theme.colors.notification }]}>{error}</Text>
+            <View
+              style={[
+                styles.messageContainer,
+                {
+                  backgroundColor: theme.colors.notification + "20",
+                  borderLeftWidth: 4,
+                  borderLeftColor: theme.colors.notification,
+                },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={20}
+                color={theme.colors.notification}
+              />
+              <Text
+                style={[styles.errorText, { color: theme.colors.notification }]}
+              >
+                {error}
+              </Text>
             </View>
           )}
           {success !== "" && (
-            <View style={[styles.messageContainer, { backgroundColor: '#4CAF50' + '20' }]}>
-              <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
-              <Text style={[styles.successText, { color: "#4CAF50" }]}>{success}</Text>
+            <View
+              style={[
+                styles.messageContainer,
+                {
+                  backgroundColor: "#4CAF50" + "20",
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#4CAF50",
+                },
+              ]}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={[styles.successText, { color: "#4CAF50" }]}>
+                {success}
+              </Text>
             </View>
           )}
 
           {/* Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.cancelButton, { borderColor: theme.colors.notification }]}
+              style={[
+                styles.cancelButton,
+                {
+                  backgroundColor: theme.dark ? "#ff4444" : "#ff6666",
+                },
+              ]}
               onPress={() => navigation.goBack()}
               disabled={loading}
             >
-              <Text style={[styles.cancelText, { color: theme.colors.notification }]}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: "#ffffff" }]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.changeButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.changeButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  opacity: loading ? 0.7 : 1,
+                },
+              ]}
               onPress={handleChangePassword}
               disabled={loading}
             >
@@ -198,47 +416,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 20,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   formContainer: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
-    elevation: 2,
-    shadowColor: "#000",
+    marginTop: 16,
+    elevation: 3,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 6,
   },
   header: {
     height: 60,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  },
+  backButton: {
+    padding: 8,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
   },
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "500",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   passwordInputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 16,
     height: 50,
   },
@@ -249,42 +466,52 @@ const styles = StyleSheet.create({
   },
   showButton: {
     padding: 8,
+    marginLeft: 8,
   },
-  showText: {
-    fontSize: 14,
-    fontWeight: "500",
+  passwordRules: {
+    marginTop: 8,
+    paddingLeft: 8,
+  },
+  passwordRuleTitle: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  passwordRule: {
+    fontSize: 13,
+    marginLeft: 8,
   },
   messageContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
     marginVertical: 16,
-    gap: 8,
+    gap: 12,
   },
   errorText: {
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
+    lineHeight: 20,
   },
   successText: {
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
+    lineHeight: 20,
   },
   buttonContainer: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     marginTop: 24,
     gap: 16,
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: 10,
     alignItems: "center",
-    backgroundColor: "transparent",
+    justifyContent: "center",
   },
   cancelText: {
     fontSize: 16,
@@ -293,13 +520,13 @@ const styles = StyleSheet.create({
   changeButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: "center",
+    justifyContent: "center",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowRadius: 3,
   },
   changeText: {
     color: "#fff",

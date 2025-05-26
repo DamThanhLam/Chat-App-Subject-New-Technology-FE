@@ -21,6 +21,7 @@ import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
+import { Ionicons } from "@expo/vector-icons";
 
 interface FormState {
   fullName: string;
@@ -122,8 +123,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
     if (!form.email.trim()) newErrors.email = "Please enter email";
     else if (!validateEmail(form.email))
       newErrors.email = "Invalid email format";
-    if (!form.password.trim())
-      newErrors.password = "Please enter a password";
+    if (!form.password.trim()) newErrors.password = "Please enter a password";
     if (!form.confirmPassword.trim())
       newErrors.confirmPassword = "Please confirm password";
     if (form.password !== form.confirmPassword)
@@ -190,7 +190,10 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
       style={{ flex: 1 }}
     >
       <ScrollView
-        contentContainerStyle={[styles.scrollContainer, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={[
@@ -202,14 +205,18 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
         ]}>
           {/* App Logo/Title */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>App Chat</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>
+              App Chat
+            </Text>
           </View>
 
           {/* Form Container */}
           <View style={styles.formContainer}>
             {/* Full Name */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Full Name:</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Full Name:
+              </Text>
               <TextInput
                 style={[
                   styles.input,
@@ -217,15 +224,20 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                     borderColor: errors.fullName ? theme.colors.notification : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
-                  }
+                  },
                 ]}
                 value={form.fullName}
                 onChangeText={(text) => setForm({ ...form, fullName: text })}
                 placeholder="Enter your full name"
-                placeholderTextColor={theme.colors.text + '80'}
+                placeholderTextColor={theme.colors.text + "80"}
               />
               {errors.fullName && (
-                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.colors.notification },
+                  ]}
+                >
                   {errors.fullName}
                 </Text>
               )}
@@ -233,7 +245,9 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Email */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Email:</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Email:
+              </Text>
               <TextInput
                 style={[
                   styles.input,
@@ -241,17 +255,22 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                     borderColor: errors.email ? theme.colors.notification : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
-                  }
+                  },
                 ]}
                 value={form.email}
                 onChangeText={(text) => setForm({ ...form, email: text })}
                 placeholder="Enter your email"
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholderTextColor={theme.colors.text + '80'}
+                placeholderTextColor={theme.colors.text + "80"}
               />
               {errors.email && (
-                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.colors.notification },
+                  ]}
+                >
                   {errors.email}
                 </Text>
               )}
@@ -259,7 +278,9 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Phone Number */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Phone Number:</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Phone Number:
+              </Text>
               <View style={styles.phoneInputContainer}>
                 {/* <View style={[
                   styles.countryCodeContainer,
@@ -286,17 +307,22 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                       borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
                       color: theme.colors.text,
                       backgroundColor: theme.colors.card,
-                    }
+                    },
                   ]}
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
                   placeholder="Enter phone number"
                   keyboardType="phone-pad"
-                  placeholderTextColor={theme.colors.text + '80'}
+                  placeholderTextColor={theme.colors.text + "80"}
                 />
               </View>
               {errors.phone && (
-                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.colors.notification },
+                  ]}
+                >
                   {errors.phone}
                 </Text>
               )}
@@ -321,15 +347,17 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                   }}
                   placeholder="Enter password"
                   secureTextEntry={!showPassword}
-                  placeholderTextColor={theme.colors.text + '80'}
+                  placeholderTextColor={theme.colors.text + "80"}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.showButton}
                 >
-                  <Text style={[styles.showText, { color: theme.colors.primary }]}>
-                    {showPassword ? "HIDE" : "SHOW"}
-                  </Text>
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color={theme.colors.text + "80"}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -375,22 +403,31 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                 <TextInput
                   style={[styles.passwordInput, { color: theme.colors.text }]}
                   value={form.confirmPassword}
-                  onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
+                  onChangeText={(text) =>
+                    setForm({ ...form, confirmPassword: text })
+                  }
                   placeholder="Confirm password"
                   secureTextEntry={!showConfirmPassword}
-                  placeholderTextColor={theme.colors.text + '80'}
+                  placeholderTextColor={theme.colors.text + "80"}
                 />
                 <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   style={styles.showButton}
                 >
-                  <Text style={[styles.showText, { color: theme.colors.primary }]}>
-                    {showConfirmPassword ? "HIDE" : "SHOW"}
-                  </Text>
+                  <Ionicons
+                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color={theme.colors.text + "80"}
+                  />
                 </TouchableOpacity>
               </View>
               {errors.confirmPassword && (
-                <Text style={[styles.errorText, { color: theme.colors.notification }]}>
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.colors.notification },
+                  ]}
+                >
                   {errors.confirmPassword}
                 </Text>
               )}
@@ -398,7 +435,10 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Register Button */}
             <TouchableOpacity
-              style={[styles.registerButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.registerButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
               onPress={handleRegister}
             >
               <Text style={styles.registerButtonText}>Register</Text>
@@ -410,7 +450,9 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                 Already have an account?
               </Text>
               <TouchableOpacity onPress={() => router.replace("/LoginScreen")}>
-                <Text style={[styles.signInLink, { color: theme.colors.primary }]}>
+                <Text
+                  style={[styles.signInLink, { color: theme.colors.primary }]}
+                >
                   SIGN IN
                 </Text>
               </TouchableOpacity>
@@ -433,11 +475,11 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 32,
-    alignItems: 'center',
+    alignItems: "center",
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   subtitle: {
@@ -445,20 +487,20 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   formContainer: {
-    width: '100%',
+    width: "100%",
     maxWidth: 500,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   inputGroup: {
     marginBottom: 24,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   input: {
-    width: '100%',
+    width: "100%",
     height: 50,
     borderWidth: 1,
     borderRadius: 8,
@@ -466,8 +508,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   countryCodeContainer: {
     width: 120,
@@ -475,12 +517,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     marginRight: 12,
-    justifyContent: 'center',
-    overflow: 'hidden',
+    justifyContent: "center",
+    overflow: "hidden",
   },
   picker: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   phoneInput: {
     flex: 1,
@@ -491,8 +533,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   passwordInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -501,14 +543,10 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     fontSize: 16,
-    height: '100%',
+    height: "100%",
   },
   showButton: {
     padding: 8,
-  },
-  showText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   passwordRulesContainer: {
     marginTop: 8,
@@ -518,8 +556,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   passwordRules: {
-    flexDirection: 'column',
-    flexWrap: 'wrap',
+    flexDirection: "column",
+    flexWrap: "wrap",
     gap: 12,
   },
   ruleText: {
@@ -530,22 +568,22 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   registerButton: {
-    width: '100%',
+    width: "100%",
     height: 50,
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 16,
   },
   registerButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   signInContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
     gap: 4,
   },
@@ -554,7 +592,7 @@ const styles = StyleSheet.create({
   },
   signInLink: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

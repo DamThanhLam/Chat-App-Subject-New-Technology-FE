@@ -22,7 +22,6 @@ import {
   useColorScheme,
   Dimensions,
   Keyboard,
-  Modal,
   Alert,
   Animated,
 } from "react-native";
@@ -100,7 +99,6 @@ const ChatScreen = () => {
     id: string;
     message: string;
   } | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -322,10 +320,9 @@ const ChatScreen = () => {
   };
 
   const openSettings = useCallback(() => {
-    if (settingsVisible || menuVisible || optionsVisible) {
+    if (settingsVisible || optionsVisible) {
       console.log("Cannot open settings: another modal is visible", {
         settingsVisible,
-        menuVisible,
         optionsVisible,
       });
       return;
@@ -339,7 +336,7 @@ const ChatScreen = () => {
       duration: 200,
       useNativeDriver: true,
     }).start(() => setSettingsVisible(true));
-  }, [settingsVisible, menuVisible, optionsVisible, slideAnim]);
+  }, [settingsVisible, optionsVisible, slideAnim]);
 
   const closeSettings = useCallback(() => {
     console.log("Closing SettingsPanel");
@@ -350,16 +347,6 @@ const ChatScreen = () => {
       useNativeDriver: true,
     }).start();
   }, [slideAnim]);
-
-  const handleLongPress = (item: Message) => {
-    if (item.status === "delete" || item.status === "recall") return;
-    setSelectedMessage({
-      id: item.id,
-      message:
-        typeof item.message === "string" ? item.message : "[File message]",
-    });
-    setMenuVisible(true);
-  };
 
   const handleRename = (newName: string) => {
     setNickname(newName);
@@ -420,11 +407,6 @@ const ChatScreen = () => {
 
     const data = await res.json();
     return data.images;
-  }
-
-  const closeMenu = () => {
-    setMenuVisible(false);
-    setSelectedMessage(null);
   };
 
   const showOptions = () => {
@@ -650,7 +632,14 @@ const ChatScreen = () => {
         >
           <TouchableOpacity onPress={() => router.back()}>
             <FontAwesome name="arrow-left" size={24} color={iconColor} />
+            <FontAwesome name="arrow-left" size={24} color={iconColor} />
           </TouchableOpacity>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text },
+            ]}
+          >
           <Text
             style={[
               styles.headerTitle,
@@ -665,13 +654,16 @@ const ChatScreen = () => {
               style={styles.iconButton}
             >
               <FontAwesome name="phone" size={24} color={iconColor} />
+              <FontAwesome name="phone" size={24} color={iconColor} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => alert("Video")}
               style={styles.iconButton}
             >
               <FontAwesome name="video-camera" size={24} color={iconColor} />
+              <FontAwesome name="video-camera" size={24} color={iconColor} />
             </TouchableOpacity>
+            <TouchableOpacity onPress={openSettings} style={styles.iconButton}>
             <TouchableOpacity onPress={openSettings} style={styles.iconButton}>
               <FontAwesome name="list" size={24} color={iconColor} />
             </TouchableOpacity>
@@ -779,6 +771,13 @@ const ChatScreen = () => {
           <View style={styles.imagePickerContainer}>
             <View style={styles.imagePickerHeader}>
               <Text
+                style={[
+                  styles.imagePickerTitle,
+                  {
+                    color:
+                      colorScheme === "dark" ? "#ffffff" : theme.colors.text,
+                  },
+                ]}
                 style={[
                   styles.imagePickerTitle,
                   {
@@ -959,7 +958,7 @@ const ChatScreen = () => {
           targetUserId={userID2 as string}
           onRename={handleRename}
           currentUserId={userID1 || ""}
-          isGroupChat={isGroupChat}
+          isТЬGroupChat={isGroupChat}
           conversationId={conversationId as string}
           friendName={nickname || friendName.toString()}
           onMessageSelect={handleMessageSelect}
@@ -971,6 +970,12 @@ const ChatScreen = () => {
           onFileSelected={handleFileSelected}
         />
 
+        <View
+          style={[
+            styles.inputContainer,
+            { backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff" },
+          ]}
+        >
         <View
           style={[
             styles.inputContainer,
@@ -994,11 +999,16 @@ const ChatScreen = () => {
                 color: colorScheme === "dark" ? "#ffffff" : theme.colors.text,
                 backgroundColor:
                   colorScheme === "dark" ? "#333333" : theme.colors.card,
+                backgroundColor:
+                  colorScheme === "dark" ? "#333333" : theme.colors.card,
               },
             ]}
             value={message}
             onChangeText={setMessage}
             placeholder="Type a message..."
+            placeholderTextColor={
+              colorScheme === "dark" ? "#aaaaaa" : theme.colors.text
+            }
             placeholderTextColor={
               colorScheme === "dark" ? "#aaaaaa" : theme.colors.text
             }
@@ -1018,6 +1028,7 @@ const ChatScreen = () => {
                 <FontAwesome
                   name="image"
                   size={24}
+                  color={showImagePicker ? theme.colors.primary : iconColor}
                   color={showImagePicker ? theme.colors.primary : iconColor}
                 />
               </TouchableOpacity>
@@ -1205,70 +1216,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#007bff",
-  },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  menuContainer: {
-    width: "60%",
-    maxWidth: 300,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#ffffff",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    gap: 12,
-  },
-  menuText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333333",
-  },
-  closeButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: "#f5f5f5",
-    alignItems: "center",
-  },
-  optionsContainer: {
-    width: "60%",
-    maxWidth: 300,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#ffffff",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  optionItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    alignItems: "center",
-  },
-  optionText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333333",
   },
   emojiPickerContainer: {
     position: "absolute",
