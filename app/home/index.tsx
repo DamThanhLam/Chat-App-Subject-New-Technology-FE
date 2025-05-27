@@ -459,11 +459,11 @@ const HomeScreen = () => {
           styles.listItem,
           {
             backgroundColor: theme.colors.card,
-            paddingVertical: width >= 768 ? 18 : 14,
-            marginBottom: width >= 768 ? 12 : 8,
+            paddingVertical: width >= 768 ? 20 : 16,
+            marginBottom: width >= 768 ? 14 : 10,
           },
         ]}
-        activeOpacity={0.7}
+        activeOpacity={0.6}
         onPress={() => {
           if (item.type === "private") {
             router.push({
@@ -491,9 +491,9 @@ const HomeScreen = () => {
           style={[
             styles.avatar,
             {
-              width: width >= 768 ? 48 : 40,
-              height: width >= 768 ? 48 : 40,
-              borderRadius: width >= 768 ? 24 : 20,
+              width: width >= 768 ? 56 : 48,
+              height: width >= 768 ? 56 : 48,
+              borderRadius: width >= 768 ? 28 : 24,
             },
           ]}
         />
@@ -503,9 +503,11 @@ const HomeScreen = () => {
               styles.chatName,
               {
                 color: theme.colors.text,
-                fontSize: width >= 768 ? 18 : 16,
+                fontSize: width >= 768 ? 20 : 18,
               },
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {displayName}
           </Text>
@@ -513,10 +515,12 @@ const HomeScreen = () => {
             style={[
               styles.chatMessage,
               {
-                color: theme.colors.text + "80",
+                color: theme.colors.text + "99",
                 fontSize: width >= 768 ? 16 : 14,
               },
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {lastMessageContent}
             {item.type === "group" && item.participantsCount
@@ -529,7 +533,7 @@ const HomeScreen = () => {
             style={[
               styles.chatTime,
               {
-                color: theme.colors.text + "80",
+                color: theme.colors.text + "99",
                 fontSize: width >= 768 ? 14 : 12,
               },
             ]}
@@ -543,7 +547,7 @@ const HomeScreen = () => {
               style={[
                 styles.unreadBadge,
                 {
-                  paddingHorizontal: width >= 768 ? 10 : 8,
+                  paddingHorizontal: width >= 768 ? 12 : 10,
                   paddingVertical: width >= 768 ? 6 : 4,
                 },
               ]}
@@ -578,16 +582,16 @@ const HomeScreen = () => {
             styles.searchContainer,
             {
               backgroundColor: theme.colors.card,
-              marginHorizontal: width >= 768 ? width * 0.1 : 16,
-              marginTop: width >= 768 ? 20 : 10,
-              paddingVertical: width >= 768 ? 12 : 10,
+              marginHorizontal: width >= 768 ? width * 0.15 : 16,
+              marginTop: width >= 768 ? 24 : 16,
+              paddingVertical: width >= 768 ? 14 : 12,
             },
           ]}
         >
           <Ionicons
             name="search-outline"
-            size={width >= 768 ? 24 : 20}
-            color={theme.colors.text}
+            size={width >= 768 ? 28 : 24}
+            color={theme.colors.text + "99"}
             style={styles.searchIcon}
           />
           <TextInput
@@ -601,21 +605,23 @@ const HomeScreen = () => {
             ]}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor={theme.colors.text + "80"}
+            placeholderTextColor={theme.colors.text + "66"}
           />
         </View>
 
         {loading ? (
-          <Text
-            style={{
-              color: theme.colors.text,
-              textAlign: "center",
-              padding: 20,
-              fontSize: width >= 768 ? 18 : 16,
-            }}
-          >
-            Đang tải...
-          </Text>
+          <View style={styles.loadingContainer}>
+            <Text
+              style={{
+                color: theme.colors.text + "99",
+                textAlign: "center",
+                fontSize: width >= 768 ? 18 : 16,
+                fontWeight: "500",
+              }}
+            >
+              Đang tải...
+            </Text>
+          </View>
         ) : (
           <FlatList
             data={displayConversations.filter((conv) =>
@@ -628,7 +634,8 @@ const HomeScreen = () => {
             contentContainerStyle={[
               styles.listContainer,
               {
-                paddingHorizontal: width >= 768 ? width * 0.1 : 16,
+                paddingHorizontal: width >= 768 ? width * 0.15 : 16,
+                paddingTop: 8,
               },
             ]}
           />
@@ -651,61 +658,78 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    elevation: 2,
+    marginBottom: 16,
+    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   searchIcon: {
     marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 0,
+    paddingVertical: 8,
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   listItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    borderRadius: 12,
-    elevation: 1,
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 6,
   },
   avatar: {
     marginRight: 16,
+    borderWidth: 1,
+    borderColor: "#00000010",
   },
   chatDetails: {
     flex: 1,
     justifyContent: "center",
+    gap: 4,
   },
   chatName: {
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   chatMessage: {
-    opacity: 0.7,
+    opacity: 0.8,
+    letterSpacing: 0.1,
   },
   chatMeta: {
     alignItems: "flex-end",
-    gap: 4,
+    gap: 8,
   },
   chatTime: {
-    opacity: 0.7,
+    opacity: 0.8,
+    fontWeight: "500",
   },
   unreadBadge: {
     backgroundColor: "#FF3B30",
-    borderRadius: 12,
+    borderRadius: 20,
+    minWidth: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   unreadText: {
     color: "white",
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
 });

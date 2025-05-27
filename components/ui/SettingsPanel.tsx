@@ -16,8 +16,8 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { FontAwesome } from "@expo/vector-icons";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useAppTheme } from "@/src/theme/theme"; 
 import { getNickname, setNickname } from "@/src/apis/nickName";
 import {
   createGroupFromChat,
@@ -50,7 +50,6 @@ interface SettingsPanelProps {
   visible: boolean;
   onClose: () => void;
   slideAnim: Animated.Value;
-  colorScheme: "light" | "dark" | null;
   targetUserId: string;
   onRename: (newName: string) => void;
   currentUserId: string;
@@ -88,13 +87,10 @@ interface ConversationDetails {
   leaderId?: string;
 }
 
-const SCREEN_WIDTH = 360;
-
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
   visible,
   onClose,
   slideAnim,
-  colorScheme,
   targetUserId,
   onRename,
   currentUserId,
@@ -103,16 +99,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   friendName,
   onMessageSelect,
 }) => {
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { width } = useWindowDimensions(); 
+  const { theme } = useAppTheme(); 
   const [groups, setGroups] = useState<Group[]>([]);
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(true);
-
-  // Các state khác của SettingsPanel...
   const [addToGroupModalVisible, setAddToGroupModalVisible] = useState<boolean>(false);
   const [searchGroupText, setSearchGroupText] = useState<string>("");
   const [filteredGroupsForAdd, setFilteredGroupsForAdd] = useState<Group[]>(groups);
-  const [selectedGroupForAdd, setSelectedGroupForAdd] = useState<string>("");  
+  const [selectedGroupForAdd, setSelectedGroupForAdd] = useState<string>("");
   const [viewCommonGroupsModalVisible, setViewCommonGroupsModalVisible] = useState<boolean>(false);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
@@ -123,8 +118,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<FriendUserDetail[]>([]);
-  const [conversationDetails, setConversationDetails] =
-    useState<ConversationDetails | null>(null);
+  const [conversationDetails, setConversationDetails] = useState<ConversationDetails | null>(null);
   const [newName, setNewName] = useState("");
   const [groupName, setGroupName] = useState("");
   const [friends, setFriends] = useState<FriendUserDetail[]>([]);
@@ -136,18 +130,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [showAllImages, setShowAllImages] = useState(false);
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [showAllLinks, setShowAllLinks] = useState(false);
-  //remove user
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [removeMemberModalVisible, setRemoveMemberModalVisible] =
-    useState(false);
+  const [removeMemberModalVisible, setRemoveMemberModalVisible] = useState(false);
   const [userToRemove, setUserToRemove] = useState<string | null>(null);
   const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
-  const [approvalRequestsModalVisible, setApprovalRequestsModalVisible] =
-    useState(false);
+  const [approvalRequestsModalVisible, setApprovalRequestsModalVisible] = useState(false);
   const [isApprovalRequired, setIsApprovalRequired] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
   const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
 
@@ -175,9 +165,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           );
         } catch (error: any) {
           console.error("Lỗi khi lấy thông tin người dùng:", error.message);
-          setFriendAvatar(
-            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-          );
+          setFriendAvatar("https://cdn-icons-png.flaticon.com/512/3135/3135715.png");
         }
       };
       fetchFriendInfo();
@@ -672,7 +660,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setLeaveGroupModalVisible(false);
     setSuccessModalVisible(false);
     Animated.timing(slideAnim, {
-      toValue: SCREEN_WIDTH,
+      toValue: width,
       duration: 200,
       useNativeDriver: true,
     }).start(() => {
@@ -905,52 +893,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   return (
     <>
       <Modal visible={visible} transparent animationType="none">
-        <View style={styles.settingsModalBackground}>
+        <View style={styles.modalBackground}>
           <Animated.View
             style={[
               styles.settingsPanel,
               {
                 transform: [{ translateX: slideAnim }],
                 backgroundColor: theme.colors.card,
+                width: width >= 768 ? width * 0.4 : width * 0.75, // Responsive width
               },
             ]}
           >
             <View style={styles.settingsHeader}>
               <TouchableOpacity onPress={onClose}>
-                <FontAwesome
-                  name="arrow-left"
-                  size={24}
-                  color={theme.colors.text}
-                />
+                <Ionicons name="arrow-back-outline" size={width >= 768 ? 28 : 24} color={theme.colors.text} />
               </TouchableOpacity>
-              <Text
-                style={[styles.settingsTitle, { color: theme.colors.text }]}
-              >
+              <Text style={[styles.settingsTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
                 Tùy chọn
               </Text>
             </View>
             <View style={styles.userInfo}>
               {isGroupChat ? (
-                <FontAwesome name="users" size={60} color={theme.colors.text} />
+                <Ionicons name="people-outline" size={width >= 768 ? 64 : 60} color={theme.colors.text} />
               ) : (
                 <Image
-                  source={{
-                    uri:
-                      friendAvatar ||
-                      "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-                  }}
-                  style={styles.userAvatar}
+                  source={{ uri: friendAvatar || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }}
+                  style={[styles.userAvatar, { width: width >= 768 ? 64 : 60, height: width >= 768 ? 64 : 60 }]}
                 />
               )}
-              <Text style={[styles.userName, { color: theme.colors.text }]}>
-                {isGroupChat
-                  ? conversationDetails?.groupName || "Nhóm chat"
-                  : friendName}
+              <Text style={[styles.userName, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
+                {isGroupChat ? conversationDetails?.groupName || "Nhóm chat" : friendName}
               </Text>
             </View>
             {isGroupChat && (
-              <View style={styles.membersSection}>
-                <Text style={[styles.subTitle, { color: theme.colors.text }]}>
+              <View style={[styles.membersSection, { paddingHorizontal: width >= 768 ? width * 0.05 : 16 }]}>
+                <Text style={[styles.subTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Thành viên nhóm ({groupMembers.length}):
                 </Text>
                 <FlatList
@@ -959,24 +936,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   renderItem={({ item }) => (
                     <TouchableOpacity
                       onLongPress={(event) => handleLongPress(event, item._id)}
-                      style={styles.memberItem}
+                      style={[styles.memberItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
                     >
                       <Image
-                        source={{
-                          uri: item.urlAVT,
-                        }}
-                        style={styles.memberAvatar}
+                        source={{ uri: item.urlAVT }}
+                        style={[styles.memberAvatar, { width: width >= 768 ? 34 : 30, height: width >= 768 ? 34 : 30 }]}
                       />
                       <View style={styles.memberInfo}>
                         <Text
-                          style={[
-                            styles.memberName,
-                            { color: theme.colors.text },
-                          ]}
+                          style={[styles.memberName, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}
                         >
                           {item.name}
-                          {item._id === conversationDetails?.leaderId &&
-                            " (Trưởng nhóm)"}
+                          {item._id === conversationDetails?.leaderId && " (Trưởng nhóm)"}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -987,311 +958,201 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <ScrollView style={styles.settingsOptions}>
               {conversationDetails?.leaderId === currentUserId ? (
                 <TouchableOpacity
-                  style={styles.settingsItem}
+                  style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                   onPress={() => setRenameModalVisible(true)}
                 >
-                  <FontAwesome
-                    name="pencil"
-                    size={20}
-                    color={theme.colors.text}
-                  />
-                  <Text
-                    style={[styles.settingsText, { color: theme.colors.text }]}
-                  >
+                  <Ionicons name="pencil-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                  <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                     Đổi tên nhóm
                   </Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={styles.settingsItem}
+                  style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                   onPress={() => setRenameModalVisible(true)}
                 >
-                  <FontAwesome
-                    name="pencil"
-                    size={20}
-                    color={theme.colors.text}
-                  />
-                  <Text
-                    style={[styles.settingsText, { color: theme.colors.text }]}
-                  >
+                  <Ionicons name="pencil-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                  <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                     Đổi tên gợi nhớ
                   </Text>
                 </TouchableOpacity>
               )}
-
               <TouchableOpacity
-                style={styles.settingsItem}
+                style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                 onPress={handleFetchMedia}
               >
-                <FontAwesome name="image" size={20} color={theme.colors.text} />
-                <Text
-                  style={[styles.settingsText, { color: theme.colors.text }]}
-                >
+                <Ionicons name="image-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Ảnh, file, link
                 </Text>
               </TouchableOpacity>
               {isGroupChat && (
-                <View style={styles.settingsItem}>
+                <View style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}>
                   {conversationDetails?.leaderId === currentUserId ? (
-                    <>
-                      <TouchableOpacity
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          flex: 1,
-                        }}
-                        onPress={() => {
-                          fetchApprovalRequests();
-                          setApprovalRequestsModalVisible(true);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.settingsText,
-                            { color: theme.colors.text },
-                          ]}
-                        >
-                          Phê duyệt tham gia
-                        </Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        flex: 1,
+                    <TouchableOpacity
+                      style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+                      onPress={() => {
+                        fetchApprovalRequests();
+                        setApprovalRequestsModalVisible(true);
                       }}
                     >
-                      <Text style={[styles.settingsText, { color: "gray" }]}>
+                      <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                        Phê duyệt tham gia
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                      <Text style={[styles.settingsText, { color: theme.colors.text + "80" }]}>
                         Phê duyệt tham gia (Chỉ trưởng nhóm)
                       </Text>
                     </View>
                   )}
-
                   {conversationDetails?.leaderId === currentUserId && (
                     <TouchableOpacity onPress={toggleApproval}>
-                      <FontAwesome
+                      <Ionicons
                         name={isApprovalRequired ? "toggle-off" : "toggle-on"}
-                        size={24}
-                        color={isApprovalRequired ? "gray" : "green"}
+                        size={width >= 768 ? 28 : 24}
+                        color={isApprovalRequired ? theme.colors.text + "80" : theme.colors.primary}
                       />
                     </TouchableOpacity>
                   )}
                 </View>
               )}
-              {conversationDetails?.leaderId === currentUserId ? (
+              {conversationDetails?.leaderId === currentUserId && (
                 <TouchableOpacity
-                  style={styles.settingsItem}
+                  style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                   onPress={() => {
                     fetchApprovalRequests();
                     setApprovalRequestsModalVisible(true);
                   }}
                 >
-                  <FontAwesome
-                    name="user-plus"
-                    size={20}
-                    color={theme.colors.text}
-                  />
-                  <Text
-                    style={[styles.settingsText, { color: theme.colors.text }]}
-                  >
+                  <Ionicons name="person-add-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                  <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                     Danh sách yêu cầu
                   </Text>
                 </TouchableOpacity>
-              ) : (
-                ""
               )}
-              <View style={styles.settingsItem}>
-                {conversationDetails?.leaderId === currentUserId ? (
-                  <>
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        flex: 1,
-                      }}
-                      onPress={() => {}}
-                    >
-                      <Text
-                        style={[
-                          styles.settingsText,
-                          { color: theme.colors.text },
-                        ]}
-                      >
-                        Khóa nhắn tin
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <></>
-                )}
-
-                {conversationDetails?.leaderId === currentUserId && (
+              {conversationDetails?.leaderId === currentUserId && (
+                <View style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}>
+                  <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                      Khóa nhắn tin
+                    </Text>
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={blockChatting}>
-                    <FontAwesome
+                    <Ionicons
                       name={isChatting ? "toggle-off" : "toggle-on"}
-                      size={24}
-                      color={isChatting ? "gray" : "green"}
+                      size={width >= 768 ? 28 : 24}
+                      color={isChatting ? theme.colors.text + "80" : theme.colors.primary}
                     />
                   </TouchableOpacity>
-                )}
-              </View>
+                </View>
+              )}
               <TouchableOpacity
-                style={styles.settingsItem}
+                style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                 onPress={() => setSearchModalVisible(true)}
               >
-                <FontAwesome
-                  name="search"
-                  size={20}
-                  color={theme.colors.text}
-                />
-                <Text
-                  style={[styles.settingsText, { color: theme.colors.text }]}
-                >
+                <Ionicons name="search-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Tìm tin nhắn
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.settingsItem]}
+                style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                 onPress={() => setDeleteModalVisible(true)}
               >
-                <FontAwesome name="trash" size={20} color={theme.colors.text} />
-                <Text
-                  style={[styles.settingsText, { color: theme.colors.text }]}
-                >
+                <Ionicons name="trash-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Xóa lịch sử trò chuyện
                 </Text>
               </TouchableOpacity>
               {!isGroupChat && (
-                <TouchableOpacity
-                  style={styles.settingsItem}
-                  onPress={() => setCreateGroupModalVisible(true)}
-                >
-                  <FontAwesome
-                    name="user-plus"
-                    size={20}
-                    color={theme.colors.text}
-                  />
-                  <Text
-                    style={[styles.settingsText, { color: theme.colors.text }]}
+                <>
+                  <TouchableOpacity
+                    style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
+                    onPress={() => setCreateGroupModalVisible(true)}
                   >
-                    Tạo nhóm với {friendName}
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons name="person-add-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                      Tạo nhóm với {friendName}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
+                    onPress={() => setAddToGroupModalVisible(true)}
+                  >
+                    <Ionicons name="people-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                      Thêm {friendName} vào nhóm
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
+                    onPress={() => setViewCommonGroupsModalVisible(true)}
+                  >
+                    <Ionicons name="people-circle-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                      Xem nhóm chung
+                    </Text>
+                  </TouchableOpacity>
+                </>
               )}
               {isGroupChat && (
                 <>
                   <TouchableOpacity
-                    style={styles.settingsItem}
+                    style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                     onPress={() => setAddMemberModalVisible(true)}
                   >
-                    <FontAwesome
-                      name="user-plus"
-                      size={20}
-                      color={theme.colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                    <Ionicons name="person-add-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       Thêm thành viên
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={styles.settingsItem}
+                    style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                     onPress={() => setLeaveGroupModalVisible(true)}
                   >
-                    <FontAwesome
-                      name="sign-out"
-                      size={20}
-                      color={theme.colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                    <Ionicons name="log-out-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       Rời nhóm
                     </Text>
                   </TouchableOpacity>
-
                   {conversationDetails?.leaderId === currentUserId && (
                     <TouchableOpacity
-                      style={styles.settingsItem}
+                      style={[styles.settingsItem, { paddingVertical: width >= 768 ? 18 : 14 }]}
                       onPress={() => setDeleteGroupModalVisible(true)}
                     >
-                      <FontAwesome
-                        name="trash"
-                        size={20}
-                        color={theme.colors.text}
-                      />
-                      <Text
-                        style={[
-                          styles.settingsText,
-                          { color: theme.colors.text },
-                        ]}
-                      >
+                      <Ionicons name="trash-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+                      <Text style={[styles.settingsText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                         Xóa nhóm
                       </Text>
                     </TouchableOpacity>
                   )}
                 </>
               )}
-              {!isGroupChat && (
-                <>
-                  <TouchableOpacity
-                    style={styles.settingsItem}
-                    onPress={() => setAddToGroupModalVisible(true)}
-                  >
-                    <FontAwesome name="users" size={20} color={theme.colors.text} />
-                    <Text style={[styles.settingsText, { color: theme.colors.text }]}>
-                      Thêm {friendName} vào nhóm
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.settingsItem}
-                    onPress={() => setViewCommonGroupsModalVisible(true)}
-                  >
-                    <FontAwesome name="group" size={20} color={theme.colors.text} />
-                    <Text style={[styles.settingsText, { color: theme.colors.text }]}>
-                      Xem nhóm chung
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
             </ScrollView>
           </Animated.View>
         </View>
       </Modal>
-      
+
       <AddToGroupModal
         visible={addToGroupModalVisible}
         onClose={() => setAddToGroupModalVisible(false)}
         friendName={friendName}
-        targetUserId={targetUserId}   // truyền targetUserId để modal biết user D cần được thêm vào nhóm
+        targetUserId={targetUserId}
         onSelectGroup={(groupId: string) => {
           const socket = getSocket();
           if (!socket) {
             Alert.alert("Lỗi", "Không thể kết nối đến server.");
             return;
           }
-          console.log("Gửi invite với groupId:", groupId, " và targetUserId:", targetUserId);
           socket.emit("invite-join-group", groupId, targetUserId);
-
           socket.once("response-invite-join-group", (response: any) => {
             if (response.code && response.code !== 200) {
               Alert.alert("Lỗi", response.error || "Có lỗi xảy ra khi mời vào nhóm.");
             }
           });
-
-          socket.once("userJoinedGroup", (data: any) => {
-            console.log("Thành viên đã được thêm vào nhóm:", data);
+          socket.once("userJoinedGroup", () => {
             Alert.alert("Thành công", `${friendName} đã được thêm vào nhóm.`);
           });
         }}
@@ -1310,8 +1171,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         }}
       />
 
-      
-      {/* Modal menu tùy chọn khi giữ chuột */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.menuOverlay}
@@ -1328,88 +1187,71 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 left: menuPosition.x,
                 top: menuPosition.y,
                 backgroundColor: theme.colors.card,
+                elevation: 5,
+                shadowColor: theme.colors.text,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
               },
             ]}
           >
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleRemoveFromGroup}
-            >
-              <FontAwesome
-                name="user-times"
-                size={20}
-                color={theme.colors.text}
-              />
-              <Text style={[styles.menuText]}>Xóa khỏi nhóm</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={handleRemoveFromGroup}>
+              <Ionicons name="person-remove-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
+              <Text style={[styles.menuText, { color: theme.colors.text, fontSize: width >= 768 ? 16 : 14 }]}>
+                Xóa khỏi nhóm
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* Modal đổi tên gợi nhớ hoặc đổi tên nhóm */}
       <Modal visible={renameModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.renameModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.renameModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               {isGroupChat ? "Đổi tên nhóm" : "Đổi tên gợi nhớ"}
             </Text>
             <TextInput
-              style={[styles.renameInput, { color: theme.colors.text }]}
+              style={[styles.renameInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
               value={newName}
               onChangeText={setNewName}
-              placeholder={
-                isGroupChat ? "Nhập tên nhóm mới..." : "Nhập tên gợi nhớ mới..."
-              }
-              placeholderTextColor={theme.colors.text}
+              placeholder={isGroupChat ? "Nhập tên nhóm mới..." : "Nhập tên gợi nhớ mới..."}
+              placeholderTextColor={theme.colors.text + "80"}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setRenameModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={handleRename}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Lưu</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Lưu</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal tạo nhóm */}
       <Modal visible={createGroupModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[
-              styles.createGroupModal,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.createGroupModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Tạo nhóm mới
             </Text>
             <TextInput
-              style={[styles.renameInput, { color: theme.colors.text }]}
+              style={[styles.renameInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
               value={groupName}
               onChangeText={setGroupName}
               placeholder="Nhập tên nhóm (mặc định: Nhóm mới)..."
-              placeholderTextColor={theme.colors.text}
+              placeholderTextColor={theme.colors.text + "80"}
             />
-            <Text style={[styles.subTitle, { color: theme.colors.text }]}>
+            <Text style={[styles.subTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
               Chọn bạn bè để thêm vào nhóm:
             </Text>
             <FlatList
@@ -1419,312 +1261,228 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               renderItem={({ item }) => (
                 <Pressable
                   key={item._id}
-                  style={styles.friendItem}
+                  style={[styles.friendItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
                   onPress={() => toggleFriendSelection(item._id)}
                 >
                   <View style={styles.friendInfo}>
                     <Image
-                      source={{
-                        uri: item.urlAVT,
-                      }}
-                      style={styles.friendAvatar}
+                      source={{ uri: item.urlAVT }}
+                      style={[styles.friendAvatar, { width: width >= 768 ? 34 : 30, height: width >= 768 ? 34 : 30 }]}
                     />
-                    <Text
-                      style={[styles.friendName, { color: theme.colors.text }]}
-                    >
+                    <Text style={[styles.friendName, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       {item?.name}
                     </Text>
                   </View>
-                  <FontAwesome
-                    name={
-                      selectedFriends.includes(item._id)
-                        ? "check-square-o"
-                        : "square-o"
-                    }
-                    size={24}
-                    color={
-                      selectedFriends.includes(item._id)
-                        ? theme.colors.primary
-                        : theme.colors.text
-                    }
+                  <Ionicons
+                    name={selectedFriends.includes(item._id) ? "checkbox-outline" : "square-outline"}
+                    size={width >= 768 ? 28 : 24}
+                    color={selectedFriends.includes(item._id) ? theme.colors.primary : theme.colors.text}
                   />
                 </Pressable>
               )}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setCreateGroupModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={handleCreateGroup}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Tạo</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Tạo</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal thêm thành viên vào nhóm */}
       <Modal visible={addMemberModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[
-              styles.createGroupModal,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.createGroupModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Thêm thành viên
             </Text>
-            <Text style={[styles.subTitle, { color: theme.colors.text }]}>
+            <Text style={[styles.subTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
               Chọn bạn bè để thêm vào nhóm:
             </Text>
             <FlatList
               data={friends}
               keyExtractor={(item) => item._id}
               style={styles.friendList}
-              renderItem={({ item }) => {
-                return (
-                  <Pressable
-                    key={item._id}
-                    style={styles.friendItem}
-                    onPress={() => toggleFriendSelection(item._id)}
-                  >
-                    <View style={styles.friendInfo}>
-                      <Image
-                        source={{
-                          uri: item.urlAVT,
-                        }}
-                        style={styles.friendAvatar}
-                      />
-                      <Text
-                        style={[
-                          styles.friendName,
-                          { color: theme.colors.text },
-                        ]}
-                      >
-                        {item?.name}
-                      </Text>
-                    </View>
-                    <FontAwesome
-                      name={
-                        selectedFriends.includes(item._id)
-                          ? "check-square-o"
-                          : "square-o"
-                      }
-                      size={24}
-                      color={
-                        selectedFriends.includes(item._id)
-                          ? theme.colors.primary
-                          : theme.colors.text
-                      }
+              renderItem={({ item }) => (
+                <Pressable
+                  key={item._id}
+                  style={[styles.friendItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
+                  onPress={() => toggleFriendSelection(item._id)}
+                >
+                  <View style={styles.friendInfo}>
+                    <Image
+                      source={{ uri: item.urlAVT }}
+                      style={[styles.friendAvatar, { width: width >= 768 ? 34 : 30, height: width >= 768 ? 34 : 30 }]}
                     />
-                  </Pressable>
-                );
-              }}
+                    <Text style={[styles.friendName, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+                      {item?.name}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={selectedFriends.includes(item._id) ? "checkbox-outline" : "square-outline"}
+                    size={width >= 768 ? 28 : 24}
+                    color={selectedFriends.includes(item._id) ? theme.colors.primary : theme.colors.text}
+                  />
+                </Pressable>
+              )}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setAddMemberModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={handleAddMembers}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Thêm</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Thêm</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal xác nhận xóa lịch sử trò chuyện (chat đơn) */}
       <Modal visible={deleteModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Xác nhận xóa
             </Text>
-            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
-              Bạn có chắc chắn muốn xóa lịch sử trò chuyện này? Hành động này
-              không thể hoàn tác.
+            <Text style={[styles.modalMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+              Bạn có chắc chắn muốn xóa lịch sử trò chuyện này? Hành động này không thể hoàn tác.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setDeleteModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy bỏ
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: "red" }]}
+                style={[styles.modalButton, { backgroundColor: "#FF4D4D" }]} // Use consistent logout color
                 onPress={handleDeleteConversation}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Xóa</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal
-        visible={removeMemberModalVisible}
-        transparent
-        animationType="fade"
-      >
+      <Modal visible={removeMemberModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Xác nhận xóa thành viên
             </Text>
-            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
-              Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm? Hành động này
-              không thể hoàn tác.
+            <Text style={[styles.modalMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+              Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm? Hành động này không thể hoàn tác.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => {
                   setRemoveMemberModalVisible(false);
                   setUserToRemove(null);
                 }}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy bỏ
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: "red" }]}
+                style={[styles.modalButton, { backgroundColor: "#FF4D4D" }]}
                 onPress={handleRemoveMember}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Xóa</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal xác nhận xóa nhóm */}
       <Modal visible={deleteGroupModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Xác nhận xóa nhóm
             </Text>
-            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
-              Bạn có chắc chắn muốn xóa nhóm này? Hành động này không thể hoàn
-              tác và sẽ xóa nhóm đối với tất cả thành viên.
+            <Text style={[styles.modalMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+              Bạn có chắc chắn muốn xóa nhóm này? Hành động này không thể hoàn tác và sẽ xóa nhóm đối với tất cả thành viên.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setDeleteGroupModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy bỏ
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: "red" }]}
+                style={[styles.modalButton, { backgroundColor: "#FF4D4D" }]}
                 onPress={handleDeleteGroup}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Xóa</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal xác nhận rời nhóm */}
       <Modal visible={leaveGroupModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.deleteModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Xác nhận rời nhóm
             </Text>
-            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
-              Bạn có chắc chắn muốn rời nhóm này? Hành động này không thể hoàn
-              tác.
+            <Text style={[styles.modalMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
+              Bạn có chắc chắn muốn rời nhóm này? Hành động này không thể hoàn tác.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => setLeaveGroupModalVisible(false)}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Hủy bỏ
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: "red" }]}
+                style={[styles.modalButton, { backgroundColor: "#FF4D4D" }]}
                 onPress={handleLeaveGroup}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>Rời</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>Rời</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal thông báo thành công */}
       <Modal visible={successModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[
-              styles.successModal,
-              { backgroundColor: theme.colors.card },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.successModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Thành công
             </Text>
-            <Text style={[styles.modalMessage, { color: theme.colors.text }]}>
+            <Text style={[styles.modalMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
               {deleteModalVisible
                 ? "Lịch sử trò chuyện đã được xóa"
                 : deleteGroupModalVisible
@@ -1733,37 +1491,31 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={handleSuccessConfirm}
               >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>OK</Text>
+                <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 18 : 16 }]}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal tìm kiếm tin nhắn */}
       <Modal visible={searchModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.searchModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.searchModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Tìm tin nhắn
             </Text>
             <TextInput
-              style={[styles.renameInput, { color: theme.colors.text }]}
+              style={[styles.renameInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
               value={searchKeyword}
               onChangeText={(text) => {
                 setSearchKeyword(text);
                 handleSearchMessages();
               }}
               placeholder="Nhập từ khóa tìm kiếm..."
-              placeholderTextColor={theme.colors.text}
+              placeholderTextColor={theme.colors.text + "80"}
               autoFocus
             />
             <FlatList
@@ -1772,26 +1524,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               style={styles.searchResultList}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.searchResultItem}
-                  onPress={() => {
-                    handleMessagePress(item.id);
-                  }}
+                  style={[styles.searchResultItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
+                  onPress={() => handleMessagePress(item.id)}
                 >
                   <View style={styles.searchResultContent}>
                     <Text
-                      style={[
-                        styles.searchResultMessage,
-                        { color: theme.colors.text },
-                      ]}
+                      style={[styles.searchResultMessage, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}
                       numberOfLines={1}
                     >
                       {item.message}
                     </Text>
                     <Text
-                      style={[
-                        styles.searchResultTime,
-                        { color: theme.colors.text },
-                      ]}
+                      style={[styles.searchResultTime, { color: theme.colors.text, fontSize: width >= 768 ? 14 : 12 }]}
                     >
                       {formatMessageTime(item.createdAt)}
                     </Text>
@@ -1799,26 +1543,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
-                <Text
-                  style={[styles.noResultsText, { color: theme.colors.text }]}
-                >
+                <Text style={[styles.noResultsText, { color: theme.colors.text, fontSize: width >= 768 ? 16 : 14 }]}>
                   Không tìm thấy tin nhắn nào.
                 </Text>
               }
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => {
                   setSearchModalVisible(false);
                   setSearchKeyword("");
                   setSearchResults([]);
                 }}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Đóng
                 </Text>
               </TouchableOpacity>
@@ -1827,117 +1566,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </View>
       </Modal>
 
-      {/* Modal phê duyệt */}
-      <Modal
-        visible={approvalRequestsModalVisible}
-        transparent
-        animationType="fade"
-      >
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0,0,0,0.4)",
-          }}
-        >
-          <View
-            style={{
-              width: "95%",
-              maxHeight: "85%",
-              backgroundColor: theme.colors.card,
-              borderRadius: 16,
-              padding: 24,
-            }}
-          >
-            {/* Tiêu đề */}
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "600",
-                textAlign: "center",
-                marginBottom: 16,
-                color: theme.colors.text,
-              }}
-            >
+      <Modal visible={approvalRequestsModalVisible} transparent animationType="fade">
+        <View style={styles.modalBackground}>
+          <View style={[styles.approvalModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Phê duyệt tham gia
             </Text>
-
-            {/* Danh sách yêu cầu */}
             <FlatList
               data={approvalRequests}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
               style={{ marginBottom: 16 }}
               renderItem={({ item }) => (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 12,
-                  }}
-                >
-                  {/* Avatar + tên */}
+                <View style={[styles.approvalItem, { paddingVertical: width >= 768 ? 12 : 8 }]}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <Image
                       source={{ uri: item.avatarUrl }}
-                      style={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: 25,
-                        backgroundColor: "#eee",
-                        marginRight: 12,
-                      }}
+                      style={[styles.approvalAvatar, { width: width >= 768 ? 54 : 50, height: width >= 768 ? 54 : 50 }]}
                     />
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "500",
-                        color: theme.colors.text,
-                      }}
-                    >
+                    <Text style={[styles.approvalName, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       {item.username}
                     </Text>
                   </View>
-
-                  {/* Nút phê duyệt / từ chối */}
                   <View style={{ flexDirection: "row" }}>
                     <TouchableOpacity
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        backgroundColor: "#28a745",
-                        marginRight: 8,
-                      }}
+                      style={[styles.approvalButton, { backgroundColor: theme.colors.primary }]}
                       onPress={() => handleApprovalAction(item.id, true)}
                     >
-                      <Text
-                        style={{
-                          color: "#fff",
-                          fontWeight: "600",
-                        }}
-                      >
+                      <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 16 : 14 }]}>
                         Phê duyệt
                       </Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        backgroundColor: "#dc3545",
-                      }}
+                      style={[styles.approvalButton, { backgroundColor: "#FF4D4D" }]}
                       onPress={() => handleApprovalAction(item.id, false)}
                     >
-                      <Text
-                        style={{
-                          color: "#fff",
-                          fontWeight: "600",
-                        }}
-                      >
+                      <Text style={[styles.buttonText, { color: "#fff", fontSize: width >= 768 ? 16 : 14 }]}>
                         Từ chối
                       </Text>
                     </TouchableOpacity>
@@ -1945,36 +1609,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </View>
               )}
               ListEmptyComponent={
-                <Text
-                  style={{
-                    textAlign: "center",
-                    color: "#666",
-                    paddingVertical: 20,
-                  }}
-                >
+                <Text style={[styles.noResultsText, { color: theme.colors.text + "80", fontSize: width >= 768 ? 16 : 14 }]}>
                   Không có yêu cầu nào.
                 </Text>
               }
             />
-
-            {/* Nút Đóng */}
             <TouchableOpacity
-              style={{
-                alignSelf: "center",
-                marginTop: 8,
-                paddingVertical: 10,
-                paddingHorizontal: 20,
-                borderRadius: 8,
-                backgroundColor: "#ccc",
-              }}
+              style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
               onPress={() => setApprovalRequestsModalVisible(false)}
             >
-              <Text
-                style={{
-                  fontWeight: "600",
-                  color: "#333",
-                }}
-              >
+              <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                 Đóng
               </Text>
             </TouchableOpacity>
@@ -1982,36 +1626,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </View>
       </Modal>
 
-      {/* Modal hiển thị danh sách media (ảnh, file, link) */}
       <Modal visible={mediaModalVisible} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <View
-            style={[styles.mediaModal, { backgroundColor: theme.colors.card }]}
-          >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+          <View style={[styles.mediaModal, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.text, fontSize: width >= 768 ? 20 : 18 }]}>
               Ảnh, file, link
             </Text>
             <ScrollView style={styles.mediaContent}>
-              {/* Phần ảnh/video */}
               {images.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       Ảnh/Video
                     </Text>
                     {images.length > 4 && !showAllImages && (
                       <TouchableOpacity onPress={() => setShowAllImages(true)}>
-                        <Text
-                          style={[
-                            styles.seeAllText,
-                            { color: theme.colors.primary },
-                          ]}
-                        >
+                        <Text style={[styles.seeAllText, { color: theme.colors.primary, fontSize: width >= 768 ? 16 : 14 }]}>
                           Xem tất cả
                         </Text>
                       </TouchableOpacity>
@@ -2022,42 +1652,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     keyExtractor={(item) => item.id}
                     numColumns={4}
                     renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.imageItem}
-                        onPress={() => handleOpenLink(item.url)}
-                      >
-                        <Image
-                          source={{ uri: item.url }}
-                          style={styles.mediaImage}
-                          resizeMode="cover"
-                        />
+                      <TouchableOpacity style={styles.imageItem} onPress={() => handleOpenLink(item.url)}>
+                        <Image source={{ uri: item.url }} style={styles.mediaImage} resizeMode="cover" />
                       </TouchableOpacity>
                     )}
                     scrollEnabled={false}
                   />
                 </View>
               )}
-
-              {/* Phần file */}
               {files.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       File
                     </Text>
                     {files.length > 3 && !showAllFiles && (
                       <TouchableOpacity onPress={() => setShowAllFiles(true)}>
-                        <Text
-                          style={[
-                            styles.seeAllText,
-                            { color: theme.colors.primary },
-                          ]}
-                        >
+                        <Text style={[styles.seeAllText, { color: theme.colors.primary, fontSize: width >= 768 ? 16 : 14 }]}>
                           Xem tất cả
                         </Text>
                       </TouchableOpacity>
@@ -2068,43 +1679,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                       <TouchableOpacity
-                        style={styles.fileItem}
+                        style={[styles.fileItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
                         onPress={() => handleOpenLink(item.url)}
                       >
-                        <FontAwesome
-                          name="file"
-                          size={20}
-                          color={theme.colors.text}
-                        />
+                        <Ionicons name="document-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
                         <View style={styles.fileInfo}>
                           <Text
-                            style={[
-                              styles.fileName,
-                              { color: theme.colors.text },
-                            ]}
+                            style={[styles.fileName, { color: theme.colors.text, fontSize: width >= 768 ? 16 : 14 }]}
                             numberOfLines={1}
                           >
                             {item.filename || "Tệp không tên"}
                           </Text>
-                          <Text
-                            style={[
-                              styles.fileSize,
-                              { color: theme.colors.text },
-                            ]}
-                          >
-                            <FontAwesome
-                              name="cloud"
-                              size={12}
-                              color={theme.colors.text}
-                            />
+                          <Text style={[styles.fileSize, { color: theme.colors.text + "80", fontSize: width >= 768 ? 14 : 12 }]}>
+                            {formatFileSize(item.size)}
                           </Text>
                         </View>
-                        <Text
-                          style={[
-                            styles.mediaTime,
-                            { color: theme.colors.text },
-                          ]}
-                        >
+                        <Text style={[styles.mediaTime, { color: theme.colors.text + "80", fontSize: width >= 768 ? 14 : 12 }]}>
                           {formatMessageTime(item.createdAt)}
                         </Text>
                       </TouchableOpacity>
@@ -2113,27 +1703,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   />
                 </View>
               )}
-
-              {/* Phần link */}
               {links.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                       Link
                     </Text>
                     {links.length > 3 && !showAllLinks && (
                       <TouchableOpacity onPress={() => setShowAllLinks(true)}>
-                        <Text
-                          style={[
-                            styles.seeAllText,
-                            { color: theme.colors.primary },
-                          ]}
-                        >
+                        <Text style={[styles.seeAllText, { color: theme.colors.primary, fontSize: width >= 768 ? 16 : 14 }]}>
                           Xem tất cả
                         </Text>
                       </TouchableOpacity>
@@ -2144,29 +1722,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                       <TouchableOpacity
-                        style={styles.linkItem}
+                        style={[styles.linkItem, { paddingVertical: width >= 768 ? 12 : 8 }]}
                         onPress={() => handleOpenLink(item.url)}
                       >
-                        <FontAwesome
-                          name="link"
-                          size={20}
-                          color={theme.colors.text}
-                        />
+                        <Ionicons name="link-outline" size={width >= 768 ? 24 : 20} color={theme.colors.text} />
                         <Text
-                          style={[
-                            styles.linkText,
-                            { color: theme.colors.text },
-                          ]}
+                          style={[styles.linkText, { color: theme.colors.text, fontSize: width >= 768 ? 16 : 14 }]}
                           numberOfLines={1}
                         >
                           {item.url}
                         </Text>
-                        <Text
-                          style={[
-                            styles.mediaTime,
-                            { color: theme.colors.text },
-                          ]}
-                        >
+                        <Text style={[styles.mediaTime, { color: theme.colors.text + "80", fontSize: width >= 768 ? 14 : 12 }]}>
                           {formatMessageTime(item.createdAt)}
                         </Text>
                       </TouchableOpacity>
@@ -2175,24 +1741,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   />
                 </View>
               )}
-
-              {/* Thông báo nếu không có nội dung */}
-              {images.length === 0 &&
-                files.length === 0 &&
-                links.length === 0 && (
-                  <Text
-                    style={[styles.noResultsText, { color: theme.colors.text }]}
-                  >
-                    Không tìm thấy ảnh, file hoặc link nào.
-                  </Text>
-                )}
+              {images.length === 0 && files.length === 0 && links.length === 0 && (
+                <Text style={[styles.noResultsText, { color: theme.colors.text, fontSize: width >= 768 ? 16 : 14 }]}>
+                  Không tìm thấy ảnh, file hoặc link nào.
+                </Text>
+              )}
             </ScrollView>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.border },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.border }]}
                 onPress={() => {
                   setMediaModalVisible(false);
                   setMediaItems([]);
@@ -2201,7 +1758,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   setShowAllLinks(false);
                 }}
               >
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                <Text style={[styles.buttonText, { color: theme.colors.text, fontSize: width >= 768 ? 18 : 16 }]}>
                   Đóng
                 </Text>
               </TouchableOpacity>
@@ -2216,80 +1773,60 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 export default SettingsPanel;
 
 const styles = StyleSheet.create({
-  settingsModalBackground: {
+  modalBackground: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   settingsPanel: {
     position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
-    width: SCREEN_WIDTH * 0.75,
-    flex: 1,
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   settingsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   settingsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginLeft: 10,
+    fontWeight: "600",
+    marginLeft: 12,
   },
   userInfo: {
     alignItems: "center",
     paddingVertical: 20,
   },
-  userName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 10,
-  },
   userAvatar: {
-    width: 60,
-    height: 60,
     borderRadius: 30,
     marginBottom: 10,
   },
-  settingsOptions: {
-    flex: 1,
-  },
-  settingsOptionsContent: {
-    paddingBottom: 20,
-  },
-  settingsItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    paddingHorizontal: 20,
-  },
-  settingsText: {
-    fontSize: 16,
-    marginLeft: 15,
+  userName: {
+    fontWeight: "600",
+    marginTop: 10,
   },
   membersSection: {
-    paddingHorizontal: 20,
     paddingVertical: 10,
   },
   subTitle: {
-    fontSize: 16,
+    fontWeight: "600",
     marginBottom: 10,
   },
   memberItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
   },
   memberAvatar: {
-    width: 30,
-    height: 30,
     borderRadius: 15,
     marginRight: 10,
   },
@@ -2300,18 +1837,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   memberName: {
-    fontSize: 16,
+    fontWeight: "500",
   },
-  removeButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    backgroundColor: "red",
-    borderRadius: 5,
+  settingsOptions: {
+    flex: 1,
   },
-  removeButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  settingsText: {
+    fontWeight: "500",
+    marginLeft: 15,
   },
   menuOverlay: {
     flex: 1,
@@ -2319,12 +1867,7 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     width: 150,
-    borderRadius: 5,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    borderRadius: 8,
   },
   menuItem: {
     padding: 10,
@@ -2334,73 +1877,108 @@ const styles = StyleSheet.create({
     borderBottomColor: "#ddd",
   },
   menuText: {
-    fontSize: 14,
+    fontWeight: "500",
     marginLeft: 10,
-    color: "#ff0000",
-  },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   renameModal: {
-    width: 300,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   createGroupModal: {
-    width: 300,
-    height: 400,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    height: "70%",
+    maxHeight: 450,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   deleteModal: {
-    width: 300,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   successModal: {
-    width: 300,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   searchModal: {
-    width: 300,
-    height: 400,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    height: "70%",
+    maxHeight: 450,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   mediaModal: {
-    width: 300,
-    height: 400,
-    borderRadius: 10,
+    width: "80%",
+    maxWidth: 320,
+    height: "70%",
+    maxHeight: 450,
+    borderRadius: 12,
     padding: 20,
-    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  approvalModal: {
+    width: "95%",
+    maxHeight: "85%",
+    borderRadius: 12,
+    padding: 24,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "600",
     marginBottom: 15,
+    textAlign: "center",
   },
   modalMessage: {
-    fontSize: 16,
+    fontWeight: "400",
     textAlign: "center",
     marginBottom: 20,
   },
   renameInput: {
     width: "100%",
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    fontSize: 16,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 5,
+    borderRadius: 8,
     marginBottom: 15,
   },
   modalButtons: {
@@ -2410,14 +1988,13 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: 10,
+    padding: 12,
     alignItems: "center",
-    borderRadius: 5,
+    borderRadius: 8,
     marginHorizontal: 5,
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   friendList: {
     width: "100%",
@@ -2428,7 +2005,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 8,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
