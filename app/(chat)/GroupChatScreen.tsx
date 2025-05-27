@@ -111,7 +111,7 @@ const GroupChatScreen = () => {
   const dateBefore = useRef<Date | null>(null);
   const colorScheme = useColorScheme();
   const theme = useMemo(
-    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
+    () => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme),
     [colorScheme]
   );
   const emojiPickerTheme: Theme =
