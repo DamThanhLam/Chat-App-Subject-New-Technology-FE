@@ -14,7 +14,7 @@ import {
   FlatList,
   Dimensions,
   Platform,
-
+  StatusBar
 } from "react-native";
 import { useColorScheme } from "react-native";
 import {
@@ -33,7 +33,36 @@ import { router } from "expo-router";
 import { getNickname } from "@/src/apis/nickName";
 import * as ImagePicker from "expo-image-picker";
 
-const { width, height } = Dimensions.get('window');
+/* --- Các Interface --- */
+interface Friend {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  status: string;
+  name: string;
+  avatarUrl?: string;
+}
+
+interface Group {
+  id: string;
+  groupName: string;
+  displayName?: string;
+  participants?: string[]; 
+  leaderId?: string;
+  avatarUrl?: string;
+  memberCount?: number;
+  isLeader?: boolean;
+}
+
+interface SearchUser {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+
+const { width } = Dimensions.get("window");
 const isSmallDevice = width < 375;
 
 const FriendScreen = () => {
@@ -43,25 +72,25 @@ const FriendScreen = () => {
 
   const user = useSelector((state: RootState) => state.user);
   const [token, setToken] = useState("");
-  const [friends, setFriends] = useState([]);
-  const [filteredFriends, setFilteredFriends] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState("friends");
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedTab, setSelectedTab] = useState<string>("friends");
 
-  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
-  const [searchEmail, setSearchEmail] = useState("");
-  const [searchResult, setSearchResult] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [friendRequestSent, setFriendRequestSent] = useState(false);
-  const [isAlreadyFriend, setIsAlreadyFriend] = useState(false);
-  const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
-  const [groupName, setGroupName] = useState("");
+  const [showAddFriendModal, setShowAddFriendModal] = useState<boolean>(false);
+  const [searchEmail, setSearchEmail] = useState<string>("");
+  const [searchResult, setSearchResult] = useState<SearchUser | null>(null);
+  const [searching, setSearching] = useState<boolean>(false);
+  const [friendRequestSent, setFriendRequestSent] = useState<boolean>(false);
+  const [isAlreadyFriend, setIsAlreadyFriend] = useState<boolean>(false);
+  const [createGroupModalVisible, setCreateGroupModalVisible] = useState<boolean>(false);
+  const [groupName, setGroupName] = useState<string>("");
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [groups, setGroups] = useState<any[]>([]);
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const DEFAULT_AVATAR =
     "https://cdn-icons-png.flaticon.com/512/219/219983.png";
 
@@ -100,12 +129,12 @@ const FriendScreen = () => {
     fetchData();
   }, [token, user.id, selectedTab]);
 
-  const apiFetch = async (endpoint, options = {}) => {
-    const defaultOptions = {
+  const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+    const defaultOptions: RequestInit = {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
     };
 
@@ -113,34 +142,35 @@ const FriendScreen = () => {
       ...defaultOptions,
       ...options,
       headers: {
-        ...defaultOptions.headers,
-        ...options.headers,
+        ...(defaultOptions.headers || {}),
+        ...(options.headers || {}),
       },
     });
+
     if (!response.ok) {
       throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
     }
     return response.json();
   };
 
-  //Hàm get DS Nhóm
+
+  // Hàm get danh sách nhóm
   const fetchGroups = async () => {
     try {
       if (!user?.id || !token) return;
 
       const groupsData = await apiFetch(`/api/conversations/my-groups/${user.id}`);
-
       if (!Array.isArray(groupsData)) throw new Error("Phản hồi không hợp lệ");
 
       const processedGroups = await Promise.all(
-        groupsData.map(async (group) => ({
+        groupsData.map(async (group: any) => ({
           ...group,
           memberCount: group.participants?.length || 0,
           isLeader: group.leaderId === user.id,
         }))
       );
       setGroups(processedGroups);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in fetchGroups:", error);
       setGroups([]);
       Toast.show({
@@ -151,14 +181,16 @@ const FriendScreen = () => {
     }
   };
 
-  //Hàm get DS Friend
+  // Hàm get danh sách bạn bè
   const fetchFriends = async () => {
     try {
       const friendsData = await apiFetch(`/api/friends/get-friends/${user.id}`);
-      const acceptedFriends = friendsData.friends.filter(friend => friend.status === "accepted");
+      const acceptedFriends = friendsData.friends.filter(
+        (friend: { status: string; }) => friend.status === "accepted"
+      );
 
       const enrichedFriends = await Promise.all(
-        acceptedFriends.map(async (friend) => {
+        acceptedFriends.map(async (friend: any) => {
           const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
           try {
             const [userData, nicknameData] = await Promise.all([
@@ -197,8 +229,8 @@ const FriendScreen = () => {
     setFilteredFriends(filtered);
   }, [searchTerm, friends]);
 
-  const groupByFirstLetter = (list) => {
-    const groups = {};
+  const groupByFirstLetter = (list: Friend[]) => {
+    const groups: { [key: string]: Friend[] } = {};
     list.forEach((friend) => {
       const letter = friend.name[0].toUpperCase();
       if (!groups[letter]) groups[letter] = [];
@@ -208,7 +240,6 @@ const FriendScreen = () => {
   };
 
   const pickAvatar = async () => {
-    // Yêu cầu quyền truy cập thư viện ảnh
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -227,7 +258,6 @@ const FriendScreen = () => {
     });
 
     console.log(result);
-    // Nếu người dùng không hủy việc chọn ảnh
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       setAvatarUrl(asset.uri);
@@ -242,7 +272,7 @@ const FriendScreen = () => {
     try {
       const data = await apiFetch(`/api/user/search?email=${encodeURIComponent(searchEmail)}`);
       if (data?.users && data.users.length > 0) {
-        const foundUser = data.users[0];
+        const foundUser: SearchUser = data.users[0];
         setSearchResult(foundUser);
 
         // Kiểm tra nếu đã là bạn bè
@@ -270,28 +300,33 @@ const FriendScreen = () => {
     }
   };
 
-
+  // Trong hàm useEffect kết nối socket
   useEffect(() => {
-    connectSocket().then(socket => {
+    connectSocket().then((socket) => {
       const handleNewGroup = ({ conversation }: any) => {
         const memberCount = conversation.participants?.length || 0;
-        setGroups(prev => [
-          ...prev,
-          {
-            ...conversation,
-            memberCount,
-            isLeader: conversation.leaderId === user.id,
-          },
-        ]);
-        console.log([...groups])
+        setGroups((prev) => {
+          // Kiểm tra xem nhóm này đã tồn tại trong danh sách chưa bằng cách so sánh id
+          if (prev.find((group) => group.id === conversation.id)) {
+            return prev; // Nếu đã tồn tại, không thêm nữa
+          }
+          return [
+            ...prev,
+            {
+              ...conversation,
+              memberCount,
+              isLeader: conversation.leaderId === user.id,
+            },
+          ];
+        });
+        console.log("Cập nhật nhóm mới, danh sách nhóm:", [...groups]);
       };
-      socket?.on("group-created", handleNewGroup)
-      socket?.on(
-        "added-to-group",
-        handleNewGroup)
-      // socket.on("friendRequestAccepted", );
+
+      socket?.on("group-created", handleNewGroup);
+      socket?.on("added-to-group", handleNewGroup);
     });
   }, []);
+
 
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
@@ -314,7 +349,7 @@ const FriendScreen = () => {
 
     socket.emit("send-friend-request", payload);
 
-    socket.once("send-friend-request-response", (res) => {
+    socket.once("send-friend-request-response", (res: any) => {
       if (res.code === 200) {
         setFriendRequestSent(true);
         Toast.show({
@@ -331,48 +366,50 @@ const FriendScreen = () => {
     });
   };
 
-  const handleCancelFriendRequest = async (receiverId) => {
-    try {
-      await apiFetch(`/api/friends/cancel?senderId=${user.id}&receiverId=${receiverId}`, { method: "DELETE" });
-      setFriendRequestSent(false);
-      alert("Đã hủy lời mời kết bạn!");
-      setShowAddFriendModal(false);
-    } catch (err) {
-      console.error("Lỗi hủy lời mời:", err);
-      alert("Không thể hủy lời mời.");
+  const handleCancelFriendRequest = () => {
+    const socket = getSocket();
+    if (!socket) {
+      console.error("Chưa kết nối được socket");
+      return;
     }
-  };
 
+    // Ở phiên bản này, chúng ta dùng payload gồm senderId và receiverId như trong API của bạn
+    if (!searchResult || !searchResult.id) {
+      console.error("Không tìm thấy kết quả tìm kiếm hoặc ID không xác định");
+      return;
+    }
+
+    const payload = { senderId: user.id, receiverId: searchResult.id };
+    
+    socket.emit("cancel-friend-request", payload);
+    socket.once("cancel-friend-request-response", (res: any) => {
+      if (res.code === 200) {
+        setFriendRequestSent(false);
+        alert("Đã hủy lời mời kết bạn!");
+        setShowAddFriendModal(false);
+      } else {
+        console.error("Lỗi khi hủy lời mời:", res.error);
+        alert("Không thể hủy lời mời: " + res.error);
+      }
+    });
+  };
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
     console.log(grouped);
     return grouped.map(([letter, items]) => (
       <View key={letter}>
-        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>
-          {letter}
-        </Text>
+        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
         {items.map((item) => (
           <View
             key={item.id}
             style={[styles.itemContainer, { borderColor: theme.colors.border }]}
           >
             <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-            <Text style={[styles.name, { color: theme.colors.text }]}>
-              {item.name}
-            </Text>
+            <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
             <View style={styles.actions}>
-              <Ionicons
-                name="call-outline"
-                size={20}
-                color={theme.colors.primary}
-              />
-              <MaterialIcons
-                name="video-call"
-                size={22}
-                color={theme.colors.primary}
-                style={{ marginLeft: 10 }}
-              />
+              <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
+              <MaterialIcons name="video-call" size={22} color={theme.colors.primary} style={{ marginLeft: 10 }} />
               <Ionicons
                 name="chatbubble-outline"
                 size={20}
@@ -382,11 +419,7 @@ const FriendScreen = () => {
                   router.push({
                     pathname: "/ChatScreen",
                     params: {
-                      // conversationId: item.lastMessage?.conversationId || "",
-                      userID2:
-                        user.id === item.senderId
-                          ? item.receiverId
-                          : item.senderId,
+                      userID2: user.id === item.senderId ? item.receiverId : item.senderId,
                       friendName: item.name,
                     },
                   });
@@ -408,7 +441,7 @@ const FriendScreen = () => {
             pathname: "/GroupChatScreen",
             params: {
               conversationId: item.id,
-              groupName: item.displayName,
+              groupName: item.displayName || item.groupName,
             },
           });
         }}
@@ -420,8 +453,7 @@ const FriendScreen = () => {
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{item.groupName}</Text>
           <Text style={styles.groupMembers}>
-            {item.memberCount} thành viên •
-            {item.isLeader ? " Bạn là trưởng nhóm" : " Bạn là thành viên"}
+            {item.memberCount} thành viên • {item.isLeader ? " Bạn là trưởng nhóm" : " Bạn là thành viên"}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
@@ -445,14 +477,13 @@ const FriendScreen = () => {
     return (
       <FlatList
         data={groups}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={renderGroupItem}
         contentContainerStyle={styles.groupListContainer}
       />
     );
   };
 
-  //Tao Group
   const handleCreateGroup = async () => {
     const trimmedGroupName = groupName.trim();
 
@@ -464,7 +495,6 @@ const FriendScreen = () => {
       return;
     }
 
-    // Tính tổng thành viên nhóm (bạn + những người được chọn)
     const totalMembers = new Set([user.id, ...selectedFriends]).size;
     if (totalMembers < 3) {
       Toast.show({
@@ -479,13 +509,10 @@ const FriendScreen = () => {
 
       const actualParticipantIds = filteredFriends
         .filter((friend) => {
-          const friendId =
-            friend.senderId === user.id ? friend.receiverId : friend.senderId;
+          const friendId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
           return selectedFriends.includes(friendId);
         })
-        .map((friend) =>
-          friend.senderId === user.id ? friend.receiverId : friend.senderId
-        );
+        .map((friend) => (friend.senderId === user.id ? friend.receiverId : friend.senderId));
 
       const socket = getSocket();
       if (!socket) return;
@@ -518,34 +545,23 @@ const FriendScreen = () => {
   };
 
   const handleOpenAddFriendModal = () => {
-    setSearchEmail(""); // Reset ô input
-    setSearchResult(null); // Reset kết quả tìm kiếm
-    setSearching(false); // Reset trạng thái loading
-    setFriendRequestSent(false); // Reset trạng thái gửi lời mời
+    setSearchEmail("");
+    setSearchResult(null);
+    setSearching(false);
+    setFriendRequestSent(false);
     setShowAddFriendModal(true);
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Search Bar */}
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
-            <Ionicons
-              name="search"
-              size={20}
-              color={theme.colors.text}
-              style={styles.searchIcon}
-            />
+            <Ionicons name="search" size={20} color={theme.colors.text} style={styles.searchIcon} />
             <TextInput
               placeholder="Tìm kiếm..."
               placeholderTextColor="#888"
@@ -554,89 +570,36 @@ const FriendScreen = () => {
               onChangeText={setSearchTerm}
             />
           </View>
-
-          {/* Tabs */}
           <View style={styles.tabContainer}>
-            <TouchableOpacity
-              onPress={() => setSelectedTab("friends")}
-              style={[
-                styles.tab,
-                selectedTab === "friends" && styles.activeTab
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  selectedTab === "friends" && styles.activeTabText,
-                ]}
-              >
-                Bạn bè
-              </Text>
+            <TouchableOpacity onPress={() => setSelectedTab("friends")} style={[styles.tab, selectedTab === "friends" && styles.activeTab]}>
+              <Text style={[styles.tabText, selectedTab === "friends" && styles.activeTabText]}>Bạn bè</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setSelectedTab("groups")}
-              style={[
-                styles.tab,
-                selectedTab === "groups" && styles.activeTab
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  selectedTab === "groups" && styles.activeTabText,
-                ]}
-              >
-                Nhóm
-              </Text>
+            <TouchableOpacity onPress={() => setSelectedTab("groups")} style={[styles.tab, selectedTab === "groups" && styles.activeTab]}>
+              <Text style={[styles.tabText, selectedTab === "groups" && styles.activeTabText]}>Nhóm</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Action Buttons */}
           <View style={styles.actionButtons}>
             {selectedTab === "friends" ? (
-              <TouchableOpacity
-                onPress={handleOpenAddFriendModal}
-                style={styles.actionButton}
-              >
+              <TouchableOpacity onPress={handleOpenAddFriendModal} style={styles.actionButton}>
                 <Ionicons name="person-add" size={22} color={theme.colors.primary} />
-                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>
-                  Thêm bạn
-                </Text>
+                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Thêm bạn</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity
-                onPress={() => setCreateGroupModalVisible(true)}
-                style={styles.actionButton}
-              >
-                <Ionicons
-                  name="people-circle-outline"
-                  size={22}
-                  color={theme.colors.primary}
-                />
-                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>
-                  Tạo nhóm chat
-                </Text>
+              <TouchableOpacity onPress={() => setCreateGroupModalVisible(true)} style={styles.actionButton}>
+                <Ionicons name="people-circle-outline" size={22} color={theme.colors.primary} />
+                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Tạo nhóm chat</Text>
               </TouchableOpacity>
             )}
           </View>
-
-          {/* Content */}
           <View style={styles.contentContainer}>
-            {selectedTab === "friends"
-              ? renderFriendGroup()
-              : renderGroupList()}
+            {selectedTab === "friends" ? renderFriendGroup() : renderGroupList()}
           </View>
         </ScrollView>
       )}
-
-      {/* Add Friend Modal */}
       <Modal visible={showAddFriendModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: theme.colors.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-              Thêm bạn
-            </Text>
-
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Thêm bạn</Text>
             <TextInput
               placeholder="Nhập email..."
               placeholderTextColor="#888"
@@ -644,7 +607,6 @@ const FriendScreen = () => {
               value={searchEmail}
               onChangeText={setSearchEmail}
             />
-
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
@@ -658,45 +620,24 @@ const FriendScreen = () => {
               >
                 <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={handleSearchByEmail}
-              >
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]} onPress={handleSearchByEmail}>
                 <Text style={styles.buttonText}>Tìm kiếm</Text>
               </TouchableOpacity>
             </View>
-
             {searching && <ActivityIndicator style={{ marginTop: 10 }} color={theme.colors.primary} />}
-
             {searchResult && (
               <View style={[styles.searchResultContainer, { backgroundColor: theme.colors.background }]}>
-                <Image
-                  source={{ uri: searchResult.avatarUrl || DEFAULT_AVATAR }}
-                  style={styles.modalAvatar}
-                />
-                <Text style={[styles.searchResultName, { color: theme.colors.text }]}>
-                  {searchResult.name}
-                </Text>
-                <Text style={[styles.searchResultEmail, { color: theme.colors.text }]}>
-                  {searchResult.email}
-                </Text>
-
+                <Image source={{ uri: searchResult.avatarUrl || DEFAULT_AVATAR }} style={styles.modalAvatar} />
+                <Text style={[styles.searchResultName, { color: theme.colors.text }]}>{searchResult.name}</Text>
+                <Text style={[styles.searchResultEmail, { color: theme.colors.text }]}>{searchResult.email}</Text>
                 {isAlreadyFriend ? (
-                  <Text style={[styles.statusText, { color: theme.colors.notification }]}>
-                    Đã là bạn bè
-                  </Text>
+                  <Text style={[styles.statusText, { color: theme.colors.notification }]}>Đã là bạn bè</Text>
                 ) : friendRequestSent ? (
-                  <TouchableOpacity
-                    onPress={() => handleCancelFriendRequest(searchResult.id)}
-                    style={[styles.actionBtn, { backgroundColor: theme.colors.notification, marginTop: 16 }]}
-                  >
+                  <TouchableOpacity onPress={handleCancelFriendRequest} style={[styles.actionBtn, { backgroundColor: theme.colors.notification, marginTop: 16 }]}>
                     <Text style={styles.buttonText}>Hủy lời mời</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity
-                    onPress={() => handleSendFriendRequest(searchResult.id)}
-                    style={[styles.actionBtn, { backgroundColor: theme.colors.primary, marginTop: 16 }]}
-                  >
+                  <TouchableOpacity onPress={() => handleSendFriendRequest(searchResult.id)} style={[styles.actionBtn, { backgroundColor: theme.colors.primary, marginTop: 16 }]}>
                     <Text style={styles.buttonText}>Gửi lời mời</Text>
                   </TouchableOpacity>
                 )}
@@ -705,35 +646,19 @@ const FriendScreen = () => {
           </View>
         </View>
       </Modal>
-
-      {/* Create Group Modal */}
       <Modal visible={createGroupModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.groupModal, { backgroundColor: theme.colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-                Tạo nhóm
-              </Text>
-              <TouchableOpacity
-                onPress={() => setCreateGroupModalVisible(false)}
-              >
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Tạo nhóm</Text>
+              <TouchableOpacity onPress={() => setCreateGroupModalVisible(false)}>
                 <Feather name="x" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.inputGroupContainer}>
-              <TouchableOpacity
-                style={styles.avatarContainer}
-                onPress={pickAvatar}
-              >
-                <Image
-                  source={{
-                    uri: avatarUrl || DEFAULT_AVATAR,
-                  }}
-                  style={styles.modalAvatar}
-                />
+              <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
+                <Image source={{ uri: avatarUrl || DEFAULT_AVATAR }} style={styles.modalAvatar} />
               </TouchableOpacity>
-
               <TextInput
                 placeholder="Nhập tên nhóm..."
                 placeholderTextColor="#888"
@@ -742,7 +667,6 @@ const FriendScreen = () => {
                 onChangeText={setGroupName}
               />
             </View>
-
             <TextInput
               placeholder="Tìm kiếm bạn bè..."
               placeholderTextColor="#888"
@@ -750,29 +674,16 @@ const FriendScreen = () => {
               value={searchTerm}
               onChangeText={setSearchTerm}
             />
-
             <ScrollView style={{ flex: 1 }}>
-              {groupByFirstLetter(filteredFriends).map(([letter, items]) => (
-                <View key={letter}>
-                  <Text
-                    style={[styles.groupTitle, { color: theme.colors.text }]}
-                  >
-                    {letter}
-                  </Text>
-                  {items.map((item) => {
-                    // Lấy ID thực tế của bạn bè
-                    const friendId =
-                      item.senderId === user.id
-                        ? item.receiverId
-                        : item.senderId;
-
+              {groupByFirstLetter(filteredFriends).map(([letter, items], groupIndex) => (
+                <View key={`${letter}-${groupIndex}`}>
+                  <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
+                  {items.map((item, index) => {
+                    const friendId = item.senderId === user.id ? item.receiverId : item.senderId;
                     return (
                       <TouchableOpacity
-                        key={friendId}
-                        style={[
-                          styles.itemContainer,
-                          { borderColor: theme.colors.border },
-                        ]}
+                        key={`${friendId}-${index}`}
+                        style={[styles.itemContainer, { borderColor: theme.colors.border }]}
                         onPress={() => {
                           setSelectedFriends((prev) => {
                             const updated = prev.includes(friendId)
@@ -783,16 +694,8 @@ const FriendScreen = () => {
                           });
                         }}
                       >
-                        <Image
-                          source={{ uri: item.avatarUrl }}
-                          style={styles.avatar}
-                        />
-                        <Text
-                          style={[styles.name, { color: theme.colors.text }]}
-                        >
-                          {item.name}
-                        </Text>
-
+                        <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+                        <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
                         <View style={styles.checkboxCircle}>
                           {selectedFriends.includes(friendId) && (
                             <View style={[styles.checkboxSelected, { backgroundColor: theme.colors.primary }]} />
@@ -804,7 +707,6 @@ const FriendScreen = () => {
                 </View>
               ))}
             </ScrollView>
-
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
@@ -825,13 +727,11 @@ const FriendScreen = () => {
                     backgroundColor: selectedFriends.length < 2 || !groupName.trim()
                       ? theme.colors.border
                       : theme.colors.primary,
-                    opacity: selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1
+                    opacity: selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1,
                   },
                 ]}
               >
-                <Text style={styles.buttonText}>
-                  {isCreatingGroup ? 'Đang tạo...' : 'Tạo nhóm'}
-                </Text>
+                <Text style={styles.buttonText}>{isCreatingGroup ? "Đang tạo..." : "Tạo nhóm"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -844,7 +744,7 @@ const FriendScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: isSmallDevice ? 10 : 20,
+    
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {

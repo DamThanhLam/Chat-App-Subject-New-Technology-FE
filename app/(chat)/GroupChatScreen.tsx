@@ -111,7 +111,7 @@ const GroupChatScreen = () => {
   const dateBefore = useRef<Date | null>(null);
   const colorScheme = useColorScheme();
   const theme = useMemo(
-    () => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme),
+    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
     [colorScheme]
   );
   const emojiPickerTheme: Theme =
@@ -701,399 +701,331 @@ const GroupChatScreen = () => {
     }
   };
   return (
-    <PaperProvider theme={theme}>
-      {/* Hidden web file input */}
-      {Platform.OS === "web" && (
-        <input
-          id="fileInput"
-          type="file"
-          multiple
-          style={{ display: "none" }}
-          onChange={() => {}}
-        />
-      )}
-
-      {/* Header */}
+    <PaperProvider>
       <View
-        style={[
-          styles.customHeader,
-          { backgroundColor: theme.colors.background },
-        ]}
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <TouchableOpacity onPress={() => router.back()}>
-          <FontAwesome
-            name="arrow-left"
-            size={24}
-            color={theme.colors.primary}
+        {/* Hidden web file input */}
+        {Platform.OS === "web" && (
+          <input
+            id="fileInput"
+            type="file"
+            multiple
+            style={{ display: "none" }}
+            onChange={() => { }}
           />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {groupName || "Nhóm chat"}
-          </Text>
-          <Text style={[styles.participantsText, { color: theme.colors.text }]}>
-            {groupParticipants.length} thành viên
-          </Text>
-        </View>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity
-            onPress={() => alert("Call")}
-            style={styles.iconSpacing}
-          >
-            <FontAwesome name="phone" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => alert("Video")}
-            style={styles.iconSpacing}
-          >
+        )}
+
+        {/* Header */}
+        <View
+          style={[
+            styles.customHeader,
+            { backgroundColor: theme.colors.background },
+          ]}
+        >
+          <TouchableOpacity onPress={() => router.back()}>
             <FontAwesome
-              name="video-camera"
+              name="arrow-left"
               size={24}
               color={theme.colors.primary}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
-            <FontAwesome name="list" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-      {/* FlatList */}
-      <FlatList
-        data={conversation}
-        ref={flatListRef}
-        keyExtractor={(item) => (item ? item.id : "")}
-        onContentSizeChange={() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }}
-        renderItem={({ item }) => {
-          let showDate = false;
-          let stringDate = "";
-          let createdAt = new Date(item.createdAt);
-          const vietnamTime = createdAt.toLocaleString("vi-VN", {
-            timeZone: "Asia/Ho_Chi_Minh",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          });
-          let dateParts = vietnamTime.split("/");
-          const formattedDate = new Date(
-            `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
-          );
-          if (!dateBefore.current) {
-            showDate = true;
-            stringDate =
-              formattedDate.getFullYear() +
-              "/" +
-              (formattedDate.getMonth() + 1) +
-              "/" +
-              formattedDate.getDate();
-          }
-          if (
-            dateBefore.current &&
-            (dateBefore.current.getDate() != createdAt.getDate() ||
-              dateBefore.current.getMonth() != createdAt.getMonth() ||
-              dateBefore.current.getFullYear() != createdAt.getFullYear())
-          ) {
-            showDate = true;
-            stringDate =
-              formattedDate.getFullYear() +
-              "/" +
-              (formattedDate.getMonth() + 1) +
-              "/" +
-              formattedDate.getDate();
-          }
-          const isDeleted = item.status === "deleted";
-          const isRecalled = item.status === "recalled";
-          const isFile = item.contentType === "file";
-          const messageTime = format(new Date(item.createdAt), "HH:mm");
-          dateBefore.current = createdAt;
-          const sender = groupParticipants.find(
-            (p) => p._id === item.senderId || p.id === item.senderId
-          );
-
-          return (
-            <MessageItem
-              item={item}
-              userID1={userID1}
-              theme={theme}
-              showDate={showDate}
-              stringDate={stringDate}
-              isDeleted={isDeleted}
-              isRecalled={isRecalled}
-              isFile={isFile}
-              messageTime={messageTime}
-              anotherUser={sender}
-              isGroupChat={true}
-            />
-          );
-        }}
-        contentContainerStyle={styles.messagesContainer}
-        onScrollToIndexFailed={(info) => {
-          console.warn("Failed to scroll to index:", info);
-          flatListRef.current?.scrollToOffset({
-            offset: info.highestMeasuredFrameIndex,
-            animated: true,
-          });
-        }}
-      />
-
-      {/* Emoji Picker */}
-      {showEmojiPicker && Platform.OS === "web" && (
-        <View
-          style={[
-            styles.emojiPickerContainer,
-            {
-              backgroundColor: theme.colors.card,
-              borderTopWidth: 1,
-              borderTopColor: theme.colors.border,
-            },
-          ]}
-        >
-          <EmojiPicker
-            width={SCREEN_WIDTH}
-            height={350}
-            onEmojiClick={handleEmojiClick}
-            skinTonesDisabled
-            searchDisabled={false}
-            previewConfig={{ showPreview: false }}
-            theme={emojiPickerTheme}
-          />
-        </View>
-      )}
-
-      {showEmojiPicker && Platform.OS !== "web" && (
-        <EmojiPickerMobile
-          open={showEmojiPicker}
-          onEmojiSelected={handleEmojiSelectMobile}
-          onClose={() => setShowEmojiPicker(false)}
-        />
-      )}
-      {/* Image Picker (Mobile) */}
-      {showImagePicker && Platform.OS !== "web" && (
-        <View
-          style={[
-            styles.imagePickerContainer,
-            { backgroundColor: theme.colors.card },
-          ]}
-        >
-          <View style={styles.imagePickerHeader}>
-            <Text
-              style={[styles.imagePickerTitle, { color: theme.colors.text }]}
-            >
-              Select Images ({tempSelectedImages.length})
+          <View style={styles.headerTitleContainer}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+              {groupName || "Nhóm chat"}
             </Text>
+            <Text style={[styles.participantsText, { color: theme.colors.text }]}>
+              {groupParticipants.length} thành viên
+            </Text>
+          </View>
+          <View style={styles.headerIcons}>
             <TouchableOpacity
-              onPress={() => {
-                setShowImagePicker(false);
-                setTempSelectedImages([]);
-              }}
+              onPress={() => alert("Call")}
+              style={styles.iconSpacing}
             >
-              <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              <FontAwesome name="phone" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => alert("Video")}
+              style={styles.iconSpacing}
+            >
+              <FontAwesome
+                name="video-camera"
+                size={24}
+                color={theme.colors.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
+              <FontAwesome name="list" size={24} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
-
-          <FlatList
-            data={deviceImages}
-            numColumns={3}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => {
-              const selected = !!tempSelectedImages.find(
-                (a) => a.id === item.id
-              );
-              return (
-                <TouchableOpacity
-                  onPress={() => toggleSelectImage(item)}
-                  style={[
-                    styles.imageItem,
-                    selected && {
-                      borderWidth: 2,
-                      borderColor: theme.colors.primary,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={{ uri: item.uri }}
-                    style={styles.imageThumbnail}
-                  />
-                </TouchableOpacity>
-              );
-            }}
-          />
-
-          <View
-            style={{
-              padding: 10,
-              borderTopWidth: 1,
-              borderColor: theme.colors.border,
-            }}
-          >
-            <Button
-              disabled={tempSelectedImages.length === 0}
-              onPress={sendSelectedImages}
-            >
-              Gửi {tempSelectedImages.length} ảnh
-            </Button>
-          </View>
         </View>
-      )}
-      <Modal visible={menuVisible} transparent animationType="fade">
-        <View style={styles.modalBackground}>
+        {/* FlatList */}
+        <FlatList
+          data={conversation}
+          ref={flatListRef}
+          keyExtractor={(item) => (item ? item.id : "")}
+          onContentSizeChange={() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }}
+          renderItem={({ item }) => {
+            let showDate = false;
+            let stringDate = "";
+            let createdAt = new Date(item.createdAt);
+            const vietnamTime = createdAt.toLocaleString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            let dateParts = vietnamTime.split("/");
+            const formattedDate = new Date(
+              `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`
+            );
+            if (!dateBefore.current) {
+              showDate = true;
+              stringDate =
+                formattedDate.getFullYear() +
+                "/" +
+                (formattedDate.getMonth() + 1) +
+                "/" +
+                formattedDate.getDate();
+            }
+            if (
+              dateBefore.current &&
+              (dateBefore.current.getDate() != createdAt.getDate() ||
+                dateBefore.current.getMonth() != createdAt.getMonth() ||
+                dateBefore.current.getFullYear() != createdAt.getFullYear())
+            ) {
+              showDate = true;
+              stringDate =
+                formattedDate.getFullYear() +
+                "/" +
+                (formattedDate.getMonth() + 1) +
+                "/" +
+                formattedDate.getDate();
+            }
+            const isDeleted = item.status === "deleted";
+            const isRecalled = item.status === "recalled";
+            const isFile = item.contentType === "file";
+            const messageTime = format(new Date(item.createdAt), "HH:mm");
+            dateBefore.current = createdAt;
+            const sender = groupParticipants.find(
+              (p) => p._id === item.senderId || p.id === item.senderId
+            );
+
+            return (
+              <MessageItem
+                item={item}
+                userID1={userID1}
+                theme={theme}
+                showDate={showDate}
+                stringDate={stringDate}
+                isDeleted={isDeleted}
+                isRecalled={isRecalled}
+                isFile={isFile}
+                messageTime={messageTime}
+                anotherUser={sender}
+                isGroupChat={true}
+              />
+            );
+          }}
+          contentContainerStyle={styles.messagesContainer}
+          onScrollToIndexFailed={(info) => {
+            console.warn("Failed to scroll to index:", info);
+            flatListRef.current?.scrollToOffset({
+              offset: info.highestMeasuredFrameIndex,
+              animated: true,
+            });
+          }}
+        />
+
+        {/* Emoji Picker */}
+        {showEmojiPicker && Platform.OS === "web" && (
           <View
             style={[
-              styles.menuContainer,
+              styles.emojiPickerContainer,
+              {
+                backgroundColor: theme.colors.card,
+                borderTopWidth: 1,
+                borderTopColor: theme.colors.border,
+              },
+            ]}
+          >
+            <EmojiPicker
+              width={SCREEN_WIDTH}
+              height={350}
+              onEmojiClick={handleEmojiClick}
+              skinTonesDisabled
+              searchDisabled={false}
+              previewConfig={{ showPreview: false }}
+              theme={emojiPickerTheme}
+            />
+          </View>
+        )}
+
+        {showEmojiPicker && Platform.OS !== "web" && (
+          <EmojiPickerMobile
+            open={showEmojiPicker}
+            onEmojiSelected={handleEmojiSelectMobile}
+            onClose={() => setShowEmojiPicker(false)}
+          />
+        )}
+        {/* Image Picker (Mobile) */}
+        {showImagePicker && Platform.OS !== "web" && (
+          <View
+            style={[
+              styles.imagePickerContainer,
               { backgroundColor: theme.colors.card },
             ]}
           >
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Reply")}
-            >
-              <FontAwesome name="reply" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Reply
+            <View style={styles.imagePickerHeader}>
+              <Text
+                style={[styles.imagePickerTitle, { color: theme.colors.text }]}
+              >
+                Select Images ({tempSelectedImages.length})
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Forward")}
-            >
-              <FontAwesome name="share" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Forward
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Copy")}
-            >
-              <FontAwesome name="copy" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Copy
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => alert("Save to Cloud")}
-            >
-              <FontAwesome name="cloud" size={20} color={theme.colors.text} />
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Cloud
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowImagePicker(false);
+                  setTempSelectedImages([]);
+                }}
+              >
+                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.closeButton,
-                { backgroundColor: theme.colors.border },
-              ]}
-              onPress={closeMenu}
+            <FlatList
+              data={deviceImages}
+              numColumns={3}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const selected = !!tempSelectedImages.find(
+                  (a) => a.id === item.id
+                );
+                return (
+                  <TouchableOpacity
+                    onPress={() => toggleSelectImage(item)}
+                    style={[
+                      styles.imageItem,
+                      selected && {
+                        borderWidth: 2,
+                        borderColor: theme.colors.primary,
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={styles.imageThumbnail}
+                    />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+
+            <View
+              style={{
+                padding: 10,
+                borderTopWidth: 1,
+                borderColor: theme.colors.border,
+              }}
             >
-              <Text style={[styles.menuText, { color: theme.colors.text }]}>
-                Close
-              </Text>
-            </TouchableOpacity>
+              <Button
+                disabled={tempSelectedImages.length === 0}
+                onPress={sendSelectedImages}
+              >
+                Gửi {tempSelectedImages.length} ảnh
+              </Button>
+            </View>
           </View>
-        </View>
-      </Modal>
-      <SettingsPanel
-        visible={settingsVisible}
-        onClose={closeSettings}
-        slideAnim={slideAnim}
-        colorScheme={colorScheme || null}
-        targetUserId=""
-        currentUserId={userID1 || ""}
-        isGroupChat={true}
-        conversationId={conversationId as string}
-        friendName={groupName || ""}
-        onMessageSelect={handleMessageSelect}
-      />
-
-      <FilePickerModal
-        visible={filePickerVisible}
-        onClose={() => setFilePickerVisible(false)}
-        onFileSelected={handleFileSelected}
-      />
-
-      <View
-        style={[styles.inputContainer, { backgroundColor: theme.colors.card }]}
-      >
-        <TouchableOpacity
-          onPress={toggleEmojiPicker}
-          style={[
-            styles.iconSpacing,
-            { display: isChatting || isLeader ? "flex" : "none" },
-          ]}
-        >
-          <FontAwesome
-            name="smile-o"
-            size={24}
-            color={showEmojiPicker ? theme.colors.primary : theme.colors.text}
-          />
-        </TouchableOpacity>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.background,
-              color: theme.colors.text,
-            },
-          ]}
-          editable={isChatting || isLeader}
-          value={message}
-          onChangeText={setMessage}
-          placeholder={
-            isChatting || isLeader
-              ? "Type a message..."
-              : "Nhóm trưởng đã khá chat"
-          }
-          placeholderTextColor={theme.colors.text}
-        />
-        {message.trim() === "" ? (
-          <>
-            <TouchableOpacity
-              onPress={() => alert("Record")}
-              style={styles.iconSpacing}
-              disabled={!(isChatting || isLeader)}
-            >
-              <FontAwesome
-                name="microphone"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-            {/* Hidden web file input */}
-            {Platform.OS === "web" && (
-              <input
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                ref={fileInputRef}
-                onChange={onWebFilesChange}
-                disabled={!(isChatting || isLeader)}
-              />
-            )}
-
-            <TouchableOpacity
-              onPress={openImagePicker}
-              style={styles.iconSpacing}
-              disabled={!(isChatting || isLeader)}
-            >
-              <FontAwesome
-                name="image"
-                size={24}
-                color={
-                  showImagePicker ? theme.colors.primary : theme.colors.text
-                }
-              />
-            </TouchableOpacity>
-          </>
-        ) : isChatting || isLeader ? (
-          <Button onPress={sendTextMessage}>Send</Button>
-        ) : (
-          <></>
         )}
+
+
+
+
+        {/* Input Area */}
+        <View
+          style={[
+            styles.inputContainer,
+            { backgroundColor: theme.colors.card },
+          ]}
+
+        >
+          <TouchableOpacity
+            onPress={toggleEmojiPicker}
+            style={[
+              styles.iconSpacing,
+              { display: isChatting || isLeader ? "flex" : "none" },
+            ]}
+          >
+            <FontAwesome name="smile-o" size={24} color="#007bff" />
+          </TouchableOpacity>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.background,
+                color: theme.colors.text,
+              },
+            ]}
+            editable={isChatting || isLeader}
+            value={message}
+            onChangeText={setMessage}
+            placeholder={
+              isChatting || isLeader
+                ? "Type a message..."
+                : "Nhóm trưởng đã khá chat"
+            }
+            placeholderTextColor="#666666"
+          />
+          {message.trim() === "" ? (
+            <>
+              {Platform.OS === "web" && (
+                <input
+                  type="file"
+                  multiple
+                  style={{ display: "none" }}
+                  ref={fileInputRef}
+                  onChange={onWebFilesChange}
+                  disabled={!(isChatting || isLeader)}
+                />
+              )}
+              <TouchableOpacity
+                onPress={openImagePicker}
+                style={styles.iconSpacing}
+                disabled={!(isChatting || isLeader)}
+              >
+                <FontAwesome name="image" size={24} color="#007bff" />
+              </TouchableOpacity>
+            </>
+          ) : isChatting || isLeader ? (
+            <Button onPress={sendTextMessage}>Send</Button>
+          ) : (
+            <></>
+          )}
+        </View>
+
+        <SettingsPanel
+          visible={settingsVisible}
+          onClose={closeSettings}
+          slideAnim={slideAnim}
+          colorScheme={colorScheme || null}
+          targetUserId=""
+          currentUserId={userID1 || ""}
+          isGroupChat={true}
+          conversationId={conversationId as string}
+          friendName={groupName || ""}
+          onMessageSelect={handleMessageSelect}
+        />
+
+        <FilePickerModal
+          visible={filePickerVisible}
+          onClose={() => setFilePickerVisible(false)}
+          onFileSelected={handleFileSelected}
+        />
+      
       </View>
-    </PaperProvider>
+    </PaperProvider >
   );
 };
 
@@ -1103,86 +1035,75 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    backgroundColor: "#f7f8fa", // Softer background for better contrast
+    backgroundColor: "#f5f5f5",
   },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SCREEN_WIDTH * 0.04, // 4% of screen width
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "transparent",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
-    elevation: 4,
+    elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 40,
   },
   headerTitleContainer: {
     flex: 1,
-    paddingLeft: SCREEN_WIDTH * 0.03, // 3% of screen width
+    paddingLeft: 15,
   },
   headerTitle: {
-    fontSize: SCREEN_WIDTH * 0.05, // Responsive font size (5% of screen width)
+    fontSize: 17,
     fontWeight: "700",
-    lineHeight: SCREEN_WIDTH * 0.06,
-    color: "#1a1a1a",
+    flex: 1,
   },
   participantsText: {
-    fontSize: SCREEN_WIDTH * 0.035, // Responsive font size
-    fontWeight: "400",
-    lineHeight: SCREEN_WIDTH * 0.045,
-    opacity: 0.6,
-    color: "#666",
-    marginTop: 2,
+    fontSize: 14,
+    opacity: 0.7,
   },
   headerIcons: {
     flexDirection: "row",
     alignItems: "center",
   },
   iconSpacing: {
-    marginHorizontal: SCREEN_WIDTH * 0.03, // Responsive spacing
-    padding: 8, // Larger touch area
+    marginHorizontal: 10,
   },
   messagesContainer: {
-    paddingHorizontal: SCREEN_WIDTH * 0.04,
-    paddingBottom: 20,
-    paddingTop: 10,
-    backgroundColor: "#f7f8fa",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
   },
   sentMessageContainer: {
     justifyContent: "flex-end",
-    marginLeft: SCREEN_WIDTH * 0.15, // 15% of screen width
-    marginVertical: 6,
+    marginLeft: 50,
   },
   receivedMessageContainer: {
     justifyContent: "flex-start",
-    marginRight: SCREEN_WIDTH * 0.15,
-    marginVertical: 6,
+    marginRight: 50,
   },
   messageContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    marginVertical: 8,
+    marginVertical: 5,
   },
   recalledMessageContainer: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   avatar: {
-    width: SCREEN_WIDTH * 0.1, // 10% of screen width
-    height: SCREEN_WIDTH * 0.1,
-    borderRadius: SCREEN_WIDTH * 0.05,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 8,
     borderWidth: 1,
     borderColor: "#e0e0e0",
   },
   avatarPlaceholder: {
-    width: SCREEN_WIDTH * 0.1,
+    width: 40,
   },
   threeDotContainer: {
+    position: "absolute",
     top: 5,
     right: 5,
     zIndex: 10,
@@ -1190,168 +1111,140 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 12,
     borderRadius: 20,
-    maxWidth: "80%", // Responsive max width
-    backgroundColor: "#fff",
-    elevation: 2,
+    maxWidth: "80%",
+    backgroundColor: "#007bff",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 2,
   },
   messageText: {
-    fontSize: SCREEN_WIDTH * 0.04, // Responsive font size
-    lineHeight: SCREEN_WIDTH * 0.055,
-    color: "#1a1a1a",
-    fontWeight: "400",
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#ffffff",
   },
   recalledMessageText: {
-    fontSize: SCREEN_WIDTH * 0.035,
+    fontSize: 14,
     fontStyle: "italic",
-    color: "#888",
-    lineHeight: SCREEN_WIDTH * 0.05,
+    color: "#888888",
   },
   messageTime: {
-    fontSize: SCREEN_WIDTH * 0.03,
-    marginTop: 6,
-    opacity: 0.7,
-    color: "#888",
-    alignSelf: "flex-end",
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+    color: "#666666",
+    textAlign: "right",
   },
   messageImage: {
-    width: SCREEN_WIDTH * 0.55, // Responsive image width
-    height: SCREEN_WIDTH * 0.55,
-    borderRadius: 16,
-    marginBottom: 6,
+    width: 240,
+    height: 240,
+    borderRadius: 12,
+    marginBottom: 4,
+    resizeMode: "cover",
   },
   imageTimeText: {
-    fontSize: SCREEN_WIDTH * 0.03,
+    fontSize: 12,
     textAlign: "right",
-    opacity: 0.7,
-    color: "#888",
+    opacity: 0.8,
+    color: "#666666",
   },
   fileContainer: {
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    borderRadius: 16,
-    backgroundColor: "#f5f5f5",
-    maxWidth: "80%",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   fileInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   fileName: {
-    fontSize: SCREEN_WIDTH * 0.038,
-    fontWeight: "500",
-    color: "#1a1a1a",
-    lineHeight: SCREEN_WIDTH * 0.05,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333333",
   },
   fileTimeText: {
-    fontSize: SCREEN_WIDTH * 0.03,
-    opacity: 0.7,
+    fontSize: 12,
+    opacity: 0.8,
     marginTop: 4,
-    color: "#888",
+    color: "#666666",
   },
   inputContainer: {
+    
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: SCREEN_WIDTH * 0.04,
+    padding: 12,
     borderTopWidth: 1,
-    borderColor: "#e0e0e0",
-    backgroundColor: "#fff",
-    elevation: 4,
+    borderTopColor: "#e0e0e0",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: -1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
   },
   input: {
     flex: 1,
     height: 48,
     borderRadius: 24,
     paddingHorizontal: 16,
-    marginHorizontal: 12,
+    marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#f9f9f9",
-    fontSize: SCREEN_WIDTH * 0.04,
-    lineHeight: SCREEN_WIDTH * 0.055,
+    borderColor: "#e0e0e0",
+    fontSize: 16,
+    backgroundColor: "#f8f8f8",
   },
   modalBackground: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
   menuContainer: {
-    width: SCREEN_WIDTH * 0.6, // 60% of screen width
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: "#fff",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    width: 250,
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center",
   },
   menuItem: {
-    paddingVertical: 14,
+    padding: 10,
     width: "100%",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderColor: "#eee",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
+    borderColor: "#ddd",
   },
   menuText: {
-    fontSize: SCREEN_WIDTH * 0.04,
-    fontWeight: "500",
-    color: "#333",
-    lineHeight: SCREEN_WIDTH * 0.055,
+    fontSize: 16,
+    fontWeight: "bold",
   },
   closeButton: {
-    marginTop: 20,
-    paddingVertical: 14,
+    marginTop: 10,
+    padding: 10,
     width: "100%",
     alignItems: "center",
-    borderRadius: 12,
-    backgroundColor: "#f5f5f5",
+    borderRadius: 5,
   },
   optionsContainer: {
-    width: SCREEN_WIDTH * 0.6,
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: "#fff",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    width: 250,
+    borderRadius: 10,
+    padding: 15,
+    alignItems: "center",
   },
   optionItem: {
-    paddingVertical: 14,
+    padding: 10,
     width: "100%",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#ddd",
   },
   optionText: {
-    fontSize: SCREEN_WIDTH * 0.04,
-    fontWeight: "500",
-    color: "#333",
-    lineHeight: SCREEN_WIDTH * 0.055,
+    fontSize: 16,
+    fontWeight: "bold",
   },
   settingsModalBackground: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   settingsPanel: {
     position: "absolute",
@@ -1359,38 +1252,26 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SCREEN_WIDTH * 0.75,
-    backgroundColor: "#fff",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
   },
   settingsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: SCREEN_WIDTH * 0.04,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   settingsTitle: {
-    fontSize: SCREEN_WIDTH * 0.05,
-    fontWeight: "600",
-    marginLeft: 12,
-    color: "#1a1a1a",
-    lineHeight: SCREEN_WIDTH * 0.06,
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 10,
   },
   userInfo: {
     alignItems: "center",
-    paddingVertical: 30,
+    paddingVertical: 20,
   },
   userName: {
-    fontSize: SCREEN_WIDTH * 0.05,
-    fontWeight: "600",
-    marginTop: 12,
-    color: "#1a1a1a",
-    lineHeight: SCREEN_WIDTH * 0.06,
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 10,
   },
   settingsOptions: {
     flex: 1,
@@ -1398,17 +1279,14 @@ const styles = StyleSheet.create({
   settingsItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 18,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    paddingHorizontal: SCREEN_WIDTH * 0.05,
+    borderBottomColor: "#ddd",
+    paddingHorizontal: 20,
   },
   settingsText: {
-    fontSize: SCREEN_WIDTH * 0.042,
-    marginLeft: 12,
-    color: "#333",
-    fontWeight: "500",
-    lineHeight: SCREEN_WIDTH * 0.055,
+    fontSize: 16,
+    marginLeft: 15,
   },
   emojiPickerContainer: {
     position: "absolute",
@@ -1416,12 +1294,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1000,
+    backgroundColor: "#ffffff",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
-    backgroundColor: "#fff",
-    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: -1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
@@ -1430,14 +1307,13 @@ const styles = StyleSheet.create({
     bottom: 70,
     left: 0,
     right: 0,
-    height: SCREEN_WIDTH * 0.8, // Responsive height
+    height: 360,
     zIndex: 1000,
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
-    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: -1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
@@ -1448,23 +1324,26 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
+    backgroundColor: "#fafafa",
   },
   imagePickerTitle: {
-    fontSize: SCREEN_WIDTH * 0.045,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#1a1a1a",
-    lineHeight: SCREEN_WIDTH * 0.055,
+    color: "#333333",
   },
   imageItem: {
     flex: 1,
     aspectRatio: 1,
-    padding: 4,
+    margin: 4,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+    overflow: "hidden",
   },
   imageThumbnail: {
     width: "100%",
     height: "100%",
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+    resizeMode: "cover",
   },
 });

@@ -19,7 +19,7 @@ import { setUser } from "@/src/redux/slices/UserSlice";
 import { Redirect, useRouter } from "expo-router";
 import { useTheme, useFocusEffect } from "@react-navigation/native";
 import { RootState } from "@/src/redux/store";
-import socket, { connectSocket, initSocket } from "@/src/socket/socket";
+import { connectSocket, initSocket } from "@/src/socket/socket";
 
 export default function LoginScreen() {
   const { colors } = useTheme();
@@ -32,7 +32,7 @@ export default function LoginScreen() {
   // Nếu chưa đăng nhập (user.id rỗng), chuyển hướng sang màn hình login
   useEffect(() => {
     if (user.id) {
-      router.replace('/home');
+      router.replace("/home");
     }
   }, [user.id]);
   const [username, setUsername] = useState("");
@@ -65,7 +65,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       const user = await Auth.signIn(username, password);
-      
+
       dispatch(
         setUser({
           id: user.attributes.sub,
@@ -80,7 +80,7 @@ export default function LoginScreen() {
       } else {
         Alert.alert("Thành công", `Xin chào ${user.attributes.name}`);
       }
-      await connectSocket()
+      await connectSocket();
 
       router.push("/home");
     } catch (error: any) {
@@ -105,30 +105,39 @@ export default function LoginScreen() {
   const isSmallScreen = width <= 320;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
       <View style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>LOG IN</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            LOG IN
+          </Text>
           <View style={{ width: 24 }} />
         </View>
 
         {/* Main Content */}
-        <View style={[styles.content, { paddingHorizontal: isLargeScreen ? width * 0.2 : 24 }]}>
+        <View
+          style={[
+            styles.content,
+            { paddingHorizontal: isLargeScreen ? width * 0.2 : 24 },
+          ]}
+        >
           <View style={styles.formContainer}>
             <Text style={[styles.label, { color: colors.text }]}>Email</Text>
             <TextInput
               placeholder="Enter your email"
-              placeholderTextColor={colors.text + '80'}
+              placeholderTextColor={colors.text + "80"}
               style={[
                 styles.input,
-                { 
+                {
                   color: colors.text,
                   borderColor: colors.border,
                   backgroundColor: colors.card,
@@ -141,50 +150,52 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
 
-            <Text style={[styles.label, { color: colors.text, marginTop: 16 }]}>Password</Text>
-            <View style={[
-              styles.passwordContainer, 
-              { 
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                height: isLargeScreen ? 56 : 48,
-              }
-            ]}>
+            <Text style={[styles.label, { color: colors.text, marginTop: 16 }]}>
+              Password
+            </Text>
+            <View
+              style={[
+                styles.passwordContainer,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  height: isLargeScreen ? 56 : 48,
+                },
+              ]}
+            >
               <TextInput
                 placeholder="Enter your password"
-                placeholderTextColor={colors.text + '80'}
+                placeholderTextColor={colors.text + "80"}
                 secureTextEntry={!showPassword}
-                style={[
-                  styles.passwordInput,
-                  { color: colors.text }
-                ]}
+                style={[styles.passwordInput, { color: colors.text }]}
                 value={password}
                 onChangeText={setPassword}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.showButton}
               >
-                <Text style={[styles.showText, { color: colors.primary }]}>
-                  {showPassword ? "HIDE" : "SHOW"}
-                </Text>
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={colors.text + "80"}
+                />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.replace("/ForgotScreen")}
               style={styles.forgotPasswordButton}
             >
-              <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
+              <Text
+                style={[styles.forgotPasswordText, { color: colors.primary }]}
+              >
                 Forgot password?
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.loginButton,
-                { backgroundColor: colors.primary }
-              ]}
+              style={[styles.loginButton, { backgroundColor: colors.primary }]}
               onPress={handleLogin}
             >
               <Text style={styles.loginButtonText}>Login</Text>
@@ -270,10 +281,6 @@ const styles = StyleSheet.create({
   },
   showButton: {
     padding: 8,
-  },
-  showText: {
-    fontSize: 14,
-    fontWeight: "500",
   },
   forgotPasswordButton: {
     alignSelf: "flex-end",

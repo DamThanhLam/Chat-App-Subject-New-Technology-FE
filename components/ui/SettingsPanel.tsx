@@ -32,6 +32,19 @@ import {
 } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 import { connectSocket, getSocket } from "@/src/socket/socket";
+import AddToGroupModal from "../AddToGroupModal";
+import CommonGroupsModal from "../CommonGroupsModal";
+
+interface Group {
+  id: string;
+  groupName: string;
+  displayName?: string;
+  participants?: string[];
+  leaderId?: string;
+  avatarUrl?: string;
+  memberCount?: number;
+  isLeader?: boolean;
+}
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -91,6 +104,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onMessageSelect,
 }) => {
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(true);
+
+  // Các state khác của SettingsPanel...
+  const [addToGroupModalVisible, setAddToGroupModalVisible] = useState<boolean>(false);
+  const [searchGroupText, setSearchGroupText] = useState<string>("");
+  const [filteredGroupsForAdd, setFilteredGroupsForAdd] = useState<Group[]>(groups);
+  const [selectedGroupForAdd, setSelectedGroupForAdd] = useState<string>("");  
+  const [viewCommonGroupsModalVisible, setViewCommonGroupsModalVisible] = useState<boolean>(false);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -126,6 +149,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [isApprovalRequired, setIsApprovalRequired] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
+  const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
+
+  // Fetch friend's avatar for single chat
+  useEffect(() => {
+    if (visible && !isGroupChat && targetUserId) {
+      const fetchFriendInfo = async () => {
+        try {
+          const headers = await getAuthHeaders();
+          const response = await fetch(`${API_BASE_URL}/user/${targetUserId}`, {
+            method: "GET",
+            headers,
+          });
+
+          if (!response.ok) {
+            throw new Error("Không thể lấy thông tin người dùng");
+          }
+
+          const userData = await response.json();
+          setFriendAvatar(
+            userData.avatarUrl ||
+              userData.urlAVT ||
+              userData.image ||
+              "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+          );
+        } catch (error: any) {
+          console.error("Lỗi khi lấy thông tin người dùng:", error.message);
+          setFriendAvatar(
+            "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+          );
+        }
+      };
+      fetchFriendInfo();
+    }
+  }, [visible, isGroupChat, targetUserId]);
+
   useEffect(() => {
     if (!visible || !conversationId) return;
 
@@ -155,10 +213,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       }
     };
 
-    socket.then(socket => {
+    socket.then((socket) => {
       socket.on("approval-status", handleApprovalStatus);
-    })
-
+    });
   }, [visible, conversationId]);
 
   // Lấy thông tin nhóm và thành viên nhóm
@@ -204,9 +261,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                 return {
                   _id: item.id,
-                  name: userData.username || item.id,
+                  name: userData.username || userData.name || item.id,
                   urlAVT:
                     userData.urlAVT ||
+                    userData.avatarUrl ||
                     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
                 };
               } catch (error: any) {
@@ -317,9 +375,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               ...prev,
               {
                 _id: userJoin.id,
-                name: userJoin.name || "Unknown",
+                name: userJoin.name || userJoin.username || "Unknown",
                 urlAVT:
                   userJoin.urlAVT ||
+                  userJoin.avatarUrl ||
                   "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
               },
             ]);
@@ -336,9 +395,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 ...pre,
                 {
                   _id: userJoin.id,
-                  name: userJoin.name || "Unknown",
+                  name: userJoin.name || userJoin.username || "Unknown",
                   urlAVT:
                     userJoin.urlAVT ||
+                    userJoin.avatarUrl ||
                     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
                 },
               ]);
@@ -355,27 +415,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     });
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const response = await fetch(
-          DOMAIN + ":3000/api/conversations/" + conversationId,
-          {
-            method: "GET",
-            headers,
-          }
-        );
-
-        const data = await response.json();
-        setIsChatting(data.permission.chat);
-      } catch (error) {
-        console.error("Lỗi khi fetch dữ liệu:", error);
-      }
-    };
-
-    fetchData();
-  }, []);
+  
 
   // Hàm tải danh sách yêu cầu tham gia
   const fetchApprovalRequests = async () => {
@@ -890,11 +930,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </Text>
             </View>
             <View style={styles.userInfo}>
-              <FontAwesome
-                name="user-circle"
-                size={60}
-                color={theme.colors.text}
-              />
+              {isGroupChat ? (
+                <FontAwesome name="users" size={60} color={theme.colors.text} />
+              ) : (
+                <Image
+                  source={{
+                    uri:
+                      friendAvatar ||
+                      "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                  }}
+                  style={styles.userAvatar}
+                />
+              )}
               <Text style={[styles.userName, { color: theme.colors.text }]}>
                 {isGroupChat
                   ? conversationDetails?.groupName || "Nhóm chat"
@@ -1064,7 +1111,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         alignItems: "center",
                         flex: 1,
                       }}
-                      onPress={() => { }}
+                      onPress={() => {}}
                     >
                       <Text
                         style={[
@@ -1198,33 +1245,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               )}
               {!isGroupChat && (
                 <>
-                  <TouchableOpacity style={styles.settingsItem}>
-                    <FontAwesome
-                      name="users"
-                      size={20}
-                      color={theme.colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                  <TouchableOpacity
+                    style={styles.settingsItem}
+                    onPress={() => setAddToGroupModalVisible(true)}
+                  >
+                    <FontAwesome name="users" size={20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text }]}>
                       Thêm {friendName} vào nhóm
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.settingsItem}>
-                    <FontAwesome
-                      name="group"
-                      size={20}
-                      color={theme.colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
+                  <TouchableOpacity
+                    style={styles.settingsItem}
+                    onPress={() => setViewCommonGroupsModalVisible(true)}
+                  >
+                    <FontAwesome name="group" size={20} color={theme.colors.text} />
+                    <Text style={[styles.settingsText, { color: theme.colors.text }]}>
                       Xem nhóm chung
                     </Text>
                   </TouchableOpacity>
@@ -1234,7 +1269,48 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </Animated.View>
         </View>
       </Modal>
+      
+      <AddToGroupModal
+        visible={addToGroupModalVisible}
+        onClose={() => setAddToGroupModalVisible(false)}
+        friendName={friendName}
+        targetUserId={targetUserId}   // truyền targetUserId để modal biết user D cần được thêm vào nhóm
+        onSelectGroup={(groupId: string) => {
+          const socket = getSocket();
+          if (!socket) {
+            Alert.alert("Lỗi", "Không thể kết nối đến server.");
+            return;
+          }
+          console.log("Gửi invite với groupId:", groupId, " và targetUserId:", targetUserId);
+          socket.emit("invite-join-group", groupId, targetUserId);
 
+          socket.once("response-invite-join-group", (response: any) => {
+            if (response.code && response.code !== 200) {
+              Alert.alert("Lỗi", response.error || "Có lỗi xảy ra khi mời vào nhóm.");
+            }
+          });
+
+          socket.once("userJoinedGroup", (data: any) => {
+            console.log("Thành viên đã được thêm vào nhóm:", data);
+            Alert.alert("Thành công", `${friendName} đã được thêm vào nhóm.`);
+          });
+        }}
+      />
+
+      <CommonGroupsModal
+        visible={viewCommonGroupsModalVisible}
+        onClose={() => setViewCommonGroupsModalVisible(false)}
+        currentUserId={currentUserId}
+        friendId={targetUserId}
+        friendName={friendName}
+        onCloseSettings={() => {
+          setSettingsVisible(false);
+          setMenuVisible(false);
+          setOptionsVisible(false);
+        }}
+      />
+
+      
       {/* Modal menu tùy chọn khi giữ chuột */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <TouchableOpacity
@@ -1652,8 +1728,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               {deleteModalVisible
                 ? "Lịch sử trò chuyện đã được xóa"
                 : deleteGroupModalVisible
-                  ? "Nhóm đã được xóa"
-                  : "Bạn đã rời nhóm"}
+                ? "Nhóm đã được xóa"
+                : "Bạn đã rời nhóm"}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1750,7 +1826,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </View>
         </View>
       </Modal>
-      {/* Modal phê duyệt */}
+
       {/* Modal phê duyệt */}
       <Modal
         visible={approvalRequestsModalVisible}
@@ -2016,7 +2092,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               { color: theme.colors.text },
                             ]}
                           >
-                            {formatFileSize(item.size)}{" "}
                             <FontAwesome
                               name="cloud"
                               size={12}
@@ -2172,6 +2247,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginTop: 10,
+  },
+  userAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 10,
   },
   settingsOptions: {
     flex: 1,

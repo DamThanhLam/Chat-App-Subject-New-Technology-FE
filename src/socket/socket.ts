@@ -13,9 +13,14 @@ import {
   setInviteJoinGroupResponse,
 } from "../redux/slices/ConversationSlice";
 
+
+import { setCallOffer } from "../redux/slices/CallSlice";
+
 const SOCKET_SERVER = DOMAIN + ":3000";
 let socket: Socket | null = null;
-
+const configuration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
 export const initSocket = (token: string) => {
   if (!socket) {
     socket = io(SOCKET_SERVER, {
@@ -32,6 +37,30 @@ export const connectSocket = async () => {
 
   if (!socket || !socket.connected) {
     const newSocket = initSocket(jwtToken);
+
+    // Remove existing listeners if any before reconnecting
+    if (socket) {
+      // List of events to clean up to avoid duplicates
+      const eventsToCleanup = [
+        "group-deleted",
+        "removed-from-group",
+        "userLeft",
+        "group-message",
+        "message-deleted",
+        "message-recalled",
+        "group-renamed",
+        "userJoinedGroup",
+        "reponse-approve-into-group",
+        "response-invite-join-group",
+        "block-chatting",
+      ];
+
+      // Clean up all potentially duplicated listeners
+      eventsToCleanup.forEach((event) => {
+        socket?.off(event);
+      });
+    }
+
     newSocket.connect();
     newSocket.emit("join");
 
@@ -109,6 +138,11 @@ export const connectSocket = async () => {
     //     })
     //   );
     // });
+
+    newSocket.on("offer", (data: { from: string; offer: any }) => {
+      console.log("Offer received:", data);
+      store.dispatch(setCallOffer({ from: data.from, offer: data.offer }));
+    });
 
     // Xử lý sự kiện mời tham gia nhóm
     newSocket.on(

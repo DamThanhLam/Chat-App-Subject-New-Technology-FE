@@ -34,12 +34,17 @@ import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 import { getNickname } from "@/src/apis/nickName";
 
+const { width, height } = Dimensions.get("window");
+// Nếu nền tảng là web, dùng scale nhỏ hơn (0.8) để các thành phần không bị quá to
+const scale = Platform.OS === "web" ? 0.8 : 1;
+
 // Các interface cho group conversation & combined conversation
 interface GroupConversation {
   id: string;
   groupName: string;
   participants: string[];
   lastMessage: Message | null;
+  avatarUrl?: string;
 }
 
 interface CombinedConversation {
@@ -81,7 +86,8 @@ const HomeScreen = () => {
   const [socketInitialized, setSocketInitialized] = useState(false);
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
+  const DEFAULT_AVATAR =
+    "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
   // Lấy userId hiện tại
   useEffect(() => {
@@ -127,16 +133,22 @@ const HomeScreen = () => {
       // Lấy thông tin của người bạn qua API
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend) => {
-          const otherUserId = friend.senderId === userId ? friend.receiverId : friend.senderId;
+          const otherUserId =
+            friend.senderId === userId ? friend.receiverId : friend.senderId;
           try {
-            const userData = await apiFetch(`${API_BASE_URL}/user/${otherUserId}`);
+            const userData = await apiFetch(
+              `${API_BASE_URL}/user/${otherUserId}`
+            );
             return {
               ...friend,
               displayName: userData.name || otherUserId,
               avatarUrl: userData.avatarUrl || DEFAULT_AVATAR,
             };
           } catch (error) {
-            console.error(`Error fetching user data for ${otherUserId}:`, error);
+            console.error(
+              `Error fetching user data for ${otherUserId}:`,
+              error
+            );
             return {
               ...friend,
               displayName: otherUserId,
@@ -146,7 +158,7 @@ const HomeScreen = () => {
         })
       );
 
-      for (const friend of acceptedFriends) {
+      for (const friend of enrichedFriends) {
         const friendId =
           friend.senderId === userId ? friend.receiverId : friend.senderId;
         const nickName = await getNickname(friendId);
@@ -154,47 +166,37 @@ const HomeScreen = () => {
         const lastMessage = await fetchLatestMessage(friendId);
         console.log("Last message:", lastMessage);
 
-        const userInfo = userMap[friendId] || {
-          displayName: friendId,
-          avatar: null,
-        };
         privateConversations.push({
           type: "private",
           id: friendId,
-          displayName: nickName?.nickname || userInfo.displayName,
-          avatar:
-            friend.senderId === userId
-              ? friend.senderAVT
-              : userInfo.avatar ||
-                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+          displayName: nickName?.nickname || friend.displayName,
+          avatar: friend.avatarUrl || DEFAULT_AVATAR,
           lastMessage,
         });
       }
 
-      const groupConversationsList: CombinedConversation[] = groupConversations.map((group) => ({
-        type: "group",
-        id: group.id,
-        displayName: group.groupName || "Nhóm chat",
-        avatar: group.avatarUrl || DEFAULT_AVATAR,
-        lastMessage: group.lastMessage,
-        participantsCount: group.participants.length,
-      }));
+      const groupConversationsList: CombinedConversation[] =
+        groupConversations.map((group) => ({
+          type: "group",
+          id: group.id,
+          displayName: group.groupName || "Nhóm chat",
+          avatar: group.avatarUrl || DEFAULT_AVATAR,
+          lastMessage: group.lastMessage,
+          participantsCount: group.participants.length,
+        }));
 
-      const combinedList = [...privateConversations, ...groupConversationsList]
-        .filter(
-          (conv) =>
-            conv.type === "group" ||
-            (conv.type === "private" && conv.lastMessage)
-        )
-        .sort((a, b) => {
-          const timeA = a.lastMessage
-            ? new Date(a.lastMessage.createdAt).getTime()
-            : 0;
-          const timeB = b.lastMessage
-            ? new Date(b.lastMessage.createdAt).getTime()
-            : 0;
-          return timeB - timeA;
-        });
+      const combinedList = [
+        ...privateConversations,
+        ...groupConversationsList,
+      ].sort((a, b) => {
+        const timeA = a.lastMessage
+          ? new Date(a.lastMessage.createdAt).getTime()
+          : 0;
+        const timeB = b.lastMessage
+          ? new Date(b.lastMessage.createdAt).getTime()
+          : 0;
+        return timeB - timeA;
+      });
 
       setDisplayConversations(combinedList);
       console.log("Fetched conversations:", combinedList);
@@ -452,10 +454,10 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-        ? "Emoji"
-        : item.lastMessage?.contentType === "file"
-        ? "File"
-        : "";
+          ? "Emoji"
+          : item.lastMessage?.contentType === "file"
+            ? "File"
+            : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (
@@ -528,7 +530,7 @@ const HomeScreen = () => {
     <SafeAreaView
       style={[
         styles.safeContainer,
-        { backgroundColor: theme.colors.background },
+        { backgroundColor: theme.colors.background }
       ]}
     >
       <View
@@ -556,8 +558,22 @@ const HomeScreen = () => {
         </View>
 
         {loading ? (
-          <Text style={{ color: theme.colors.text, textAlign: "center", padding: 20 }}>
-            Đang tải...
+          <Text
+            style={{
+              color: theme.colors.text,
+              textAlign: "center",
+              padding: 20,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.colors.text,
+                textAlign: "center",
+                padding: 20,
+              }}
+            >
+              Đang tải...
+            </Text>
           </Text>
         ) : (
           <FlatList
@@ -586,79 +602,63 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
+  searchIcon: {
+    marginRight: 8
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 20,
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingVertical: Dimensions.get("window").height * 0.015,
-    margin: Dimensions.get("window").width * 0.04,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "transparent",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  searchIcon: {
-    marginRight: Dimensions.get("window").width * 0.02,
+    paddingHorizontal: 10,
+    margin: 10,
+    borderRadius: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: Dimensions.get("window").width * 0.04,
-    paddingVertical: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 16,
   },
   chatList: {
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingBottom: Dimensions.get("window").height * 0.05,
+    paddingHorizontal: 10,
   },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Dimensions.get("window").height * 0.015,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   avatar: {
-    width: Dimensions.get("window").width * 0.12,
-    height: Dimensions.get("window").width * 0.12,
-    borderRadius: Dimensions.get("window").width * 0.06,
-    marginRight: Dimensions.get("window").width * 0.03,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 10,
   },
   chatDetails: {
     flex: 1,
-    justifyContent: "center",
   },
   chatName: {
-    fontSize: Dimensions.get("window").width * 0.045,
-    fontWeight: "600",
-    color: "#000",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   chatMessage: {
-    fontSize: Dimensions.get("window").width * 0.035,
-    opacity: 0.7,
-    color: "#666",
+    fontSize: 14,
   },
   chatMeta: {
     alignItems: "flex-end",
-    gap: Dimensions.get("window").height * 0.005,
   },
   chatTime: {
-    fontSize: Dimensions.get("window").width * 0.03,
-    opacity: 0.7,
-    color: "#666",
+    fontSize: 12,
   },
   unreadBadge: {
-    backgroundColor: "#FF3B30",
-    borderRadius: Dimensions.get("window").width * 0.03,
-    paddingHorizontal: Dimensions.get("window").width * 0.02,
-    paddingVertical: Dimensions.get("window").height * 0.005,
+    backgroundColor: "red",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
   },
   unreadText: {
     color: "white",
-    fontSize: Dimensions.get("window").width * 0.03,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
