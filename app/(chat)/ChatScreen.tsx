@@ -923,7 +923,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "700",
     flex: 1,
     paddingLeft: 12,

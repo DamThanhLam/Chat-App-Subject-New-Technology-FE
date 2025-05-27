@@ -34,6 +34,10 @@ import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 import { getNickname } from "@/src/apis/nickName";
 
+const { width, height } = Dimensions.get("window");
+// Nếu nền tảng là web, dùng scale nhỏ hơn (0.8) để các thành phần không bị quá to
+const scale = Platform.OS === "web" ? 0.8 : 1;
+
 // Các interface cho group conversation & combined conversation
 interface GroupConversation {
   id: string;
@@ -598,79 +602,63 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
+  searchIcon: {
+    marginRight: 8
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 20,
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingVertical: Dimensions.get("window").height * 0.015,
-    margin: Dimensions.get("window").width * 0.04,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "transparent",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  searchIcon: {
-    marginRight: Dimensions.get("window").width * 0.02,
+    paddingHorizontal: 10,
+    margin: 10,
+    borderRadius: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: Dimensions.get("window").width * 0.04,
-    paddingVertical: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 16,
   },
   chatList: {
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingBottom: Dimensions.get("window").height * 0.05,
+    paddingHorizontal: 10,
   },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Dimensions.get("window").height * 0.015,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   avatar: {
-    width: Dimensions.get("window").width * 0.12,
-    height: Dimensions.get("window").width * 0.12,
-    borderRadius: Dimensions.get("window").width * 0.06,
-    marginRight: Dimensions.get("window").width * 0.03,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 10,
   },
   chatDetails: {
     flex: 1,
-    justifyContent: "center",
   },
   chatName: {
-    fontSize: Dimensions.get("window").width * 0.045,
-    fontWeight: "600",
-    color: "#000",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   chatMessage: {
-    fontSize: Dimensions.get("window").width * 0.035,
-    opacity: 0.7,
-    color: "#666",
+    fontSize: 14,
   },
   chatMeta: {
     alignItems: "flex-end",
-    gap: Dimensions.get("window").height * 0.005,
   },
   chatTime: {
-    fontSize: Dimensions.get("window").width * 0.03,
-    opacity: 0.7,
-    color: "#666",
+    fontSize: 12,
   },
   unreadBadge: {
-    backgroundColor: "#FF3B30",
-    borderRadius: Dimensions.get("window").width * 0.03,
-    paddingHorizontal: Dimensions.get("window").width * 0.02,
-    paddingVertical: Dimensions.get("window").height * 0.005,
+    backgroundColor: "red",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
   },
   unreadText: {
     color: "white",
-    fontSize: Dimensions.get("window").width * 0.03,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
