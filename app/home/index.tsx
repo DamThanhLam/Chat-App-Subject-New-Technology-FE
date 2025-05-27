@@ -10,12 +10,9 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  AppState,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Auth } from "aws-amplify";
 import { connectSocket, getSocket } from "@/src/socket/socket";
@@ -33,6 +30,7 @@ import {
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import { DOMAIN } from "@/src/configs/base_url";
 import { getNickname } from "@/src/apis/nickName";
+import { useAppTheme } from "@/src/theme/theme";
 
 // Các interface cho group conversation & combined conversation
 interface GroupConversation {
@@ -80,8 +78,8 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string>("");
   const [socketInitialized, setSocketInitialized] = useState(false);
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
   const DEFAULT_AVATAR =
     "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
@@ -161,7 +159,6 @@ const HomeScreen = () => {
 
         const lastMessage = await fetchLatestMessage(friendId);
         console.log("Last message:", lastMessage);
-
         privateConversations.push({
           type: "private",
           id: friendId,
@@ -450,15 +447,23 @@ const HomeScreen = () => {
           ? item.lastMessage.message
           : ""
         : item.lastMessage?.contentType === "emoji"
-          ? "Emoji"
-          : item.lastMessage?.contentType === "file"
-            ? "File"
-            : "";
+        ? "Emoji"
+        : item.lastMessage?.contentType === "file"
+        ? "File"
+        : "";
     const unreadCount = getUnreadCount(item, userId);
 
     return (
       <TouchableOpacity
-        style={[styles.chatItem, { borderBottomColor: theme.colors.border }]}
+        style={[
+          styles.listItem,
+          {
+            backgroundColor: theme.colors.card,
+            paddingVertical: width >= 768 ? 18 : 14,
+            marginBottom: width >= 768 ? 12 : 8,
+          },
+        ]}
+        activeOpacity={0.7}
         onPress={() => {
           if (item.type === "private") {
             router.push({
@@ -483,16 +488,34 @@ const HomeScreen = () => {
           source={{
             uri: item.avatar || DEFAULT_AVATAR,
           }}
-          style={styles.avatar}
+          style={[
+            styles.avatar,
+            {
+              width: width >= 768 ? 48 : 40,
+              height: width >= 768 ? 48 : 40,
+              borderRadius: width >= 768 ? 24 : 20,
+            },
+          ]}
         />
         <View style={styles.chatDetails}>
-          <Text style={[styles.chatName, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              styles.chatName,
+              {
+                color: theme.colors.text,
+                fontSize: width >= 768 ? 18 : 16,
+              },
+            ]}
+          >
             {displayName}
           </Text>
           <Text
             style={[
               styles.chatMessage,
-              { color: theme.colors.text, opacity: 0.7 },
+              {
+                color: theme.colors.text + "80",
+                fontSize: width >= 768 ? 16 : 14,
+              },
             ]}
           >
             {lastMessageContent}
@@ -505,7 +528,10 @@ const HomeScreen = () => {
           <Text
             style={[
               styles.chatTime,
-              { color: theme.colors.text, opacity: 0.7 },
+              {
+                color: theme.colors.text + "80",
+                fontSize: width >= 768 ? 14 : 12,
+              },
             ]}
           >
             {item.lastMessage && item.lastMessage.createdAt
@@ -513,8 +539,23 @@ const HomeScreen = () => {
               : ""}
           </Text>
           {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{unreadCount}</Text>
+            <View
+              style={[
+                styles.unreadBadge,
+                {
+                  paddingHorizontal: width >= 768 ? 10 : 8,
+                  paddingVertical: width >= 768 ? 6 : 4,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.unreadText,
+                  { fontSize: width >= 768 ? 14 : 12 },
+                ]}
+              >
+                {unreadCount}
+              </Text>
             </View>
           )}
         </View>
@@ -526,7 +567,7 @@ const HomeScreen = () => {
     <SafeAreaView
       style={[
         styles.safeContainer,
-        { backgroundColor: theme.colors.background }
+        { backgroundColor: theme.colors.background },
       ]}
     >
       <View
@@ -535,21 +576,32 @@ const HomeScreen = () => {
         <View
           style={[
             styles.searchContainer,
-            { backgroundColor: theme.colors.card },
+            {
+              backgroundColor: theme.colors.card,
+              marginHorizontal: width >= 768 ? width * 0.1 : 16,
+              marginTop: width >= 768 ? 20 : 10,
+              paddingVertical: width >= 768 ? 12 : 10,
+            },
           ]}
         >
           <Ionicons
-            name="search"
-            size={20}
+            name="search-outline"
+            size={width >= 768 ? 24 : 20}
             color={theme.colors.text}
             style={styles.searchIcon}
           />
           <TextInput
             placeholder="Tìm kiếm..."
-            style={[styles.searchInput, { color: theme.colors.text }]}
+            style={[
+              styles.searchInput,
+              {
+                color: theme.colors.text,
+                fontSize: width >= 768 ? 18 : 16,
+              },
+            ]}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor={theme.colors.text + "80"} // 50% opacity
+            placeholderTextColor={theme.colors.text + "80"}
           />
         </View>
 
@@ -559,17 +611,10 @@ const HomeScreen = () => {
               color: theme.colors.text,
               textAlign: "center",
               padding: 20,
+              fontSize: width >= 768 ? 18 : 16,
             }}
           >
-            <Text
-              style={{
-                color: theme.colors.text,
-                textAlign: "center",
-                padding: 20,
-              }}
-            >
-              Đang tải...
-            </Text>
+            Đang tải...
           </Text>
         ) : (
           <FlatList
@@ -580,7 +625,12 @@ const HomeScreen = () => {
             )}
             keyExtractor={(item) => `${item.type}-${item.id}`}
             renderItem={renderItem}
-            contentContainerStyle={styles.chatList}
+            contentContainerStyle={[
+              styles.listContainer,
+              {
+                paddingHorizontal: width >= 768 ? width * 0.1 : 16,
+              },
+            ]}
           />
         )}
       </View>
@@ -593,84 +643,69 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 20,
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingVertical: Dimensions.get("window").height * 0.015,
-    margin: Dimensions.get("window").width * 0.04,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "transparent",
+    borderRadius: 12,
+    paddingHorizontal: 16,
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
   },
   searchIcon: {
-    marginRight: Dimensions.get("window").width * 0.02,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: Dimensions.get("window").width * 0.04,
     paddingVertical: 0,
   },
-  chatList: {
-    paddingHorizontal: Dimensions.get("window").width * 0.04,
-    paddingBottom: Dimensions.get("window").height * 0.05,
+  listContainer: {
+    paddingBottom: 20,
   },
-  chatItem: {
+  listItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Dimensions.get("window").height * 0.015,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   avatar: {
-    width: Dimensions.get("window").width * 0.12,
-    height: Dimensions.get("window").width * 0.12,
-    borderRadius: Dimensions.get("window").width * 0.06,
-    marginRight: Dimensions.get("window").width * 0.03,
+    marginRight: 16,
   },
   chatDetails: {
     flex: 1,
     justifyContent: "center",
   },
   chatName: {
-    fontSize: Dimensions.get("window").width * 0.045,
     fontWeight: "600",
-    color: "#000",
   },
   chatMessage: {
-    fontSize: Dimensions.get("window").width * 0.035,
     opacity: 0.7,
-    color: "#666",
   },
   chatMeta: {
     alignItems: "flex-end",
-    gap: Dimensions.get("window").height * 0.005,
+    gap: 4,
   },
   chatTime: {
-    fontSize: Dimensions.get("window").width * 0.03,
     opacity: 0.7,
-    color: "#666",
   },
   unreadBadge: {
     backgroundColor: "#FF3B30",
-    borderRadius: Dimensions.get("window").width * 0.03,
-    paddingHorizontal: Dimensions.get("window").width * 0.02,
-    paddingVertical: Dimensions.get("window").height * 0.005,
+    borderRadius: 12,
   },
   unreadText: {
     color: "white",
-    fontSize: Dimensions.get("window").width * 0.03,
     fontWeight: "600",
   },
 });

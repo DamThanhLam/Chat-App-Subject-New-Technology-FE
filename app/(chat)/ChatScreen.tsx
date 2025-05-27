@@ -45,6 +45,7 @@ import SettingsPanel from "@/components/ui/SettingsPanel";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import FilePickerModal from "@/components/FilePickerModal";
 import MessageItem from "@/components/MessageItem";
+import { useAppTheme } from "@/src/theme/theme";
 
 interface FileMessage {
   data: string;
@@ -84,6 +85,7 @@ interface DeviceFile {
   uri: string;
   lastModified: number;
 }
+
 interface User {
   _id: string;
   name: string;
@@ -92,6 +94,7 @@ interface User {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ChatScreen = () => {
+  const { theme } = useAppTheme();
   const [userID1, setUserID1] = useState("");
   const [conversation, setConversation] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
@@ -115,9 +118,9 @@ const ChatScreen = () => {
   const [nickname, setNickname] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [isGroupChat, setIsGroupChat] = useState<boolean>(false);
-  const theme = useMemo(
-    () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
-    [colorScheme]
+  const themeNav = useMemo(
+    () => (theme.mode === "dark" ? DarkTheme : DefaultTheme),
+    [theme.mode]
   );
   const [tempSelectedImages, setTempSelectedImages] = useState<
     MediaLibrary.Asset[]
@@ -126,7 +129,6 @@ const ChatScreen = () => {
   const [selectedFile, setSelectedFile] = useState<DeviceFile | null>(null);
 
   const { friendId, conversationId } = useLocalSearchParams();
-
   const { userID2, friendName } = useLocalSearchParams();
   const slideAnim = useState(new Animated.Value(SCREEN_WIDTH))[0];
   const [token, setToken] = useState<string>("");
@@ -407,7 +409,7 @@ const ChatScreen = () => {
 
     const data = await res.json();
     return data.images;
-  };
+  }
 
   const showOptions = () => {
     setOptionsVisible(true);
@@ -503,12 +505,12 @@ const ChatScreen = () => {
           setDeviceFiles(validFiles);
           console.log("Danh sách file được chọn:", validFiles);
         } else {
-          Alert.alert("Error", "Không thể lấy thông tin file hợp lệ.");
+          Alert.alert("Lỗi", "Không thể lấy thông tin file hợp lệ.");
         }
       }
     } catch (error) {
       console.error("Lỗi khi chọn file:", error);
-      Alert.alert("Error", "Không thể truy cập file. Vui lòng thử lại.");
+      Alert.alert("Lỗi", "Không thể truy cập file. Vui lòng thử lại.");
     }
   };
   const uriToBlob = async (uri: string): Promise<Blob> => {
@@ -585,8 +587,7 @@ const ChatScreen = () => {
     }
   };
 
-  const emojiPickerTheme: Theme =
-    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
+  const emojiPickerTheme = theme.mode === "dark" ? Theme.DARK : Theme.LIGHT;
 
   const handleMessageSelect = (messageId: string) => {
     console.log("Selected messageId:", messageId);
@@ -606,8 +607,7 @@ const ChatScreen = () => {
     }
   };
 
-  // Determine icon color based on colorScheme for better visibility
-  const iconColor = colorScheme === "dark" ? "#ffffff" : theme.colors.primary;
+  const iconColor = theme.colors.primary;
 
   return (
     <PaperProvider>
@@ -627,34 +627,42 @@ const ChatScreen = () => {
         <View
           style={[
             styles.customHeader,
-            { backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff" },
+            {
+              backgroundColor: theme.colors.card,
+              borderBottomColor: theme.colors.border,
+            },
           ]}
         >
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
             <FontAwesome name="arrow-left" size={24} color={iconColor} />
           </TouchableOpacity>
-          <Text
-            style={[
-              styles.headerTitle,
-              { color: colorScheme === "dark" ? "#ffffff" : theme.colors.text },
-            ]}
-          >
-            {nickname || anotherUser?.name || "Chat"}
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {nickname || anotherUser?.name || "Trò Chuyện"}
           </Text>
           <View style={styles.headerIcons}>
             <TouchableOpacity
-              onPress={() => alert("Call")}
+              onPress={() =>
+                Alert.alert("Thông Báo", "Chức năng gọi điện chưa hỗ trợ")
+              }
               style={styles.iconButton}
+              activeOpacity={0.7}
             >
               <FontAwesome name="phone" size={24} color={iconColor} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => alert("Video")}
+              onPress={() =>
+                Alert.alert("Thông Báo", "Chức năng video chưa hỗ trợ")
+              }
               style={styles.iconButton}
+              activeOpacity={0.7}
             >
               <FontAwesome name="video-camera" size={24} color={iconColor} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={openSettings} style={styles.iconButton}>
+            <TouchableOpacity
+              onPress={openSettings}
+              style={styles.iconButton}
+              activeOpacity={0.7}
+            >
               <FontAwesome name="list" size={24} color={iconColor} />
             </TouchableOpacity>
           </View>
@@ -714,7 +722,7 @@ const ChatScreen = () => {
               <MessageItem
                 item={item}
                 userID1={userID1}
-                theme={theme}
+                theme={themeNav}
                 showDate={showDate}
                 stringDate={stringDate}
                 isDeleted={isDeleted}
@@ -736,7 +744,15 @@ const ChatScreen = () => {
         />
 
         {showEmojiPicker && Platform.OS === "web" && (
-          <View style={styles.emojiPickerContainer}>
+          <View
+            style={[
+              styles.emojiPickerContainer,
+              {
+                backgroundColor: theme.colors.card,
+                borderTopColor: theme.colors.border,
+              },
+            ]}
+          >
             <EmojiPicker
               width="100%"
               height={350}
@@ -758,29 +774,40 @@ const ChatScreen = () => {
         )}
 
         {showImagePicker && Platform.OS !== "web" && (
-          <View style={styles.imagePickerContainer}>
-            <View style={styles.imagePickerHeader}>
+          <View
+            style={[
+              styles.imagePickerContainer,
+              {
+                backgroundColor: theme.colors.background,
+                borderTopColor: theme.colors.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.imagePickerHeader,
+                {
+                  backgroundColor: theme.colors.card,
+                  borderBottomColor: theme.colors.border,
+                },
+              ]}
+            >
               <Text
-                style={[
-                  styles.imagePickerTitle,
-                  {
-                    color:
-                      colorScheme === "dark" ? "#ffffff" : theme.colors.text,
-                  },
-                ]}
+                style={[styles.imagePickerTitle, { color: theme.colors.text }]}
               >
-                Select Images ({tempSelectedImages.length})
+                Chọn Ảnh ({tempSelectedImages.length})
               </Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowImagePicker(false);
                   setTempSelectedImages([]);
                 }}
+                activeOpacity={0.7}
               >
                 <MaterialIcons
                   name="close"
                   size={24}
-                  color={colorScheme === "dark" ? "#ffffff" : theme.colors.text}
+                  color={theme.colors.text}
                 />
               </TouchableOpacity>
             </View>
@@ -802,6 +829,7 @@ const ChatScreen = () => {
                         borderColor: theme.colors.primary,
                       },
                     ]}
+                    activeOpacity={0.7}
                   >
                     <Image
                       source={{ uri: item.uri }}
@@ -812,7 +840,15 @@ const ChatScreen = () => {
               }}
             />
 
-            <View style={styles.imagePickerFooter}>
+            <View
+              style={[
+                styles.imagePickerFooter,
+                {
+                  backgroundColor: theme.colors.card,
+                  borderTopColor: theme.colors.border,
+                },
+              ]}
+            >
               <Button
                 disabled={tempSelectedImages.length === 0}
                 onPress={sendSelectedImages}
@@ -828,13 +864,13 @@ const ChatScreen = () => {
           visible={settingsVisible}
           onClose={closeSettings}
           slideAnim={slideAnim}
-          colorScheme={colorScheme || null}
+          colorScheme={theme.mode}
           targetUserId={userID2 as string}
           onRename={handleRename}
           currentUserId={userID1 || ""}
-          isТЬGroupChat={isGroupChat}
+          isGroupChat={isGroupChat}
           conversationId={conversationId as string}
-          friendName={nickname || friendName.toString()}
+          friendName={nickname || friendName?.toString() || ""}
           onMessageSelect={handleMessageSelect}
         />
 
@@ -847,51 +883,62 @@ const ChatScreen = () => {
         <View
           style={[
             styles.inputContainer,
-            { backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff" },
+            {
+              backgroundColor: theme.colors.card,
+              borderTopColor: theme.colors.border,
+            },
           ]}
         >
           <TouchableOpacity
             onPress={toggleEmojiPicker}
             style={styles.iconButton}
+            activeOpacity={0.7}
           >
             <FontAwesome
               name="smile-o"
               size={24}
-              color={showEmojiPicker ? theme.colors.primary : iconColor}
+              color={
+                showEmojiPicker
+                  ? theme.colors.primary
+                  : theme.colors.text + "80"
+              }
             />
           </TouchableOpacity>
           <TextInput
             style={[
               styles.input,
               {
-                color: colorScheme === "dark" ? "#ffffff" : theme.colors.text,
-                backgroundColor:
-                  colorScheme === "dark" ? "#333333" : theme.colors.card,
+                color: theme.colors.text,
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
               },
             ]}
             value={message}
             onChangeText={setMessage}
-            placeholder="Type a message..."
-            placeholderTextColor={
-              colorScheme === "dark" ? "#aaaaaa" : theme.colors.text
-            }
+            placeholder="Nhập tin nhắn..."
+            placeholderTextColor={theme.colors.text + "80"}
           />
           {message.trim() === "" ? (
             <>
               <TouchableOpacity
                 onPress={openImagePicker}
                 style={styles.iconButton}
+                activeOpacity={0.7}
               >
                 <FontAwesome
                   name="image"
                   size={24}
-                  color={showImagePicker ? theme.colors.primary : iconColor}
+                  color={
+                    showImagePicker
+                      ? theme.colors.primary
+                      : theme.colors.text + "80"
+                  }
                 />
               </TouchableOpacity>
             </>
           ) : (
             <Button onPress={sendTextMessage} style={styles.sendButton}>
-              Send
+              Gửi
             </Button>
           )}
         </View>
@@ -1054,7 +1101,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
   },
   input: {
     flex: 1,
@@ -1063,7 +1110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: "#e0e0e0e0",
     fontSize: 16,
     backgroundColor: "#f8f8f8",
   },
@@ -1108,7 +1155,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: "#e0e0e0e0",
     backgroundColor: "#fafafa",
   },
   imagePickerTitle: {
@@ -1119,7 +1166,7 @@ const styles = StyleSheet.create({
   imagePickerFooter: {
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: "#e0e0e0e0",
     backgroundColor: "#fafafa",
   },
   imageItem: {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState } from "react";
 import {
   View,
@@ -12,10 +11,9 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Auth } from "aws-amplify";
+import { useAppTheme } from "@/src/theme/theme";
 
 const ChangePasswordScreen = () => {
   const navigation = useNavigation();
@@ -35,8 +33,7 @@ const ChangePasswordScreen = () => {
     symbol: false,
   });
 
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
 
   const checkPasswordRules = (password: string) => {
@@ -130,7 +127,7 @@ const ChangePasswordScreen = () => {
             styles.formContainer,
             {
               backgroundColor: theme.colors.card,
-              shadowColor: theme.colors.border,
+              shadowColor: "#000",
             },
           ]}
         >
@@ -143,12 +140,8 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.passwordInputContainer,
                 {
-                  borderColor: error
-                    ? theme.colors.notification
-                    : theme.colors.border,
-                  backgroundColor: theme.dark
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(0,0,0,0.05)",
+                  borderColor: error ? "#FF4D4D" : theme.colors.border,
+                  backgroundColor: theme.colors.card,
                 },
               ]}
             >
@@ -187,12 +180,8 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.passwordInputContainer,
                 {
-                  borderColor: error
-                    ? theme.colors.notification
-                    : theme.colors.border,
-                  backgroundColor: theme.dark
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(0,0,0,0.05)",
+                  borderColor: error ? "#FF4D4D" : theme.colors.border,
+                  backgroundColor: theme.colors.card,
                 },
               ]}
             >
@@ -237,40 +226,28 @@ const ChangePasswordScreen = () => {
                 </Text>
                 {!passwordRules.minLength && (
                   <Text
-                    style={[
-                      styles.passwordRule,
-                      { color: theme.dark ? "#fff" : "#000" },
-                    ]}
+                    style={[styles.passwordRule, { color: theme.colors.text }]}
                   >
                     • At least 8 characters
                   </Text>
                 )}
                 {!passwordRules.lowercase && (
                   <Text
-                    style={[
-                      styles.passwordRule,
-                      { color: theme.dark ? "#fff" : "#000" },
-                    ]}
+                    style={[styles.passwordRule, { color: theme.colors.text }]}
                   >
                     • At least one lowercase letter
                   </Text>
                 )}
                 {!passwordRules.uppercase && (
                   <Text
-                    style={[
-                      styles.passwordRule,
-                      { color: theme.dark ? "#fff" : "#000" },
-                    ]}
+                    style={[styles.passwordRule, { color: theme.colors.text }]}
                   >
                     • At least one uppercase letter
                   </Text>
                 )}
                 {!passwordRules.symbol && (
                   <Text
-                    style={[
-                      styles.passwordRule,
-                      { color: theme.dark ? "#fff" : "#000" },
-                    ]}
+                    style={[styles.passwordRule, { color: theme.colors.text }]}
                   >
                     • At least one symbol (!@#$%^&* etc.)
                   </Text>
@@ -288,12 +265,8 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.passwordInputContainer,
                 {
-                  borderColor: error
-                    ? theme.colors.notification
-                    : theme.colors.border,
-                  backgroundColor: theme.dark
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(0,0,0,0.05)",
+                  borderColor: error ? "#FF4D4D" : theme.colors.border,
+                  backgroundColor: theme.colors.card,
                 },
               ]}
             >
@@ -332,20 +305,13 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.messageContainer,
                 {
-                  backgroundColor: theme.colors.notification + "20",
-                  borderLeftWidth: 4,
-                  borderLeftColor: theme.colors.notification,
+                  backgroundColor: "#FF4D4D20",
+                  borderLeftColor: "#FF4D4D",
                 },
               ]}
             >
-              <Ionicons
-                name="alert-circle"
-                size={20}
-                color={theme.colors.notification}
-              />
-              <Text
-                style={[styles.errorText, { color: theme.colors.notification }]}
-              >
+              <Ionicons name="alert-circle" size={20} color="#FF4D4D" />
+              <Text style={[styles.errorText, { color: "#FF4D4D" }]}>
                 {error}
               </Text>
             </View>
@@ -355,8 +321,7 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.messageContainer,
                 {
-                  backgroundColor: "#4CAF50" + "20",
-                  borderLeftWidth: 4,
+                  backgroundColor: "#4CAF5020",
                   borderLeftColor: "#4CAF50",
                 },
               ]}
@@ -374,7 +339,7 @@ const ChangePasswordScreen = () => {
               style={[
                 styles.cancelButton,
                 {
-                  backgroundColor: theme.dark ? "#ff4444" : "#ff6666",
+                  backgroundColor: "#FF4D4D",
                 },
               ]}
               onPress={() => navigation.goBack()}
@@ -412,26 +377,27 @@ const ChangePasswordScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
     paddingTop: 20,
   },
   formContainer: {
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 24,
     marginTop: 16,
-    elevation: 3,
-    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowRadius: 2,
   },
   header: {
     height: 60,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -455,7 +421,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 16,
     height: 50,
   },
@@ -474,6 +440,7 @@ const styles = StyleSheet.create({
   },
   passwordRuleTitle: {
     fontSize: 13,
+    fontWeight: "500",
     marginBottom: 4,
   },
   passwordRule: {
@@ -486,6 +453,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     marginVertical: 16,
+    borderLeftWidth: 4,
     gap: 12,
   },
   errorText: {
@@ -509,7 +477,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },

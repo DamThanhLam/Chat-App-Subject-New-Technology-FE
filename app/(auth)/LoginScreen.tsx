@@ -9,7 +9,7 @@ import {
   Alert,
   useWindowDimensions,
   Platform,
-  BackHandler,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,41 +17,44 @@ import { Auth } from "aws-amplify";
 import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "@/src/redux/slices/UserSlice";
 import { Redirect, useRouter } from "expo-router";
-import { useTheme, useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import { connectSocket } from "@/src/socket/socket";
+import { useAppTheme } from "@/src/theme/theme"; // Import the custom theme hook
 import { RootState } from "@/src/redux/store";
-import { connectSocket, initSocket } from "@/src/socket/socket";
 
 export default function LoginScreen() {
-  const { colors } = useTheme();
+  const { theme } = useAppTheme(); // Use custom theme hook
   const dispatch = useDispatch();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const user = useSelector((state: RootState) => state.user);
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
-  // Nếu chưa đăng nhập (user.id rỗng), chuyển hướng sang màn hình login
+  // Redirect to home if user is logged in
   useEffect(() => {
     if (user.id) {
       router.replace("/home");
     }
-  }, [user.id]);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  }, [user.id, router]);
 
-  // Xử lý sự kiện back trên Android
+  // Handle back press on Android
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
         router.back();
-        return true; // báo đã xử lý event
+        return true;
       };
-      BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () =>
-        BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+      if (Platform.OS === "android") {
+        BackHandler.addEventListener("hardwareBackPress", onBackPress);
+        return () =>
+          BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+      }
     }, [router])
   );
 
-  // Xử lý sự kiện back trên Web (nếu cần tùy chỉnh)
+  // Handle back navigation on web
   useEffect(() => {
     if (Platform.OS === "web") {
       const onPopState = () => {
@@ -65,7 +68,6 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       const user = await Auth.signIn(username, password);
-
       dispatch(
         setUser({
           id: user.attributes.sub,
@@ -74,14 +76,13 @@ export default function LoginScreen() {
           phoneNumber: "",
         })
       );
-      // Thông báo khi đăng nhập thành công
+      // Platform-specific success alert
       if (Platform.OS === "web") {
         window.alert(`Thành công: Xin chào ${user.attributes.name}`);
       } else {
         Alert.alert("Thành công", `Xin chào ${user.attributes.name}`);
       }
       await connectSocket();
-
       router.push("/home");
     } catch (error: any) {
       if (error.code === "UserNotConfirmedException") {
@@ -92,7 +93,6 @@ export default function LoginScreen() {
         return;
       }
       const errorMsg = error.message || "Đăng nhập thất bại.";
-      // Phân nhánh hiển thị thông báo theo nền tảng:
       if (Platform.OS === "web") {
         window.alert(`Lỗi: ${errorMsg}`);
       } else {
@@ -102,25 +102,35 @@ export default function LoginScreen() {
   };
 
   const isLargeScreen = width >= 768;
-  const isSmallScreen = width <= 320;
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: colors.background }]}
+      style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <View
+          style={[styles.header, { borderBottomColor: theme.colors.border }]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons
+              name="arrow-back"
+              size={isLargeScreen ? 28 : 24}
+              color={theme.colors.text}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: theme.colors.text, fontSize: isLargeScreen ? 20 : 18 },
+            ]}
+          >
             LOG IN
           </Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: isLargeScreen ? 28 : 24 }} />
         </View>
 
         {/* Main Content */}
@@ -131,17 +141,25 @@ export default function LoginScreen() {
           ]}
         >
           <View style={styles.formContainer}>
-            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+            <Text
+              style={[
+                styles.label,
+                { color: theme.colors.text, fontSize: isLargeScreen ? 16 : 14 },
+              ]}
+            >
+              Email
+            </Text>
             <TextInput
               placeholder="Enter your email"
-              placeholderTextColor={colors.text + "80"}
+              placeholderTextColor={theme.colors.text + "80"}
               style={[
                 styles.input,
                 {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  height: isLargeScreen ? 56 : 48,
+                  color: theme.colors.text,
+                  backgroundColor: theme.colors.card,
+                  borderColor: theme.colors.border,
+                  fontSize: isLargeScreen ? 18 : 16,
+                  paddingVertical: isLargeScreen ? 16 : 12,
                 },
               ]}
               value={username}
@@ -150,24 +168,39 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
 
-            <Text style={[styles.label, { color: colors.text, marginTop: 16 }]}>
+            <Text
+              style={[
+                styles.label,
+                {
+                  color: theme.colors.text,
+                  fontSize: isLargeScreen ? 16 : 14,
+                  marginTop: 16,
+                },
+              ]}
+            >
               Password
             </Text>
             <View
               style={[
                 styles.passwordContainer,
                 {
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  height: isLargeScreen ? 56 : 48,
+                  backgroundColor: theme.colors.card,
+                  borderColor: theme.colors.border,
+                  paddingVertical: isLargeScreen ? 16 : 12,
                 },
               ]}
             >
               <TextInput
                 placeholder="Enter your password"
-                placeholderTextColor={colors.text + "80"}
+                placeholderTextColor={theme.colors.text + "80"}
                 secureTextEntry={!showPassword}
-                style={[styles.passwordInput, { color: colors.text }]}
+                style={[
+                  styles.passwordInput,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 18 : 16,
+                  },
+                ]}
                 value={password}
                 onChangeText={setPassword}
               />
@@ -177,8 +210,8 @@ export default function LoginScreen() {
               >
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
-                  size={20}
-                  color={colors.text + "80"}
+                  size={isLargeScreen ? 24 : 20}
+                  color={theme.colors.text + "80"}
                 />
               </TouchableOpacity>
             </View>
@@ -188,27 +221,67 @@ export default function LoginScreen() {
               style={styles.forgotPasswordButton}
             >
               <Text
-                style={[styles.forgotPasswordText, { color: colors.primary }]}
+                style={[
+                  styles.forgotPasswordText,
+                  {
+                    color: theme.colors.primary,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
               >
                 Forgot password?
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.loginButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.loginButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  paddingVertical: isLargeScreen ? 16 : 14,
+                },
+              ]}
               onPress={handleLogin}
+              activeOpacity={0.7}
             >
-              <Text style={styles.loginButtonText}>Login</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
+              <Text
+                style={[
+                  styles.loginButtonText,
+                  { fontSize: isLargeScreen ? 18 : 16 },
+                ]}
+              >
+                Login
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={isLargeScreen ? 24 : 20}
+                color="white"
+              />
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: colors.text }]}>
+            <Text
+              style={[
+                styles.footerText,
+                {
+                  color: theme.colors.text,
+                  fontSize: isLargeScreen ? 16 : 14,
+                },
+              ]}
+            >
               Don't have an account?
             </Text>
             <TouchableOpacity onPress={() => router.replace("/RegisterScreen")}>
-              <Text style={[styles.signUpText, { color: colors.primary }]}>
+              <Text
+                style={[
+                  styles.signUpText,
+                  {
+                    color: theme.colors.primary,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
                 SIGN UP
               </Text>
             </TouchableOpacity>
@@ -222,10 +295,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   // Header styles
   header: {
@@ -240,7 +313,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 18,
     fontWeight: "600",
     textAlign: "center",
     flex: 1,
@@ -256,28 +328,34 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   label: {
-    fontSize: 14,
     fontWeight: "500",
     marginBottom: 8,
   },
   input: {
     width: "100%",
-    borderRadius: 8,
+    borderRadius: 12, // Match SettingsScreen
     paddingHorizontal: 16,
     borderWidth: 1,
-    fontSize: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: 12, // Match SettingsScreen
     borderWidth: 1,
     paddingHorizontal: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   passwordInput: {
     flex: 1,
-    fontSize: 16,
-    height: "100%",
   },
   showButton: {
     padding: 8,
@@ -285,27 +363,29 @@ const styles = StyleSheet.create({
   forgotPasswordButton: {
     alignSelf: "flex-end",
     marginTop: 8,
+    marginBottom: 12,
   },
   forgotPasswordText: {
-    fontSize: 14,
     fontWeight: "500",
   },
   loginButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 12, // Match SettingsScreen
     paddingHorizontal: 24,
     marginTop: 24,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   loginButtonText: {
     color: "white",
-    fontSize: 16,
     fontWeight: "600",
     marginRight: 8,
   },
-  // Footer styles
   footer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -313,11 +393,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    fontSize: 14,
     marginRight: 4,
   },
   signUpText: {
-    fontSize: 14,
     fontWeight: "600",
   },
 });

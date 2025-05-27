@@ -13,9 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Auth } from "aws-amplify";
-import { useTheme, useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { OtpInput } from "react-native-otp-entry";
+import { useAppTheme } from "@/src/theme/theme";
 
 interface PasswordRules {
   minLength: boolean;
@@ -24,22 +24,8 @@ interface PasswordRules {
   symbol: boolean;
 }
 
-interface CustomTheme {
-  colors: {
-    primary: string;
-    background: string;
-    card: string;
-    text: string;
-    border: string;
-    notification: string;
-    success?: string;
-    error?: string;
-  };
-  dark?: boolean;
-}
-
 export default function ForgotScreen() {
-  const { colors, dark } = useTheme() as CustomTheme;
+  const { theme } = useAppTheme();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
 
@@ -144,22 +130,37 @@ export default function ForgotScreen() {
     }
   };
 
+  // Define default success and error colors if not in theme
+  const successColor = "#4CAF50";
+  const errorColor = "#F44336";
+
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: colors.background }]}
+      style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
     >
       <View style={[styles.container, { justifyContent: "center" }]}>
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <View
+          style={[styles.header, { borderBottomColor: theme.colors.border }]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons
+              name="arrow-back"
+              size={isLarge ? 28 : 24}
+              color={theme.colors.text}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: theme.colors.text, fontSize: isLarge ? 22 : 20 },
+            ]}
+          >
             Forgot Password
           </Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: isLarge ? 28 : 24 }} />
         </View>
 
         <View style={[styles.contentWrapper, { height: height * 0.7 }]}>
@@ -175,7 +176,7 @@ export default function ForgotScreen() {
               style={[
                 styles.formContainer,
                 {
-                  backgroundColor: colors.card,
+                  backgroundColor: theme.colors.card,
                   width: isLarge ? "80%" : "100%",
                   maxWidth: 500,
                   alignSelf: "center",
@@ -184,7 +185,15 @@ export default function ForgotScreen() {
             >
               {step === "REQUEST" ? (
                 <>
-                  <Text style={[styles.formTitle, { color: colors.text }]}>
+                  <Text
+                    style={[
+                      styles.formTitle,
+                      {
+                        color: theme.colors.text,
+                        fontSize: isLarge ? 18 : 16,
+                      },
+                    ]}
+                  >
                     Email
                   </Text>
                   <TextInput
@@ -192,48 +201,67 @@ export default function ForgotScreen() {
                     style={[
                       styles.input,
                       {
-                        color: colors.text,
-                        borderColor: colors.border,
+                        color: theme.colors.text,
+                        borderColor: theme.colors.border,
                         fontSize: isLarge ? 18 : 16,
+                        backgroundColor: theme.colors.background,
                       },
                     ]}
-                    placeholderTextColor={colors.text + "80"}
+                    placeholderTextColor={theme.colors.text + "80"}
                     value={username}
                     onChangeText={setUsername}
                     autoCapitalize="none"
                   />
 
                   <TouchableOpacity
-                    style={[styles.button, { backgroundColor: colors.primary }]}
+                    style={[
+                      styles.button,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
                     onPress={handleRequestCode}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.buttonText}>Gửi mã xác thực</Text>
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { fontSize: isLarge ? 18 : 16 },
+                      ]}
+                    >
+                      Gửi mã xác thực
+                    </Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={[styles.formTitle, { color: colors.text }]}>
+                  <Text
+                    style={[
+                      styles.formTitle,
+                      {
+                        color: theme.colors.text,
+                        fontSize: isLarge ? 18 : 16,
+                      },
+                    ]}
+                  >
                     Mã xác thực
                   </Text>
                   <OtpInput
                     numberOfDigits={6}
                     onTextChange={(text) => setCode(text)}
-                    focusColor={colors.primary}
+                    focusColor={theme.colors.primary}
                     theme={{
                       containerStyle: styles.otpContainer,
                       pinCodeContainerStyle: {
                         ...styles.otpBox,
-                        borderColor: colors.border,
-                        backgroundColor: colors.background,
+                        borderColor: theme.colors.border,
+                        backgroundColor: theme.colors.background,
                       },
                       pinCodeTextStyle: {
                         fontSize: isLarge ? 20 : 18,
-                        color: colors.text,
+                        color: theme.colors.text,
                         fontWeight: "600",
                       },
                       placeholderTextStyle: {
-                        color: colors.text + "80",
+                        color: theme.colors.text + "80",
                       },
                     }}
                   />
@@ -242,7 +270,8 @@ export default function ForgotScreen() {
                     style={[
                       styles.formTitle,
                       {
-                        color: colors.text,
+                        color: theme.colors.text,
+                        fontSize: isLarge ? 18 : 16,
                         marginTop: 20,
                       },
                     ]}
@@ -253,7 +282,8 @@ export default function ForgotScreen() {
                     style={[
                       styles.passwordInputContainer,
                       {
-                        borderColor: colors.border,
+                        borderColor: theme.colors.border,
+                        backgroundColor: theme.colors.background,
                       },
                     ]}
                   >
@@ -263,11 +293,11 @@ export default function ForgotScreen() {
                       style={[
                         styles.passwordInput,
                         {
-                          color: colors.text,
+                          color: theme.colors.text,
                           fontSize: isLarge ? 18 : 16,
                         },
                       ]}
-                      placeholderTextColor={colors.text + "80"}
+                      placeholderTextColor={theme.colors.text + "80"}
                       value={newPassword}
                       onChangeText={(text) => {
                         setNewPassword(text);
@@ -280,8 +310,8 @@ export default function ForgotScreen() {
                     >
                       <Ionicons
                         name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color={colors.text + "80"}
+                        size={isLarge ? 24 : 20}
+                        color={theme.colors.text + "80"}
                       />
                     </TouchableOpacity>
                   </View>
@@ -294,7 +324,10 @@ export default function ForgotScreen() {
                           <Text
                             style={[
                               styles.passwordRule,
-                              { color: dark ? "#fff" : "#000" },
+                              {
+                                color: theme.colors.text,
+                                fontSize: isLarge ? 14 : 13,
+                              },
                             ]}
                           >
                             ─ At least 8 characters
@@ -304,7 +337,10 @@ export default function ForgotScreen() {
                           <Text
                             style={[
                               styles.passwordRule,
-                              { color: dark ? "#fff" : "#000" },
+                              {
+                                color: theme.colors.text,
+                                fontSize: isLarge ? 14 : 13,
+                              },
                             ]}
                           >
                             ─ Lowercase letter
@@ -314,7 +350,10 @@ export default function ForgotScreen() {
                           <Text
                             style={[
                               styles.passwordRule,
-                              { color: dark ? "#fff" : "#000" },
+                              {
+                                color: theme.colors.text,
+                                fontSize: isLarge ? 14 : 13,
+                              },
                             ]}
                           >
                             ─ Uppercase letter
@@ -324,7 +363,10 @@ export default function ForgotScreen() {
                           <Text
                             style={[
                               styles.passwordRule,
-                              { color: dark ? "#fff" : "#000" },
+                              {
+                                color: theme.colors.text,
+                                fontSize: isLarge ? 14 : 13,
+                              },
                             ]}
                           >
                             ─ Symbol
@@ -336,12 +378,19 @@ export default function ForgotScreen() {
                   <TouchableOpacity
                     style={[
                       styles.button,
-                      { backgroundColor: colors.primary, marginTop: 20 },
+                      { backgroundColor: theme.colors.primary, marginTop: 20 },
                     ]}
                     onPress={handleResetPassword}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.buttonText}>Đặt lại mật khẩu</Text>
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { fontSize: isLarge ? 18 : 16 },
+                      ]}
+                    >
+                      Đặt lại mật khẩu
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -353,12 +402,10 @@ export default function ForgotScreen() {
                     {
                       backgroundColor:
                         message.type === "success"
-                          ? (colors.success || "#4CAF50") + "20"
-                          : (colors.error || "#F44336") + "20",
+                          ? `${successColor}20`
+                          : `${errorColor}20`,
                       borderColor:
-                        message.type === "success"
-                          ? colors.success || "#4CAF50"
-                          : colors.error || "#F44336",
+                        message.type === "success" ? successColor : errorColor,
                     },
                   ]}
                 >
@@ -368,8 +415,9 @@ export default function ForgotScreen() {
                       {
                         color:
                           message.type === "success"
-                            ? colors.success || "#4CAF50"
-                            : colors.error || "#F44336",
+                            ? successColor
+                            : errorColor,
+                        fontSize: isLarge ? 16 : 14,
                       },
                     ]}
                   >
@@ -388,10 +436,10 @@ export default function ForgotScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     height: 60,
@@ -405,7 +453,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
     fontWeight: "600",
     textAlign: "center",
     flex: 1,
@@ -428,7 +475,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   formTitle: {
-    fontSize: 16,
     fontWeight: "500",
     marginBottom: 12,
   },
@@ -436,9 +482,8 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 16,
     marginBottom: 20,
   },
   otpContainer: {
@@ -450,7 +495,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -458,14 +503,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     height: 50,
     marginBottom: 20,
   },
   passwordInput: {
     flex: 1,
-    fontSize: 16,
     height: "100%",
   },
   showButton: {
@@ -475,36 +519,29 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
-  passwordRuleTitle: {
-    fontSize: 14,
-    marginBottom: 6,
-  },
   passwordRule: {
-    fontSize: 13,
     marginLeft: 8,
     marginBottom: 4,
   },
   button: {
     width: "100%",
     height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   buttonText: {
     color: "white",
-    fontSize: 16,
     fontWeight: "600",
   },
   messageContainer: {
     width: "100%",
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     marginTop: 20,
   },
   messageText: {
-    fontSize: 14,
     textAlign: "center",
     fontWeight: "500",
   },

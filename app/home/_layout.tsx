@@ -6,6 +6,7 @@ import { usePathname } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import { useEffect } from "react";
+import { useAppTheme } from "@/src/theme/theme";
 
 export default function RootLayout() {
   const pathname = usePathname();
@@ -20,51 +21,114 @@ export default function RootLayout() {
 
 function BottomNavBar() {
   const router = useRouter();
-  const pathname = usePathname(); // để biết đang ở route nào
+  const pathname = usePathname();
   const user = useSelector((state: RootState) => state.user);
-  // Nếu chưa đăng nhập (user.id rỗng), chuyển hướng sang màn hình login
+  const { theme } = useAppTheme();
 
   useEffect(() => {
     if (!user || !user.id) {
       return <Redirect href="/(auth)/LoginScreen" />;
     }
   }, [user]);
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.card,
+          borderTopColor: theme.colors.border,
+        },
+      ]}
+    >
       <TouchableOpacity onPress={() => router.push("/home")} style={styles.tab}>
         <Ionicons
           name="home-outline"
           size={24}
-          color={pathname === "/home" ? "#007AFF" : "#666"}
+          color={
+            pathname === "/home" ? theme.colors.primary : theme.colors.text
+          }
         />
-        <Text>Home</Text>
+        <Text
+          style={{
+            color:
+              pathname === "/home" ? theme.colors.primary : theme.colors.text,
+          }}
+        >
+          Home
+        </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/home/FriendScreen")} style={styles.tab}>
+      <TouchableOpacity
+        onPress={() => router.push("/home/FriendScreen")}
+        style={styles.tab}
+      >
         <Ionicons
           name="people-outline"
           size={24}
-          color={pathname.includes("FriendScreen") ? "#007AFF" : "#666"}
+          color={
+            pathname.includes("FriendScreen")
+              ? theme.colors.primary
+              : theme.colors.text
+          }
         />
-        <Text>Friends</Text>
+        <Text
+          style={{
+            color: pathname.includes("FriendScreen")
+              ? theme.colors.primary
+              : theme.colors.text,
+          }}
+        >
+          Friends
+        </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/home/FriendRequestsScreen")} style={styles.tab}>
+      <TouchableOpacity
+        onPress={() => router.push("/home/FriendRequestsScreen")}
+        style={styles.tab}
+      >
         <Ionicons
           name="notifications-outline"
           size={24}
-          color={pathname.includes("FriendRequestsScreen") ? "#007AFF" : "#666"}
+          color={
+            pathname.includes("FriendRequestsScreen")
+              ? theme.colors.primary
+              : theme.colors.text
+          }
         />
-        <Text>Requests</Text>
+        <Text
+          style={{
+            color: pathname.includes("FriendRequestsScreen")
+              ? theme.colors.primary
+              : theme.colors.text,
+          }}
+        >
+          Requests
+        </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/home/SettingsScreen")} style={styles.tab}>
+      <TouchableOpacity
+        onPress={() => router.push("/home/SettingsScreen")}
+        style={styles.tab}
+      >
         <Ionicons
           name="settings-outline"
           size={24}
-          color={pathname.includes("SettingsScreen") ? "#007AFF" : "#666"}
+          color={
+            pathname.includes("SettingsScreen")
+              ? theme.colors.primary
+              : theme.colors.text
+          }
         />
-        <Text>Settings</Text>
+        <Text
+          style={{
+            color: pathname.includes("SettingsScreen")
+              ? theme.colors.primary
+              : theme.colors.text,
+          }}
+        >
+          Settings
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -78,8 +142,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 60,
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderTopColor: "#ddd",
     borderTopWidth: 1,
     justifyContent: "space-around",
     alignItems: "center",

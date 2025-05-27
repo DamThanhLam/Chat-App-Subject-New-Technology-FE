@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -15,14 +14,14 @@ import {
   StatusBar,
   useWindowDimensions,
 } from "react-native";
-import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import moment from "moment";
 import { connectSocket, getSocket } from "@/src/socket/socket";
 import { DOMAIN } from "@/src/configs/base_url";
+import { useAppTheme } from "@/src/theme/theme";
 
 type RequestItem = {
   id: string;
@@ -40,33 +39,37 @@ type FriendRequest = {
   createdAt: string;
 };
 
-const createApiFetch = (token: string) => async (
-  endpoint: string,
-  options: RequestInit = {}
-) => {
-  const defaultOptions: RequestInit = {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+const createApiFetch =
+  (token: string) =>
+  async (endpoint: string, options: RequestInit = {}) => {
+    const defaultOptions: RequestInit = {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    };
+
+    const response = await fetch(`${DOMAIN}:3000${endpoint}`, {
+      ...defaultOptions,
+      ...options,
+      headers: { ...defaultOptions.headers, ...(options.headers || {}) },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
+    }
+    return response.json();
   };
 
-  const response = await fetch(`${DOMAIN}:3000${endpoint}`, {
-    ...defaultOptions,
-    ...options,
-    headers: { ...defaultOptions.headers, ...(options.headers || {}) },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
-  }
-  return response.json();
-};
-
-const FriendRequestsTab = ({ token, userId }: { token: string; userId: string }) => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+const FriendRequestsTab = ({
+  token,
+  userId,
+}: {
+  token: string;
+  userId: string;
+}) => {
+  const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<RequestItem[]>([]);
@@ -90,11 +93,15 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
         const enrichedRequests = await Promise.all(
           rawRequests.map(async (request: FriendRequest) => {
             try {
-              const senderData = await apiFetch(`/api/user/${request.senderId}`);
+              const senderData = await apiFetch(
+                `/api/user/${request.senderId}`
+              );
               return {
                 id: request.id,
                 name: senderData.name || "Unknown",
-                avatarUrl: senderData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                avatarUrl:
+                  senderData.avatarUrl ||
+                  "https://cdn-icons-png.flaticon.com/512/219/219983.png",
                 createdAt: request.createdAt,
                 senderId: request.senderId,
               };
@@ -103,7 +110,8 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
               return {
                 id: request.id,
                 name: "Unknown",
-                avatarUrl: "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                avatarUrl:
+                  "https://cdn-icons-png.flaticon.com/512/219/219983.png",
                 createdAt: request.createdAt,
                 senderId: request.senderId,
               };
@@ -124,9 +132,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
   }, [token, user.id]);
 
   useEffect(() => {
-    connectSocket().then(socket => {
-      setSocket(socket)
-    })
+    connectSocket().then((socket) => {
+      setSocket(socket);
+    });
   }, []);
 
   useEffect(() => {
@@ -138,12 +146,14 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
         const enrichedRequest: RequestItem = {
           id: newRequest.id,
           name: senderData.name || "Unknown",
-          avatarUrl: senderData.avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+          avatarUrl:
+            senderData.avatarUrl ||
+            "https://cdn-icons-png.flaticon.com/512/219/219983.png",
           createdAt: newRequest.createdAt,
           senderId: newRequest.senderId,
         };
-        setRequests(prev => [enrichedRequest, ...prev]);
-        setOriginalRequests(prev => [enrichedRequest, ...prev]);
+        setRequests((prev) => [enrichedRequest, ...prev]);
+        setOriginalRequests((prev) => [enrichedRequest, ...prev]);
       } catch (error) {
         console.error("Error enriching request:", error);
         const enrichedFallback: RequestItem = {
@@ -153,14 +163,14 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
           createdAt: newRequest.createdAt,
           senderId: newRequest.senderId,
         };
-        setRequests(prev => [enrichedFallback, ...prev]);
-        setOriginalRequests(prev => [enrichedFallback, ...prev]);
+        setRequests((prev) => [enrichedFallback, ...prev]);
+        setOriginalRequests((prev) => [enrichedFallback, ...prev]);
       }
     };
 
     const handleRequestUpdate = (requestId: string) => {
-      setRequests(prev => prev.filter(r => r.id !== requestId));
-      setOriginalRequests(prev => prev.filter(r => r.id !== requestId));
+      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setOriginalRequests((prev) => prev.filter((r) => r.id !== requestId));
     };
 
     socket.on("newFriendRequest", handleNewRequest);
@@ -187,73 +197,92 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
 
   const handleAccept = async (friendRequestId: string) => {
     if (!token) {
-      console.log("socket or token is empty")
-      return
-    };
-    await connectSocket().then(socket => {
+      console.log("Socket or token is empty");
+      return;
+    }
+    await connectSocket().then((socket) => {
       socket.emit("acceptFriendRequest", { friendRequestId, token });
-      socket.once("acceptFriendRequestResponse", (response: { code: number }) => {
-        if (response.code === 200) {
-          setRequests(prev => prev.filter(item => item.id !== friendRequestId));
-          setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
+      socket.once(
+        "acceptFriendRequestResponse",
+        (response: { code: number }) => {
+          if (response.code === 200) {
+            setRequests((prev) =>
+              prev.filter((item) => item.id !== friendRequestId)
+            );
+            setOriginalRequests((prev) =>
+              prev.filter((item) => item.id !== friendRequestId)
+            );
+          }
         }
-      });
-    })
-
+      );
+    });
   };
 
   const handleDecline = async (friendRequestId: string) => {
     if (!token) {
-      console.log("socket or token is empty")
-      return
-    };
-    await connectSocket().then((socket => {
-      console.log("socket send to socket name declineFriendRequest")
-
+      console.log("Socket or token is empty");
+      return;
+    }
+    await connectSocket().then((socket) => {
+      console.log("Socket send to socket name declineFriendRequest");
       socket.emit("declineFriendRequest", { friendRequestId, token });
-      socket.once("declineFriendRequestResponse", (response: { code: number }) => {
-        if (response.code === 200) {
-          setRequests(prev => prev.filter(item => item.id !== friendRequestId));
-          setOriginalRequests(prev => prev.filter(item => item.id !== friendRequestId));
+      socket.once(
+        "declineFriendRequestResponse",
+        (response: { code: number }) => {
+          if (response.code === 200) {
+            setRequests((prev) =>
+              prev.filter((item) => item.id !== friendRequestId)
+            );
+            setOriginalRequests((prev) =>
+              prev.filter((item) => item.id !== friendRequestId)
+            );
+          }
         }
-      });
-    }))
+      );
+    });
   };
 
   const renderRequestItem = ({ item }: { item: RequestItem }) => (
-    <View style={[
-      styles.requestItem,
-      {
-        borderColor: theme.colors.border,
-        backgroundColor: theme.colors.card,
-        padding: isLargeScreen ? 16 : 12,
-      }
-    ]} key={item.id}>
+    <View
+      style={[
+        styles.requestItem,
+        {
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          padding: isLargeScreen ? 16 : 12,
+        },
+      ]}
+      key={item.id}
+    >
       <Image
         source={{ uri: item.avatarUrl }}
         style={[
           styles.avatar,
           {
             width: isLargeScreen ? 64 : 56,
-            height: isLargeScreen ? 64 : 56
-          }
+            height: isLargeScreen ? 64 : 56,
+          },
         ]}
       />
       <View style={styles.infoContainer}>
-        <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
-        <Text style={[styles.time, { color: theme.colors.text }]}>
+        <Text style={[styles.name, { color: theme.colors.text }]}>
+          {item.name}
+        </Text>
+        <Text style={[styles.time, { color: theme.colors.text + "80" }]}>
           {moment(item.createdAt).fromNow()} gửi lời mời
         </Text>
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.button, styles.acceptButton]}
+            style={[styles.button, { backgroundColor: "#4CAF50" }]}
             onPress={() => handleAccept(item.id)}
+            activeOpacity={0.7}
           >
-            <Text style={styles.buttonText}>Xác nhận</Text>
+            <Text style={styles.buttonText}>Xác Nhận</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.button, styles.declineButton]}
+            style={[styles.button, { backgroundColor: "#FF4D4D" }]}
             onPress={() => handleDecline(item.id)}
+            activeOpacity={0.7}
           >
             <Text style={styles.buttonText}>Hủy lời mời</Text>
           </TouchableOpacity>
@@ -270,20 +299,22 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
         </View>
       ) : (
         <>
-          <View style={[
-            styles.headerRow,
-            {
-              backgroundColor: theme.colors.card,
-              borderBottomColor: theme.colors.border,
-              paddingHorizontal: isLargeScreen ? 24 : 16,
-            }
-          ]}>
+          <View
+            style={[
+              styles.headerRow,
+              {
+                backgroundColor: theme.colors.card,
+                borderBottomColor: theme.colors.border,
+                paddingHorizontal: isLargeScreen ? 24 : 16,
+              },
+            ]}
+          >
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              Lời mời kết bạn ({requests.length})
+              Lời Mời Kết Bạn ({requests.length})
             </Text>
             <TouchableOpacity onPress={() => setSortModalVisible(true)}>
               <Text style={[styles.sortLabel, { color: theme.colors.primary }]}>
-                Sắp xếp ▾
+                Sắp Xếp ▾
               </Text>
             </TouchableOpacity>
           </View>
@@ -296,13 +327,12 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
               {
                 padding: isLargeScreen ? 24 : 16,
                 paddingBottom: 20,
-              }
+              },
             ]}
             ListEmptyComponent={
-              <Text style={[
-                styles.emptyText,
-                { color: theme.colors.text }
-              ]}>
+              <Text
+                style={[styles.emptyText, { color: theme.colors.text + "80" }]}
+              >
                 Không có lời mời kết bạn nào
               </Text>
             }
@@ -317,16 +347,18 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
               style={styles.modalOverlay}
               onPress={() => setSortModalVisible(false)}
             >
-              <View style={[
-                styles.modalContent,
-                {
-                  backgroundColor: theme.colors.card,
-                  width: isLargeScreen ? '50%' : '80%',
-                  maxWidth: 400,
-                }
-              ]}>
+              <View
+                style={[
+                  styles.modalContent,
+                  {
+                    backgroundColor: theme.colors.card,
+                    width: isLargeScreen ? "50%" : "80%",
+                    maxWidth: 400,
+                  },
+                ]}
+              >
                 <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-                  Sắp xếp theo
+                  Sắp Xếp Theo
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -335,8 +367,10 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
                   }}
                   style={styles.modalOptionContainer}
                 >
-                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
-                    Mặc định
+                  <Text
+                    style={[styles.modalOption, { color: theme.colors.text }]}
+                  >
+                    Mặc Định
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -346,7 +380,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
                   }}
                   style={styles.modalOptionContainer}
                 >
-                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
+                  <Text
+                    style={[styles.modalOption, { color: theme.colors.text }]}
+                  >
                     Tên A-Z
                   </Text>
                 </TouchableOpacity>
@@ -357,7 +393,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
                   }}
                   style={styles.modalOptionContainer}
                 >
-                  <Text style={[styles.modalOption, { color: theme.colors.text }]}>
+                  <Text
+                    style={[styles.modalOption, { color: theme.colors.text }]}
+                  >
                     Tên Z-A
                   </Text>
                 </TouchableOpacity>
@@ -365,7 +403,9 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
                   onPress={() => setSortModalVisible(false)}
                   style={styles.modalCloseContainer}
                 >
-                  <Text style={[styles.modalClose, { color: theme.colors.primary }]}>
+                  <Text
+                    style={[styles.modalClose, { color: theme.colors.primary }]}
+                  >
                     Đóng
                   </Text>
                 </Pressable>
@@ -379,8 +419,7 @@ const FriendRequestsTab = ({ token, userId }: { token: string; userId: string })
 };
 
 const FriendRequestsScreen = () => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
   const user = useSelector((state: RootState) => state.user);
   const [token, setToken] = useState("");
 
@@ -442,7 +481,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 16,
     borderBottomWidth: 1,
-    elevation: 2,
+    elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -482,7 +521,6 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 14,
     marginTop: 4,
-    opacity: 0.7,
   },
   buttonRow: {
     flexDirection: "row",
@@ -492,14 +530,14 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
   },
   acceptButton: {
     backgroundColor: "#4CAF50",
   },
   declineButton: {
-    backgroundColor: "#F44336",
+    backgroundColor: "#FF4D4D",
   },
   buttonText: {
     color: "#fff",
@@ -515,11 +553,11 @@ const styles = StyleSheet.create({
   modalContent: {
     borderRadius: 12,
     padding: 24,
-    elevation: 5,
+    elevation: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   modalTitle: {
     fontSize: 20,

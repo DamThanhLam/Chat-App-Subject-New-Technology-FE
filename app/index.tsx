@@ -6,36 +6,40 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  useColorScheme,
   useWindowDimensions,
 } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { useAppTheme } from "@/src/theme/theme";
 
 const Index = () => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
-  
+
   const isLargeScreen = width >= 768;
   const isSmallScreen = width <= 320;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.content, { 
-        width: isLargeScreen ? '60%' : '90%',
-        maxWidth: 500,
-      }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <View
+        style={[
+          styles.content,
+          { width: isLargeScreen ? "60%" : "90%", maxWidth: 500 },
+        ]}
+      >
         <Image
-          source={{ uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png" }}
+          source={{
+            uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png",
+          }}
           style={[
             styles.logo,
-            { 
+            {
               width: isLargeScreen ? 180 : 120,
               height: isLargeScreen ? 180 : 120,
               marginBottom: isLargeScreen ? height * 0.15 : height * 0.1,
-            }
+            },
           ]}
         />
 
@@ -43,38 +47,51 @@ const Index = () => {
           <TouchableOpacity
             style={[
               styles.button,
-              { 
+              {
                 backgroundColor: theme.colors.primary,
                 paddingVertical: isLargeScreen ? 18 : 15,
-              }
+              },
             ]}
             onPress={() => router.push("/LoginScreen")}
+            activeOpacity={0.8}
           >
-            <Text style={[
-              styles.loginText,
-              { fontSize: isLargeScreen ? 18 : 16 }
-            ]}>Log in</Text>
+            <Text
+              style={[
+                styles.loginText,
+                {
+                  fontSize: isLargeScreen ? 18 : 16,
+                  color: theme.dark ? "#fff" : "#fff",
+                },
+              ]}
+            >
+              Log in
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.button,
-              { 
+              {
                 backgroundColor: theme.colors.card,
                 borderWidth: 1,
                 borderColor: theme.colors.primary,
                 paddingVertical: isLargeScreen ? 18 : 15,
-              }
+              },
             ]}
             onPress={() => router.push("/RegisterScreen")}
+            activeOpacity={0.8}
           >
-            <Text style={[
-              styles.createText,
-              { 
-                color: theme.colors.primary,
-                fontSize: isLargeScreen ? 18 : 16
-              }
-            ]}>Create new account</Text>
+            <Text
+              style={[
+                styles.createText,
+                {
+                  color: theme.colors.primary,
+                  fontSize: isLargeScreen ? 18 : 16,
+                },
+              ]}
+            >
+              Create new account
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -85,6 +102,7 @@ const Index = () => {
 Index.options = {
   headerShown: false,
 };
+
 export default Index;
 
 const styles = StyleSheet.create({
@@ -115,7 +133,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   loginText: {
-    color: "white",
     fontWeight: "600",
   },
   createText: {

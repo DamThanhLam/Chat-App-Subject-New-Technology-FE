@@ -44,6 +44,7 @@ import SettingsPanel from "@/components/ui/SettingsPanel";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import FilePickerModal from "@/components/FilePickerModal";
 import MessageItem from "@/components/MessageItem";
+import { useAppTheme } from "@/src/theme/theme";
 
 interface FileMessage {
   data: string;
@@ -90,6 +91,7 @@ interface Conversation {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const GroupChatScreen = () => {
+  const { theme } = useAppTheme();
   const [userID1, setUserID1] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false); // Menu tùy chọn khác? (Có thể trùng với menuVisible?)
@@ -110,12 +112,8 @@ const GroupChatScreen = () => {
   const flatListRef = useRef<FlatList>(null);
   const dateBefore = useRef<Date | null>(null);
   const colorScheme = useColorScheme();
-  const theme = useMemo(
-    () => (colorScheme === "dark" ? PaperDarkTheme : PaperDefaultTheme),
-    [colorScheme]
-  );
   const emojiPickerTheme: Theme =
-    colorScheme === "dark" ? Theme.DARK : Theme.LIGHT;
+    theme.mode === "dark" ? Theme.DARK : Theme.LIGHT;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [groupName, setGroupName] = useState("Group Chat");
   const [isChatting, setIsChatting] = useState(false);
@@ -268,7 +266,6 @@ const GroupChatScreen = () => {
         Platform.OS === "web"
           ? window.alert(message)
           : Alert.alert("Thông báo", message);
-
         // Navigate back to home screen
         router.replace("/home/HomeScreen");
       }
@@ -388,7 +385,6 @@ const GroupChatScreen = () => {
       "Socket useEffect running with conversationId:",
       conversationId
     );
-    // ... rest of the code
   }, [conversationId]);
 
   const openSettings = useCallback(() => {
@@ -702,25 +698,27 @@ const GroupChatScreen = () => {
   };
   return (
     <PaperProvider theme={theme}>
-      {/* Hidden web file input */}
       {Platform.OS === "web" && (
         <input
           id="fileInput"
           type="file"
           multiple
           style={{ display: "none" }}
-          onChange={() => { }}
+          ref={fileInputRef}
+          onChange={onWebFilesChange}
         />
       )}
 
-      {/* Header */}
       <View
         style={[
           styles.customHeader,
-          { backgroundColor: theme.colors.background },
+          {
+            backgroundColor: theme.colors.card,
+            borderBottomColor: theme.colors.border,
+          },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
           <FontAwesome
             name="arrow-left"
             size={24}
@@ -731,20 +729,31 @@ const GroupChatScreen = () => {
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
             {groupName || "Nhóm chat"}
           </Text>
-          <Text style={[styles.participantsText, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              styles.participantsText,
+              { color: theme.colors.text + "80" },
+            ]}
+          >
             {groupParticipants.length} thành viên
           </Text>
         </View>
         <View style={styles.headerIcons}>
           <TouchableOpacity
-            onPress={() => alert("Call")}
+            onPress={() =>
+              Alert.alert("Thông Báo", "Chức năng gọi điện chưa hỗ trợ")
+            }
             style={styles.iconSpacing}
+            activeOpacity={0.7}
           >
             <FontAwesome name="phone" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => alert("Video")}
+            onPress={() =>
+              Alert.alert("Thông Báo", "Chức năng video chưa hỗ trợ")
+            }
             style={styles.iconSpacing}
+            activeOpacity={0.7}
           >
             <FontAwesome
               name="video-camera"
@@ -752,12 +761,15 @@ const GroupChatScreen = () => {
               color={theme.colors.primary}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={openSettings} style={styles.iconSpacing}>
+          <TouchableOpacity
+            onPress={openSettings}
+            style={styles.iconSpacing}
+            activeOpacity={0.7}
+          >
             <FontAwesome name="list" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
-      {/* FlatList */}
       <FlatList
         data={conversation}
         ref={flatListRef}
@@ -827,7 +839,10 @@ const GroupChatScreen = () => {
             />
           );
         }}
-        contentContainerStyle={styles.messagesContainer}
+        contentContainerStyle={[
+          styles.messagesContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
         onScrollToIndexFailed={(info) => {
           console.warn("Failed to scroll to index:", info);
           flatListRef.current?.scrollToOffset({
@@ -837,14 +852,12 @@ const GroupChatScreen = () => {
         }}
       />
 
-      {/* Emoji Picker */}
       {showEmojiPicker && Platform.OS === "web" && (
         <View
           style={[
             styles.emojiPickerContainer,
             {
               backgroundColor: theme.colors.card,
-              borderTopWidth: 1,
               borderTopColor: theme.colors.border,
             },
           ]}
@@ -868,15 +881,22 @@ const GroupChatScreen = () => {
           onClose={() => setShowEmojiPicker(false)}
         />
       )}
-      {/* Image Picker (Mobile) */}
       {showImagePicker && Platform.OS !== "web" && (
         <View
           style={[
             styles.imagePickerContainer,
-            { backgroundColor: theme.colors.card },
+            {
+              backgroundColor: theme.colors.card,
+              borderTopColor: theme.colors.border,
+            },
           ]}
         >
-          <View style={styles.imagePickerHeader}>
+          <View
+            style={[
+              styles.imagePickerHeader,
+              { borderBottomColor: theme.colors.border },
+            ]}
+          >
             <Text
               style={[styles.imagePickerTitle, { color: theme.colors.text }]}
             >
@@ -887,6 +907,7 @@ const GroupChatScreen = () => {
                 setShowImagePicker(false);
                 setTempSelectedImages([]);
               }}
+              activeOpacity={0.7}
             >
               <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
@@ -910,14 +931,19 @@ const GroupChatScreen = () => {
                       borderColor: theme.colors.primary,
                     },
                   ]}
+                  activeOpacity={0.7}
                 >
                   <Image
                     source={{ uri: item.uri }}
-                    style={styles.imageThumbnail}
+                    style={[
+                      styles.imageThumbnail,
+                      { borderColor: theme.colors.border },
+                    ]}
                   />
                 </TouchableOpacity>
               );
             }}
+            contentContainerStyle={{ paddingHorizontal: 4 }}
           />
 
           <View
@@ -925,6 +951,7 @@ const GroupChatScreen = () => {
               padding: 10,
               borderTopWidth: 1,
               borderColor: theme.colors.border,
+              backgroundColor: theme.colors.card,
             }}
           >
             <Button
@@ -937,16 +964,14 @@ const GroupChatScreen = () => {
         </View>
       )}
 
-
-
-
-      {/* Input Area */}
       <View
         style={[
           styles.inputContainer,
-          { backgroundColor: theme.colors.card },
+          {
+            backgroundColor: theme.colors.card,
+            borderTopColor: theme.colors.border,
+          },
         ]}
-
       >
         <TouchableOpacity
           onPress={toggleEmojiPicker}
@@ -954,15 +979,23 @@ const GroupChatScreen = () => {
             styles.iconSpacing,
             { display: isChatting || isLeader ? "flex" : "none" },
           ]}
+          activeOpacity={0.7}
         >
-          <FontAwesome name="smile-o" size={24} color="#007bff" />
+          <FontAwesome
+            name="smile-o"
+            size={24}
+            color={
+              showEmojiPicker ? theme.colors.primary : theme.colors.text + "80"
+            }
+          />
         </TouchableOpacity>
         <TextInput
           style={[
             styles.input,
             {
-              backgroundColor: theme.colors.background,
+              backgroundColor: theme.colors.card,
               color: theme.colors.text,
+              borderColor: theme.colors.border,
             },
           ]}
           editable={isChatting || isLeader}
@@ -970,10 +1003,10 @@ const GroupChatScreen = () => {
           onChangeText={setMessage}
           placeholder={
             isChatting || isLeader
-              ? "Type a message..."
-              : "Nhóm trưởng đã khá chat"
+              ? "Nhập tin nhắn..."
+              : "Nhóm trưởng đã khóa chat"
           }
-          placeholderTextColor="#666666"
+          placeholderTextColor={theme.colors.text + "80"}
         />
         {message.trim() === "" ? (
           <>
@@ -991,12 +1024,21 @@ const GroupChatScreen = () => {
               onPress={openImagePicker}
               style={styles.iconSpacing}
               disabled={!(isChatting || isLeader)}
+              activeOpacity={0.7}
             >
-              <FontAwesome name="image" size={24} color="#007bff" />
+              <FontAwesome
+                name="image"
+                size={24}
+                color={
+                  showImagePicker
+                    ? theme.colors.primary
+                    : theme.colors.text + "80"
+                }
+              />
             </TouchableOpacity>
           </>
         ) : isChatting || isLeader ? (
-          <Button onPress={sendTextMessage}>Send</Button>
+          <Button onPress={sendTextMessage}>Gửi</Button>
         ) : (
           <></>
         )}
@@ -1006,7 +1048,7 @@ const GroupChatScreen = () => {
         visible={settingsVisible}
         onClose={closeSettings}
         slideAnim={slideAnim}
-        colorScheme={colorScheme || null}
+        colorScheme={theme.mode}
         targetUserId=""
         currentUserId={userID1 || ""}
         isGroupChat={true}
@@ -1020,9 +1062,7 @@ const GroupChatScreen = () => {
         onClose={() => setFilePickerVisible(false)}
         onFileSelected={handleFileSelected}
       />
-      
-     
-    </PaperProvider >
+    </PaperProvider>
   );
 };
 
@@ -1032,13 +1072,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    backgroundColor: "#f7f8fa", // Softer background for better contrast
+    backgroundColor: "#f7f8fa",
   },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SCREEN_WIDTH * 0.04, // 4% of screen width
+    paddingHorizontal: SCREEN_WIDTH * 0.04,
     paddingVertical: 12,
     backgroundColor: "transparent",
     borderBottomWidth: 1,
@@ -1052,16 +1092,16 @@ const styles = StyleSheet.create({
   },
   headerTitleContainer: {
     flex: 1,
-    paddingLeft: SCREEN_WIDTH * 0.03, // 3% of screen width
+    paddingLeft: SCREEN_WIDTH * 0.03,
   },
   headerTitle: {
-    fontSize: SCREEN_WIDTH * 0.05, // Responsive font size (5% of screen width)
+    fontSize: SCREEN_WIDTH * 0.05,
     fontWeight: "700",
     lineHeight: SCREEN_WIDTH * 0.06,
     color: "#1a1a1a",
   },
   participantsText: {
-    fontSize: SCREEN_WIDTH * 0.035, // Responsive font size
+    fontSize: SCREEN_WIDTH * 0.035,
     fontWeight: "400",
     lineHeight: SCREEN_WIDTH * 0.045,
     opacity: 0.6,
@@ -1073,8 +1113,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconSpacing: {
-    marginHorizontal: SCREEN_WIDTH * 0.03, // Responsive spacing
-    padding: 8, // Larger touch area
+    marginHorizontal: SCREEN_WIDTH * 0.03,
+    padding: 8,
   },
   messagesContainer: {
     paddingHorizontal: SCREEN_WIDTH * 0.04,
@@ -1084,7 +1124,7 @@ const styles = StyleSheet.create({
   },
   sentMessageContainer: {
     justifyContent: "flex-end",
-    marginLeft: SCREEN_WIDTH * 0.15, // 15% of screen width
+    marginLeft: SCREEN_WIDTH * 0.15,
     marginVertical: 6,
   },
   receivedMessageContainer: {
@@ -1101,7 +1141,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   avatar: {
-    width: SCREEN_WIDTH * 0.1, // 10% of screen width
+    width: SCREEN_WIDTH * 0.1,
     height: SCREEN_WIDTH * 0.1,
     borderRadius: SCREEN_WIDTH * 0.05,
     marginRight: 10,
@@ -1119,7 +1159,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 12,
     borderRadius: 20,
-    maxWidth: "80%", // Responsive max width
+    maxWidth: "80%",
     backgroundColor: "#fff",
     elevation: 2,
     shadowColor: "#000",
@@ -1128,10 +1168,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   messageText: {
-    fontSize: SCREEN_WIDTH * 0.04, // Responsive font size
+    fontSize: SCREEN_WIDTH * 0.04,
     lineHeight: SCREEN_WIDTH * 0.055,
     color: "#1a1a1a",
-    fontWeight: "400",
   },
   recalledMessageText: {
     fontSize: SCREEN_WIDTH * 0.035,
@@ -1147,7 +1186,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   messageImage: {
-    width: SCREEN_WIDTH * 0.55, // Responsive image width
+    width: SCREEN_WIDTH * 0.55,
     height: SCREEN_WIDTH * 0.55,
     borderRadius: 16,
     marginBottom: 6,
@@ -1220,7 +1259,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   menuContainer: {
-    width: SCREEN_WIDTH * 0.6, // 60% of screen width
+    width: SCREEN_WIDTH * 0.6,
     borderRadius: 16,
     padding: 20,
     backgroundColor: "#fff",
@@ -1359,7 +1398,7 @@ const styles = StyleSheet.create({
     bottom: 70,
     left: 0,
     right: 0,
-    height: SCREEN_WIDTH * 0.8, // Responsive height
+    height: SCREEN_WIDTH * 0.8,
     zIndex: 1000,
     backgroundColor: "#fff",
     borderTopWidth: 1,

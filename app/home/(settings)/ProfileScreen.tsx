@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -16,24 +15,22 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "react-native";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { useNavigation } from "expo-router";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import { Auth } from "aws-amplify";
 import { updateUser } from "@/src/redux/slices/UserSlice";
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
 import { DOMAIN } from "@/src/configs/base_url";
 import * as FileSystem from "expo-file-system";
 import { showError } from "@/src/utils/announce";
+import { useAppTheme } from "@/src/theme/theme";
 
 const ProfileScreen = () => {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.user);
   const navigation = useNavigation();
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -129,7 +126,10 @@ const ProfileScreen = () => {
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission denied", "Bạn cần cấp quyền truy cập ảnh để thay đổi avatar");
+      Alert.alert(
+        "Permission denied",
+        "Bạn cần cấp quyền truy cập ảnh để thay đổi avatar"
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -174,7 +174,9 @@ const ProfileScreen = () => {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
-            ...(Platform.OS === "web" ? {} : { "Content-Type": "multipart/form-data" }), // Web không cần Content-Type
+            ...(Platform.OS === "web"
+              ? {}
+              : { "Content-Type": "multipart/form-data" }), // Web không cần Content-Type
           },
           body: formData,
         });
@@ -198,11 +200,17 @@ const ProfileScreen = () => {
       const updated = await resp.json();
       dispatch(updateUser(updated.user));
       Alert.alert("Success", "Cập nhật thông tin thành công");
-      setEditable({ name: false, dob: false, gender: false, phone: false, email: false });
+      setEditable({
+        name: false,
+        dob: false,
+        gender: false,
+        phone: false,
+        email: false,
+      });
       setOriginalAvatar(newAvatarUrl);
     } catch (err) {
       console.error(err);
-      showError(err)
+      showError(err);
     } finally {
       setLoading(false);
     }
@@ -212,13 +220,25 @@ const ProfileScreen = () => {
   const isSmallScreen = width <= 320;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.card,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Profile</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Profile
+        </Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -231,8 +251,8 @@ const ProfileScreen = () => {
             styles.scrollContainer,
             {
               paddingHorizontal: isLargeScreen ? width * 0.15 : 16,
-              paddingTop: isLargeScreen ? 30 : 20
-            }
+              paddingTop: isLargeScreen ? 30 : 20,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
         >
@@ -244,16 +264,25 @@ const ProfileScreen = () => {
               activeOpacity={0.7}
             >
               <Image
-                source={{ uri: avatarUrl || "https://cdn-icons-png.flaticon.com/512/219/219983.png" }}
+                source={{
+                  uri:
+                    avatarUrl ||
+                    "https://cdn-icons-png.flaticon.com/512/219/219983.png",
+                }}
                 style={[
                   styles.avatar,
                   {
                     width: isLargeScreen ? 150 : 100,
                     height: isLargeScreen ? 150 : 100,
-                  }
+                  },
                 ]}
               />
-              <View style={[styles.editOverlay, { backgroundColor: theme.colors.primary + "80" }]}>
+              <View
+                style={[
+                  styles.editOverlay,
+                  { backgroundColor: theme.colors.primary + "80" },
+                ]}
+              >
                 <Ionicons
                   name="camera"
                   size={isLargeScreen ? 24 : 20}
@@ -264,36 +293,46 @@ const ProfileScreen = () => {
           </View>
 
           {/* Profile Info */}
-          <View style={[
-            styles.infoContainer,
-            {
-              backgroundColor: theme.colors.card,
-              padding: isLargeScreen ? 24 : 16,
-              borderRadius: 16,
-              elevation: 2,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-            }
-          ]}>
-            {(["name", "dob", "gender", "phone", "email"] as Array<keyof typeof form>).map((field, index) => (
+          <View
+            style={[
+              styles.infoContainer,
+              {
+                backgroundColor: theme.colors.card,
+                padding: isLargeScreen ? 24 : 16,
+                borderRadius: 12,
+                elevation: 1,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+              },
+            ]}
+          >
+            {(
+              ["name", "dob", "gender", "phone", "email"] as Array<
+                keyof typeof form
+              >
+            ).map((field, index) => (
               <ProfileItem
                 key={field}
                 label={
                   field === "name"
                     ? "Full name"
                     : field === "dob"
-                      ? "Birth day"
-                      : field === "phone"
-                        ? "Phone number"
-                        : field === "email"
-                          ? "Email"
-                          : "Gender"
+                    ? "Birth day"
+                    : field === "phone"
+                    ? "Phone number"
+                    : field === "email"
+                    ? "Email"
+                    : "Gender"
                 }
                 value={form[field]}
                 onChange={(val) => handleChange(field, val)}
-                isEditable={field === "phone" || field === "email" ? false : editable[field] && !loading}
+                isEditable={
+                  field === "phone" || field === "email"
+                    ? false
+                    : editable[field] && !loading
+                }
                 onEdit={() => toggleEdit(field)}
                 theme={theme}
                 showEditIcon={field !== "phone" && field !== "email"}
@@ -303,28 +342,31 @@ const ProfileScreen = () => {
           </View>
 
           {/* Action Buttons */}
-          <View style={[
-            styles.buttonContainer,
-            {
-              marginTop: isLargeScreen ? 30 : 20,
-              paddingHorizontal: isLargeScreen ? width * 0.1 : 0,
-              marginBottom: 50
-
-            }
-          ]}>
+          <View
+            style={[
+              styles.buttonContainer,
+              {
+                marginTop: isLargeScreen ? 30 : 20,
+                paddingHorizontal: isLargeScreen ? width * 0.1 : 0,
+                marginBottom: 50,
+              },
+            ]}
+          >
             <TouchableOpacity
               style={[
                 styles.resetButton,
                 {
                   borderColor: "#FF4D4D",
                   paddingVertical: isLargeScreen ? 16 : 12,
-                }
+                },
               ]}
               onPress={handleReset}
               disabled={loading}
               activeOpacity={0.7}
             >
-              <Text style={[styles.resetText, { color: "#FF4D4D" }]}>Reset</Text>
+              <Text style={[styles.resetText, { color: "#FF4D4D" }]}>
+                Reset
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -332,7 +374,7 @@ const ProfileScreen = () => {
                 {
                   backgroundColor: theme.colors.primary,
                   paddingVertical: isLargeScreen ? 16 : 12,
-                }
+                },
               ]}
               onPress={handleSave}
               disabled={loading}
@@ -366,24 +408,28 @@ const ProfileItem = ({
   onChange: (v: string) => void;
   isEditable: boolean;
   onEdit: () => void;
-  theme: typeof DarkTheme | typeof DefaultTheme;
+  theme: any; // Use proper type from theme.tsx if TypeScript is enabled
   showEditIcon?: boolean;
   isLargeScreen: boolean;
 }) => (
-  <View style={[
-    styles.itemContainer,
-    {
-      borderBottomColor: theme.colors.border,
-      paddingVertical: isLargeScreen ? 16 : 12,
-    }
-  ]}>
-    <Text style={[
-      styles.itemLabel,
+  <View
+    style={[
+      styles.itemContainer,
       {
-        color: theme.colors.text,
-        fontSize: isLargeScreen ? 18 : 16,
-      }
-    ]}>
+        borderBottomColor: theme.colors.border,
+        paddingVertical: isLargeScreen ? 16 : 12,
+      },
+    ]}
+  >
+    <Text
+      style={[
+        styles.itemLabel,
+        {
+          color: theme.colors.text,
+          fontSize: isLargeScreen ? 18 : 16,
+        },
+      ]}
+    >
       {label}
     </Text>
     <TextInput
@@ -395,6 +441,7 @@ const ProfileItem = ({
           fontSize: isLargeScreen ? 18 : 16,
           paddingVertical: isLargeScreen ? 10 : 8,
           paddingHorizontal: isLargeScreen ? 16 : 12,
+          borderRadius: 12,
         },
       ]}
       value={value}
@@ -416,6 +463,7 @@ const ProfileItem = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     height: 60,
@@ -424,7 +472,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    elevation: 2,
+    elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -472,7 +520,7 @@ const styles = StyleSheet.create({
   },
   itemValue: {
     flex: 2,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   editButton: {
     padding: 8,
@@ -500,12 +548,11 @@ const styles = StyleSheet.create({
     maxWidth: 200,
     borderRadius: 12,
     alignItems: "center",
-    elevation: 2,
+    elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 2,
-
   },
   saveText: {
     color: "#fff",

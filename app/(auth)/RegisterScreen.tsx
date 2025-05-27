@@ -1,27 +1,23 @@
-// @ts-nocheck
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TextInput,
-  Button,
   TouchableOpacity,
   StyleSheet,
   Alert,
-  useColorScheme,
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from "react-native";
 import { Auth } from "@aws-amplify/auth";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { Picker } from "@react-native-picker/picker";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import { Ionicons } from "@expo/vector-icons";
+import { useAppTheme } from "@/src/theme/theme";
 
 interface FormState {
   fullName: string;
@@ -48,15 +44,12 @@ interface Errors {
   email?: string;
 }
 
-const RegisterScreen: React.FC = ({ navigation }: any) => {
-  const route = useRoute();
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+const RegisterScreen: React.FC = () => {
+  const { theme } = useAppTheme(); // Use custom theme hook
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { data } = useLocalSearchParams();
   const userStore = useSelector((state: RootState) => state.user);
   const { width } = useWindowDimensions();
-  const { data } = useLocalSearchParams();
 
   const [form, setForm] = useState<FormState>({
     fullName: "",
@@ -78,29 +71,26 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-
   useEffect(() => {
     if (userStore.id) {
       router.replace("/home");
     }
-  }, [userStore.id]);
+  }, [userStore.id, router]);
+
   useEffect(() => {
     try {
       if (data) {
         const parsed = JSON.parse(data as string);
-        checkPasswordRules(parsed.password)
+        checkPasswordRules(parsed.password);
         setForm((prevForm) => ({
           ...prevForm,
-          ...parsed
+          ...parsed,
         }));
       }
     } catch (err) {
-      console.error('Failed to parse data:', err);
+      console.error("Failed to parse data:", err);
     }
-  }, [route.params]);
-
-
-  const countryCodes = [{ label: "Vietnam (+84)", value: "+84" }];
+  }, [data]);
 
   const checkPasswordRules = (password: string) => {
     setPasswordRules({
@@ -129,11 +119,18 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
     if (form.password !== form.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
     setErrors(newErrors);
-    console.log(Object.keys(newErrors).length === 0)
     return (
       Object.keys(newErrors).length === 0 &&
       Object.values(passwordRules).every(Boolean)
     );
+  };
+
+  const handleResendOtp = async (email: string) => {
+    try {
+      await Auth.resendSignUp(email);
+    } catch (error: any) {
+      Alert.alert("Lỗi", error.message || "Gửi lại OTP thất bại.");
+    }
   };
 
   const handleRegister = async () => {
@@ -148,10 +145,10 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             phone_number: fullPhone,
             email: form.email,
           },
-        }).catch(e => {
-          console.log(e)
+        }).catch((e) => {
+          console.log(e);
           if (e.name === "UsernameExistsException") {
-            handleResendOtp(form.email)
+            handleResendOtp(form.email);
             router.replace({
               pathname: "/OTPVerificationScreen",
               params: {
@@ -160,6 +157,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             });
             return;
           }
+          throw e;
         });
         router.push({
           pathname: "/OTPVerificationScreen",
@@ -175,15 +173,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
   };
 
   const isLargeScreen = width >= 768;
-  const isSmallScreen = width <= 320;
 
-  const handleResendOtp = async (email:string) => {
-    try {
-      await Auth.resendSignUp(email);
-    } catch (error: any) {
-      setDialog({ visible: true, title: 'Lỗi!', message: error.message || 'Gửi lại OTP thất bại.' });
-    }
-  };
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -196,16 +186,26 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[
-          styles.container,
-          {
-            paddingHorizontal: isLargeScreen ? width * 0.15 : 24,
-            paddingTop: isLargeScreen ? 40 : 24,
-          }
-        ]}>
+        <View
+          style={[
+            styles.container,
+            {
+              paddingHorizontal: isLargeScreen ? width * 0.1 : 16,
+              paddingTop: isLargeScreen ? 40 : 24,
+            },
+          ]}
+        >
           {/* App Logo/Title */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>
+            <Text
+              style={[
+                styles.title,
+                {
+                  color: theme.colors.text,
+                  fontSize: isLargeScreen ? 32 : 28,
+                },
+              ]}
+            >
               App Chat
             </Text>
           </View>
@@ -214,16 +214,29 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
           <View style={styles.formContainer}>
             {/* Full Name */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
                 Full Name:
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    borderColor: errors.fullName ? theme.colors.notification : theme.colors.border,
+                    borderColor: errors.fullName
+                      ? theme.colors.notification
+                      : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
+                    fontSize: isLargeScreen ? 18 : 16,
+                    paddingVertical: isLargeScreen ? 16 : 12,
+                    fontStyle: "italic",
                   },
                 ]}
                 value={form.fullName}
@@ -245,16 +258,29 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Email */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
                 Email:
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    borderColor: errors.email ? theme.colors.notification : theme.colors.border,
+                    borderColor: errors.email
+                      ? theme.colors.notification
+                      : theme.colors.border,
                     color: theme.colors.text,
                     backgroundColor: theme.colors.card,
+                    fontSize: isLargeScreen ? 18 : 16,
+                    paddingVertical: isLargeScreen ? 16 : 12,
+                    fontStyle: "italic",
                   },
                 ]}
                 value={form.email}
@@ -278,7 +304,15 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Phone Number */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
                 Phone Number:
               </Text>
               <View style={styles.phoneInputContainer}>
@@ -304,9 +338,14 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                   style={[
                     styles.phoneInput,
                     {
-                      borderColor: errors.phone ? theme.colors.notification : theme.colors.border,
+                      borderColor: errors.phone
+                        ? theme.colors.notification
+                        : theme.colors.border,
                       color: theme.colors.text,
                       backgroundColor: theme.colors.card,
+                      fontSize: isLargeScreen ? 18 : 16,
+                      paddingVertical: isLargeScreen ? 16 : 12,
+                      fontStyle: "italic",
                     },
                   ]}
                   value={form.phone}
@@ -330,16 +369,37 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 
             {/* Password */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Password:</Text>
-              <View style={[
-                styles.passwordInputContainer,
-                {
-                  borderColor: errors.password ? theme.colors.notification : theme.colors.border,
-                  backgroundColor: theme.colors.card,
-                }
-              ]}>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
+                Password:
+              </Text>
+              <View
+                style={[
+                  styles.passwordInputContainer,
+                  {
+                    borderColor: errors.password
+                      ? theme.colors.notification
+                      : theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  },
+                ]}
+              >
                 <TextInput
-                  style={[styles.passwordInput, { color: theme.colors.text }]}
+                  style={[
+                    styles.passwordInput,
+                    {
+                      color: theme.colors.text,
+                      fontSize: isLargeScreen ? 18 : 16,
+                      fontStyle: "italic",
+                    },
+                  ]}
                   value={form.password}
                   onChangeText={(text) => {
                     setForm({ ...form, password: text });
@@ -355,53 +415,117 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                 >
                   <Ionicons
                     name={showPassword ? "eye-off" : "eye"}
-                    size={20}
+                    size={isLargeScreen ? 24 : 20}
                     color={theme.colors.text + "80"}
                   />
                 </TouchableOpacity>
               </View>
-
-
-              {/* Chỉ hiển thị quy tắc nếu có nhập password và có ít nhất 1 quy tắc không thỏa mãn */}
-              {form.password && !Object.values(passwordRules).every(Boolean) && (
-                <View style={styles.passwordRules}>
-                  {!passwordRules.minLength && (
-                    <Text style={{ color: theme.colors.text }}>
-                      ─ At least 8 characters
-                    </Text>
-                  )}
-                  {!passwordRules.lowercase && (
-                    <Text style={{ color: theme.colors.text }}>
-                      ─ Lowercase letter
-                    </Text>
-                  )}
-                  {!passwordRules.uppercase && (
-                    <Text style={{ color: theme.colors.text }}>
-                      ─ Uppercase letter
-                    </Text>
-                  )}
-                  {!passwordRules.symbol && (
-                    <Text style={{ color: theme.colors.text }}>
-                      ─ Symbol
-                    </Text>
-                  )}
-                </View>
+              {form.password &&
+                !Object.values(passwordRules).every(Boolean) && (
+                  <View style={styles.passwordRules}>
+                    {!passwordRules.minLength && (
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          {
+                            color: theme.colors.text,
+                            fontSize: isLargeScreen ? 14 : 12,
+                            fontStyle: "italic",
+                          },
+                        ]}
+                      >
+                        ─ At least 8 characters
+                      </Text>
+                    )}
+                    {!passwordRules.lowercase && (
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          {
+                            color: theme.colors.text,
+                            fontSize: isLargeScreen ? 14 : 12,
+                            fontStyle: "italic",
+                          },
+                        ]}
+                      >
+                        ─ Lowercase letter
+                      </Text>
+                    )}
+                    {!passwordRules.uppercase && (
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          {
+                            color: theme.colors.text,
+                            fontSize: isLargeScreen ? 14 : 12,
+                            fontStyle: "italic",
+                          },
+                        ]}
+                      >
+                        ─ Uppercase letter
+                      </Text>
+                    )}
+                    {!passwordRules.symbol && (
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          {
+                            color: theme.colors.text,
+                            fontSize: isLargeScreen ? 14 : 12,
+                            fontStyle: "italic",
+                          },
+                        ]}
+                      >
+                        ─ Symbol
+                      </Text>
+                    )}
+                  </View>
+                )}
+              {errors.password && (
+                <Text
+                  style={[
+                    styles.errorText,
+                    { color: theme.colors.notification },
+                  ]}
+                >
+                  {errors.password}
+                </Text>
               )}
-              {errors.password && <Text style={[styles.errorText, { color: theme.colors.notification }]}>{errors.password}</Text>}
             </View>
 
             {/* Confirm Password */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
-              <View style={[
-                styles.passwordInputContainer,
-                {
-                  borderColor: errors.confirmPassword ? theme.colors.notification : theme.colors.border,
-                  backgroundColor: theme.colors.card,
-                }
-              ]}>
+              <Text
+                style={[
+                  styles.label,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
+                Confirm Password
+              </Text>
+              <View
+                style={[
+                  styles.passwordInputContainer,
+                  {
+                    borderColor: errors.confirmPassword
+                      ? theme.colors.notification
+                      : theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  },
+                ]}
+              >
                 <TextInput
-                  style={[styles.passwordInput, { color: theme.colors.text }]}
+                  style={[
+                    styles.passwordInput,
+                    {
+                      color: theme.colors.text,
+                      fontSize: isLargeScreen ? 18 : 16,
+                      fontStyle: "italic",
+                    },
+                  ]}
                   value={form.confirmPassword}
                   onChangeText={(text) =>
                     setForm({ ...form, confirmPassword: text })
@@ -416,7 +540,7 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
                 >
                   <Ionicons
                     name={showConfirmPassword ? "eye-off" : "eye"}
-                    size={20}
+                    size={isLargeScreen ? 24 : 20}
                     color={theme.colors.text + "80"}
                   />
                 </TouchableOpacity>
@@ -437,21 +561,46 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
             <TouchableOpacity
               style={[
                 styles.registerButton,
-                { backgroundColor: theme.colors.primary },
+                {
+                  backgroundColor: theme.colors.primary,
+                  paddingVertical: isLargeScreen ? 16 : 14,
+                },
               ]}
               onPress={handleRegister}
+              activeOpacity={0.7}
             >
-              <Text style={styles.registerButtonText}>Register</Text>
+              <Text
+                style={[
+                  styles.registerButtonText,
+                  { fontSize: isLargeScreen ? 18 : 16 },
+                ]}
+              >
+                Register
+              </Text>
             </TouchableOpacity>
 
             {/* Sign In Link */}
             <View style={styles.signInContainer}>
-              <Text style={[styles.signInText, { color: theme.colors.text }]}>
+              <Text
+                style={[
+                  styles.signInText,
+                  {
+                    color: theme.colors.text,
+                    fontSize: isLargeScreen ? 16 : 14,
+                  },
+                ]}
+              >
                 Already have an account?
               </Text>
               <TouchableOpacity onPress={() => router.replace("/LoginScreen")}>
                 <Text
-                  style={[styles.signInLink, { color: theme.colors.primary }]}
+                  style={[
+                    styles.signInLink,
+                    {
+                      color: theme.colors.primary,
+                      fontSize: isLargeScreen ? 16 : 14,
+                    },
+                  ]}
                 >
                   SIGN IN
                 </Text>
@@ -467,24 +616,19 @@ const RegisterScreen: React.FC = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
     paddingBottom: 40,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     marginBottom: 32,
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
     fontWeight: "700",
     marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    opacity: 0.7,
   },
   formContainer: {
     width: "100%",
@@ -495,89 +639,79 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    fontSize: 14,
     fontWeight: "500",
     marginBottom: 8,
   },
   input: {
     width: "100%",
-    height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   phoneInputContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
-  countryCodeContainer: {
-    width: 120,
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginRight: 12,
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  picker: {
-    width: "100%",
-    height: "100%",
-  },
   phoneInput: {
     flex: 1,
-    height: 50,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   passwordInputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    height: 50,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   passwordInput: {
     flex: 1,
-    fontSize: 16,
-    height: "100%",
   },
   showButton: {
     padding: 8,
   },
-  passwordRulesContainer: {
-    marginTop: 8,
-  },
-  passwordRulesTitle: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
   passwordRules: {
     flexDirection: "column",
-    flexWrap: "wrap",
-    gap: 12,
+    marginTop: 8,
+    gap: 8,
   },
   ruleText: {
-    fontSize: 12,
+    fontWeight: "400",
   },
   errorText: {
-    fontSize: 12,
+    fontWeight: "400",
     marginTop: 4,
   },
   registerButton: {
     width: "100%",
-    height: 50,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   registerButtonText: {
     color: "white",
-    fontSize: 16,
     fontWeight: "600",
   },
   signInContainer: {
@@ -588,10 +722,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   signInText: {
-    fontSize: 14,
+    fontWeight: "400",
   },
   signInLink: {
-    fontSize: 14,
     fontWeight: "600",
   },
 });

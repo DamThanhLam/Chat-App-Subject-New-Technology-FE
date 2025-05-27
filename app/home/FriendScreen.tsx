@@ -14,24 +14,20 @@ import {
   FlatList,
   Dimensions,
   Platform,
-  StatusBar
+  StatusBar,
 } from "react-native";
-import { useColorScheme } from "react-native";
-import {
-  DarkTheme,
-  DefaultTheme,
-  useNavigation,
-} from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { Auth } from "aws-amplify";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/redux/store";
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { connectSocket, getSocket, initSocket } from "@/src/socket/socket";
+import { connectSocket, getSocket } from "@/src/socket/socket";
 import Toast from "react-native-toast-message";
 import { DOMAIN } from "@/src/configs/base_url";
 import { router } from "expo-router";
 import { getNickname } from "@/src/apis/nickName";
 import * as ImagePicker from "expo-image-picker";
+import { useAppTheme } from "@/src/theme/theme";
 
 /* --- Các Interface --- */
 interface Friend {
@@ -47,7 +43,7 @@ interface Group {
   id: string;
   groupName: string;
   displayName?: string;
-  participants?: string[]; 
+  participants?: string[];
   leaderId?: string;
   avatarUrl?: string;
   memberCount?: number;
@@ -61,15 +57,12 @@ interface SearchUser {
   avatarUrl?: string;
 }
 
-
 const { width } = Dimensions.get("window");
 const isSmallDevice = width < 375;
 
 const FriendScreen = () => {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const { theme } = useAppTheme();
   const navigation = useNavigation();
-
   const user = useSelector((state: RootState) => state.user);
   const [token, setToken] = useState("");
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -77,14 +70,14 @@ const FriendScreen = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedTab, setSelectedTab] = useState<string>("friends");
-
   const [showAddFriendModal, setShowAddFriendModal] = useState<boolean>(false);
   const [searchEmail, setSearchEmail] = useState<string>("");
   const [searchResult, setSearchResult] = useState<SearchUser | null>(null);
   const [searching, setSearching] = useState<boolean>(false);
   const [friendRequestSent, setFriendRequestSent] = useState<boolean>(false);
   const [isAlreadyFriend, setIsAlreadyFriend] = useState<boolean>(false);
-  const [createGroupModalVisible, setCreateGroupModalVisible] = useState<boolean>(false);
+  const [createGroupModalVisible, setCreateGroupModalVisible] =
+    useState<boolean>(false);
   const [groupName, setGroupName] = useState<string>("");
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -113,7 +106,6 @@ const FriendScreen = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-
         if (selectedTab === "friends") {
           await fetchFriends();
         } else if (selectedTab === "groups") {
@@ -134,7 +126,7 @@ const FriendScreen = () => {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
     };
 
@@ -153,13 +145,13 @@ const FriendScreen = () => {
     return response.json();
   };
 
-
   // Hàm get danh sách nhóm
   const fetchGroups = async () => {
     try {
       if (!user?.id || !token) return;
-
-      const groupsData = await apiFetch(`/api/conversations/my-groups/${user.id}`);
+      const groupsData = await apiFetch(
+        `/api/conversations/my-groups/${user.id}`
+      );
       if (!Array.isArray(groupsData)) throw new Error("Phản hồi không hợp lệ");
 
       const processedGroups = await Promise.all(
@@ -186,18 +178,20 @@ const FriendScreen = () => {
     try {
       const friendsData = await apiFetch(`/api/friends/get-friends/${user.id}`);
       const acceptedFriends = friendsData.friends.filter(
-        (friend: { status: string; }) => friend.status === "accepted"
+        (friend: { status: string }) => friend.status === "accepted"
       );
 
       const enrichedFriends = await Promise.all(
         acceptedFriends.map(async (friend: any) => {
-          const otherUserId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
+          const otherUserId =
+            friend.senderId === user.id ? friend.receiverId : friend.senderId;
           try {
             const [userData, nicknameData] = await Promise.all([
               apiFetch(`/api/user/${otherUserId}`),
               getNickname(otherUserId),
             ]);
-            const nickname = nicknameData?.nickname || userData.name || "Unknown";
+            const nickname =
+              nicknameData?.nickname || userData.name || "Unknown";
             return {
               ...friend,
               name: nickname,
@@ -270,7 +264,9 @@ const FriendScreen = () => {
     setIsAlreadyFriend(true);
     setFriendRequestSent(false);
     try {
-      const data = await apiFetch(`/api/user/search?email=${encodeURIComponent(searchEmail)}`);
+      const data = await apiFetch(
+        `/api/user/search?email=${encodeURIComponent(searchEmail)}`
+      );
       if (data?.users && data.users.length > 0) {
         const foundUser: SearchUser = data.users[0];
         setSearchResult(foundUser);
@@ -327,10 +323,8 @@ const FriendScreen = () => {
     });
   }, []);
 
-
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
-
     if (!socket || !user?.id || !receiverId) {
       console.error("Thiếu thông tin gửi lời mời");
       Toast.show({
@@ -380,7 +374,6 @@ const FriendScreen = () => {
     }
 
     const payload = { senderId: user.id, receiverId: searchResult.id };
-    
     socket.emit("cancel-friend-request", payload);
     socket.once("cancel-friend-request-response", (res: any) => {
       if (res.code === 200) {
@@ -399,17 +392,30 @@ const FriendScreen = () => {
     console.log(grouped);
     return grouped.map(([letter, items]) => (
       <View key={letter}>
-        <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
+        <Text style={[styles.groupTitle, { color: theme.colors.text + "80" }]}>
+          {letter}
+        </Text>
         {items.map((item) => (
           <View
             key={item.id}
             style={[styles.itemContainer, { borderColor: theme.colors.border }]}
           >
             <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-            <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
+            <Text style={[styles.name, { color: theme.colors.text }]}>
+              {item.name}
+            </Text>
             <View style={styles.actions}>
-              <Ionicons name="call-outline" size={20} color={theme.colors.primary} />
-              <MaterialIcons name="video-call" size={22} color={theme.colors.primary} style={{ marginLeft: 10 }} />
+              <Ionicons
+                name="call-outline"
+                size={20}
+                color={theme.colors.primary}
+              />
+              <MaterialIcons
+                name="video-call"
+                size={22}
+                color={theme.colors.primary}
+                style={{ marginLeft: 10 }}
+              />
               <Ionicons
                 name="chatbubble-outline"
                 size={20}
@@ -419,7 +425,10 @@ const FriendScreen = () => {
                   router.push({
                     pathname: "/ChatScreen",
                     params: {
-                      userID2: user.id === item.senderId ? item.receiverId : item.senderId,
+                      userID2:
+                        user.id === item.senderId
+                          ? item.receiverId
+                          : item.senderId,
                       friendName: item.name,
                     },
                   });
@@ -435,7 +444,7 @@ const FriendScreen = () => {
   const renderGroupItem = ({ item }: { item: Group }) => {
     return (
       <TouchableOpacity
-        style={styles.groupItem}
+        style={[styles.groupItem, { borderColor: theme.colors.border }]}
         onPress={() => {
           router.push({
             pathname: "/GroupChatScreen",
@@ -445,31 +454,51 @@ const FriendScreen = () => {
             },
           });
         }}
+        activeOpacity={0.7}
       >
         <Image
           source={{ uri: item.avatarUrl || DEFAULT_AVATAR }}
           style={styles.groupAvatar}
         />
         <View style={styles.groupInfo}>
-          <Text style={styles.groupName}>{item.groupName}</Text>
-          <Text style={styles.groupMembers}>
-            {item.memberCount} thành viên • {item.isLeader ? " Bạn là trưởng nhóm" : " Bạn là thành viên"}
+          <Text style={[styles.groupName, { color: theme.colors.text }]}>
+            {item.groupName}
+          </Text>
+          <Text
+            style={[styles.groupMembers, { color: theme.colors.text + "80" }]}
+          >
+            {item.memberCount} thành viên •{" "}
+            {item.isLeader ? "Bạn là trưởng nhóm" : "Bạn là thành viên"}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={theme.colors.text + "80"}
+        />
       </TouchableOpacity>
     );
   };
 
   const renderGroupList = () => {
     if (loading) {
-      return <ActivityIndicator size="large" style={styles.loader} />;
+      return (
+        <ActivityIndicator
+          size="large"
+          style={styles.loader}
+          color={theme.colors.primary}
+        />
+      );
     }
 
     if (groups.length === 0) {
       return (
         <View style={styles.noGroupsContainer}>
-          <Text style={styles.noGroupsText}>Chưa có nhóm</Text>
+          <Text
+            style={[styles.noGroupsText, { color: theme.colors.text + "80" }]}
+          >
+            Chưa có nhóm
+          </Text>
         </View>
       );
     }
@@ -486,7 +515,6 @@ const FriendScreen = () => {
 
   const handleCreateGroup = async () => {
     const trimmedGroupName = groupName.trim();
-
     if (!trimmedGroupName) {
       Toast.show({
         type: "error",
@@ -509,10 +537,13 @@ const FriendScreen = () => {
 
       const actualParticipantIds = filteredFriends
         .filter((friend) => {
-          const friendId = friend.senderId === user.id ? friend.receiverId : friend.senderId;
+          const friendId =
+            friend.senderId === user.id ? friend.receiverId : friend.senderId;
           return selectedFriends.includes(friendId);
         })
-        .map((friend) => (friend.senderId === user.id ? friend.receiverId : friend.senderId));
+        .map((friend) =>
+          friend.senderId === user.id ? friend.receiverId : friend.senderId
+        );
 
       const socket = getSocket();
       if (!socket) return;
@@ -553,63 +584,155 @@ const FriendScreen = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
-            <Ionicons name="search" size={20} color={theme.colors.text} style={styles.searchIcon} />
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            style={[
+              styles.searchContainer,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Ionicons
+              name="search"
+              size={20}
+              color={theme.colors.text + "80"}
+              style={styles.searchIcon}
+            />
             <TextInput
               placeholder="Tìm kiếm..."
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.colors.text + "80"}
               style={[styles.searchInput, { color: theme.colors.text }]}
               value={searchTerm}
               onChangeText={setSearchTerm}
             />
           </View>
-          <View style={styles.tabContainer}>
-            <TouchableOpacity onPress={() => setSelectedTab("friends")} style={[styles.tab, selectedTab === "friends" && styles.activeTab]}>
-              <Text style={[styles.tabText, selectedTab === "friends" && styles.activeTabText]}>Bạn bè</Text>
+          <View
+            style={[
+              styles.tabContainer,
+              { borderBottomColor: theme.colors.border },
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() => setSelectedTab("friends")}
+              style={[
+                styles.tab,
+                selectedTab === "friends" && styles.activeTab,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: theme.colors.text },
+                  selectedTab === "friends" && { color: theme.colors.primary },
+                ]}
+              >
+                Bạn Bè
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setSelectedTab("groups")} style={[styles.tab, selectedTab === "groups" && styles.activeTab]}>
-              <Text style={[styles.tabText, selectedTab === "groups" && styles.activeTabText]}>Nhóm</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedTab("groups")}
+              style={[styles.tab, selectedTab === "groups" && styles.activeTab]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: theme.colors.text },
+                  selectedTab === "groups" && { color: theme.colors.primary },
+                ]}
+              >
+                Nhóm
+              </Text>
             </TouchableOpacity>
           </View>
           <View style={styles.actionButtons}>
             {selectedTab === "friends" ? (
-              <TouchableOpacity onPress={handleOpenAddFriendModal} style={styles.actionButton}>
-                <Ionicons name="person-add" size={22} color={theme.colors.primary} />
-                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Thêm bạn</Text>
+              <TouchableOpacity
+                onPress={handleOpenAddFriendModal}
+                style={styles.actionButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="person-add"
+                  size={22}
+                  color={theme.colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    { color: theme.colors.primary },
+                  ]}
+                >
+                  Thêm Bạn
+                </Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={() => setCreateGroupModalVisible(true)} style={styles.actionButton}>
-                <Ionicons name="people-circle-outline" size={22} color={theme.colors.primary} />
-                <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Tạo nhóm chat</Text>
+              <TouchableOpacity
+                onPress={() => setCreateGroupModalVisible(true)}
+                style={styles.actionButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="people-circle-outline"
+                  size={22}
+                  color={theme.colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    { color: theme.colors.primary },
+                  ]}
+                >
+                  Tạo Nhóm Chat
+                </Text>
               </TouchableOpacity>
             )}
           </View>
           <View style={styles.contentContainer}>
-            {selectedTab === "friends" ? renderFriendGroup() : renderGroupList()}
+            {selectedTab === "friends"
+              ? renderFriendGroup()
+              : renderGroupList()}
           </View>
         </ScrollView>
       )}
       <Modal visible={showAddFriendModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: theme.colors.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Thêm bạn</Text>
+          <View
+            style={[
+              styles.modalContainer,
+              { backgroundColor: theme.colors.card },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              Thêm Bạn
+            </Text>
             <TextInput
               placeholder="Nhập email..."
-              placeholderTextColor="#888"
-              style={[styles.input, { color: theme.colors.text }]}
+              placeholderTextColor={theme.colors.text + "80"}
+              style={[
+                styles.input,
+                { color: theme.colors.text, borderColor: theme.colors.border },
+              ]}
               value={searchEmail}
               onChangeText={setSearchEmail}
             />
             <View style={styles.buttonRow}>
               <TouchableOpacity
-                style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
+                style={[styles.cancelBtn, { backgroundColor: "#FF4D4D" }]}
                 onPress={() => {
                   setShowAddFriendModal(false);
                   setSearchEmail("");
@@ -617,28 +740,79 @@ const FriendScreen = () => {
                   setSearching(false);
                   setFriendRequestSent(false);
                 }}
+                activeOpacity={0.7}
               >
                 <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]} onPress={handleSearchByEmail}>
-                <Text style={styles.buttonText}>Tìm kiếm</Text>
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={handleSearchByEmail}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.buttonText}>Tìm Kiếm</Text>
               </TouchableOpacity>
             </View>
-            {searching && <ActivityIndicator style={{ marginTop: 10 }} color={theme.colors.primary} />}
+            {searching && (
+              <ActivityIndicator
+                style={{ marginTop: 10 }}
+                color={theme.colors.primary}
+              />
+            )}
             {searchResult && (
-              <View style={[styles.searchResultContainer, { backgroundColor: theme.colors.background }]}>
-                <Image source={{ uri: searchResult.avatarUrl || DEFAULT_AVATAR }} style={styles.modalAvatar} />
-                <Text style={[styles.searchResultName, { color: theme.colors.text }]}>{searchResult.name}</Text>
-                <Text style={[styles.searchResultEmail, { color: theme.colors.text }]}>{searchResult.email}</Text>
+              <View
+                style={[
+                  styles.searchResultContainer,
+                  { backgroundColor: theme.colors.card },
+                ]}
+              >
+                <Image
+                  source={{ uri: searchResult.avatarUrl || DEFAULT_AVATAR }}
+                  style={styles.modalAvatar}
+                />
+                <Text
+                  style={[
+                    styles.searchResultName,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {searchResult.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.searchResultEmail,
+                    { color: theme.colors.text + "80" },
+                  ]}
+                >
+                  {searchResult.email}
+                </Text>
                 {isAlreadyFriend ? (
-                  <Text style={[styles.statusText, { color: theme.colors.notification }]}>Đã là bạn bè</Text>
+                  <Text style={[styles.statusText, { color: "#FF4D4D" }]}>
+                    Đã là bạn bè
+                  </Text>
                 ) : friendRequestSent ? (
-                  <TouchableOpacity onPress={handleCancelFriendRequest} style={[styles.actionBtn, { backgroundColor: theme.colors.notification, marginTop: 16 }]}>
-                    <Text style={styles.buttonText}>Hủy lời mời</Text>
+                  <TouchableOpacity
+                    onPress={handleCancelFriendRequest}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: "#FF4D4D", marginTop: 16 },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonText}>Hủy Lời Mời</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity onPress={() => handleSendFriendRequest(searchResult.id)} style={[styles.actionBtn, { backgroundColor: theme.colors.primary, marginTop: 16 }]}>
-                    <Text style={styles.buttonText}>Gửi lời mời</Text>
+                  <TouchableOpacity
+                    onPress={() => handleSendFriendRequest(searchResult.id)}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: theme.colors.primary, marginTop: 16 },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonText}>Gửi Lời Mời</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -646,75 +820,138 @@ const FriendScreen = () => {
           </View>
         </View>
       </Modal>
-      <Modal visible={createGroupModalVisible} animationType="slide" transparent>
+      <Modal
+        visible={createGroupModalVisible}
+        animationType="slide"
+        transparent
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.groupModal, { backgroundColor: theme.colors.card }]}>
+          <View
+            style={[styles.groupModal, { backgroundColor: theme.colors.card }]}
+          >
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Tạo nhóm</Text>
-              <TouchableOpacity onPress={() => setCreateGroupModalVisible(false)}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                Tạo Nhóm
+              </Text>
+              <TouchableOpacity
+                onPress={() => setCreateGroupModalVisible(false)}
+                activeOpacity={0.7}
+              >
                 <Feather name="x" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
             <View style={styles.inputGroupContainer}>
-              <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
-                <Image source={{ uri: avatarUrl || DEFAULT_AVATAR }} style={styles.modalAvatar} />
+              <TouchableOpacity
+                style={styles.avatarContainer}
+                onPress={pickAvatar}
+              >
+                <Image
+                  source={{ uri: avatarUrl || DEFAULT_AVATAR }}
+                  style={styles.modalAvatar}
+                />
               </TouchableOpacity>
               <TextInput
                 placeholder="Nhập tên nhóm..."
-                placeholderTextColor="#888"
-                style={[styles.input_namegroup, { color: theme.colors.text }]}
+                placeholderTextColor={theme.colors.text + "80"}
+                style={[
+                  styles.input_namegroup,
+                  {
+                    color: theme.colors.text,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
                 value={groupName}
                 onChangeText={setGroupName}
               />
             </View>
             <TextInput
               placeholder="Tìm kiếm bạn bè..."
-              placeholderTextColor="#888"
-              style={[styles.input, { color: theme.colors.text }]}
+              placeholderTextColor={theme.colors.text + "80"}
+              style={[
+                styles.input,
+                { color: theme.colors.text, borderColor: theme.colors.border },
+              ]}
               value={searchTerm}
               onChangeText={setSearchTerm}
             />
             <ScrollView style={{ flex: 1 }}>
-              {groupByFirstLetter(filteredFriends).map(([letter, items], groupIndex) => (
-                <View key={`${letter}-${groupIndex}`}>
-                  <Text style={[styles.groupTitle, { color: theme.colors.text }]}>{letter}</Text>
-                  {items.map((item, index) => {
-                    const friendId = item.senderId === user.id ? item.receiverId : item.senderId;
-                    return (
-                      <TouchableOpacity
-                        key={`${friendId}-${index}`}
-                        style={[styles.itemContainer, { borderColor: theme.colors.border }]}
-                        onPress={() => {
-                          setSelectedFriends((prev) => {
-                            const updated = prev.includes(friendId)
-                              ? prev.filter((id) => id !== friendId)
-                              : [...prev, friendId];
-                            console.log("Selected Friends:", updated);
-                            return updated;
-                          });
-                        }}
-                      >
-                        <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-                        <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
-                        <View style={styles.checkboxCircle}>
-                          {selectedFriends.includes(friendId) && (
-                            <View style={[styles.checkboxSelected, { backgroundColor: theme.colors.primary }]} />
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
+              {groupByFirstLetter(filteredFriends).map(
+                ([letter, items], groupIndex) => (
+                  <View key={`${letter}-${groupIndex}`}>
+                    <Text
+                      style={[
+                        styles.groupTitle,
+                        { color: theme.colors.text + "80" },
+                      ]}
+                    >
+                      {letter}
+                    </Text>
+                    {items.map((item, index) => {
+                      const friendId =
+                        item.senderId === user.id
+                          ? item.receiverId
+                          : item.senderId;
+                      return (
+                        <TouchableOpacity
+                          key={`${friendId}-${index}`}
+                          style={[
+                            styles.itemContainer,
+                            { borderColor: theme.colors.border },
+                          ]}
+                          onPress={() => {
+                            setSelectedFriends((prev) =>
+                              prev.includes(friendId)
+                                ? prev.filter((id) => id !== friendId)
+                                : [...prev, friendId]
+                            );
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Image
+                            source={{ uri: item.avatarUrl }}
+                            style={styles.avatar}
+                          />
+                          <Text
+                            style={[styles.name, { color: theme.colors.text }]}
+                          >
+                            {item.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.checkboxCircle,
+                              { borderColor: theme.colors.text + "80" },
+                            ]}
+                          >
+                            {selectedFriends.includes(friendId) && (
+                              <View
+                                style={[
+                                  styles.checkboxSelected,
+                                  { backgroundColor: theme.colors.primary },
+                                ]}
+                              />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )
+              )}
             </ScrollView>
-            <View style={styles.modalFooter}>
+            <View
+              style={[
+                styles.modalFooter,
+                { borderTopColor: theme.colors.border },
+              ]}
+            >
               <TouchableOpacity
-                style={[styles.cancelBtn, { backgroundColor: theme.colors.notification }]}
+                style={[styles.cancelBtn, { backgroundColor: "#FF4D4D" }]}
                 onPress={() => {
                   setGroupName("");
                   setSelectedFriends([]);
                   setCreateGroupModalVisible(false);
                 }}
+                activeOpacity={0.7}
               >
                 <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
@@ -724,14 +961,19 @@ const FriendScreen = () => {
                 style={[
                   styles.actionBtn,
                   {
-                    backgroundColor: selectedFriends.length < 2 || !groupName.trim()
-                      ? theme.colors.border
-                      : theme.colors.primary,
-                    opacity: selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1,
+                    backgroundColor:
+                      selectedFriends.length < 2 || !groupName.trim()
+                        ? theme.colors.border
+                        : theme.colors.primary,
+                    opacity:
+                      selectedFriends.length < 2 || !groupName.trim() ? 0.6 : 1,
                   },
                 ]}
+                activeOpacity={0.7}
               >
-                <Text style={styles.buttonText}>{isCreatingGroup ? "Đang tạo..." : "Tạo nhóm"}</Text>
+                <Text style={styles.buttonText}>
+                  {isCreatingGroup ? "Đang tạo..." : "Tạo Nhóm"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -744,7 +986,6 @@ const FriendScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -753,14 +994,12 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   contentContainer: {
     paddingHorizontal: isSmallDevice ? 12 : 16,
     marginBottom: 20,
   },
-
-  // Search Bar
   searchContainer: {
     marginTop: isSmallDevice ? 8 : 16,
     marginHorizontal: isSmallDevice ? 12 : 16,
@@ -770,7 +1009,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "#ddd",
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -778,22 +1016,19 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   searchIcon: {
-    marginRight: 8
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: isSmallDevice ? 14 : 16,
-    paddingVertical: 0
+    paddingVertical: 0,
   },
-
-  // Tabs
   tabContainer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: isSmallDevice ? 12 : 16,
     marginHorizontal: isSmallDevice ? 12 : 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
   },
   tab: {
     paddingVertical: 12,
@@ -802,17 +1037,12 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: isSmallDevice ? 14 : 16,
-    fontWeight: "600"
+    fontWeight: "600",
   },
   activeTab: {
     borderBottomWidth: 3,
     borderBottomColor: "#007AFF",
   },
-  activeTabText: {
-    color: '#007AFF',
-  },
-
-  // Action Buttons
   actionButtons: {
     marginTop: isSmallDevice ? 12 : 16,
     marginHorizontal: isSmallDevice ? 12 : 16,
@@ -822,16 +1052,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
+    alignSelf: "flex-start",
   },
   actionButtonText: {
     marginLeft: 8,
     fontSize: isSmallDevice ? 14 : 16,
-    fontWeight: "500"
+    fontWeight: "500",
   },
-
-  // Friend/Group Items
   itemContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -842,7 +1070,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: isSmallDevice ? 40 : 48,
     height: isSmallDevice ? 40 : 48,
-    borderRadius: isSmallDevice ? 20 : 24
+    borderRadius: isSmallDevice ? 20 : 24,
   },
   modalAvatar: {
     width: 80,
@@ -854,28 +1082,24 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: isSmallDevice ? 14 : 16,
     fontWeight: "500",
-    flex: 1
+    flex: 1,
   },
   actions: {
     flexDirection: "row",
     marginLeft: "auto",
-    gap: isSmallDevice ? 12 : 16
+    gap: isSmallDevice ? 12 : 16,
   },
   groupTitle: {
     fontSize: isSmallDevice ? 14 : 16,
     fontWeight: "600",
     marginTop: isSmallDevice ? 12 : 16,
     marginLeft: isSmallDevice ? 8 : 16,
-    opacity: 0.8,
   },
-
-  // Group List
   groupItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: isSmallDevice ? 8 : 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   groupAvatar: {
     width: isSmallDevice ? 48 : 56,
@@ -893,7 +1117,6 @@ const styles = StyleSheet.create({
   },
   groupMembers: {
     fontSize: isSmallDevice ? 12 : 14,
-    opacity: 0.7,
   },
   noGroupsContainer: {
     flex: 1,
@@ -903,7 +1126,6 @@ const styles = StyleSheet.create({
   },
   noGroupsText: {
     fontSize: isSmallDevice ? 14 : 16,
-    opacity: 0.7,
   },
   groupListContainer: {
     paddingBottom: 20,
@@ -911,8 +1133,6 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 24,
   },
-
-  // Modals
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -920,20 +1140,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
-    width: isSmallDevice ? '90%' : '80%',
+    width: isSmallDevice ? "90%" : "80%",
     maxWidth: 400,
     padding: isSmallDevice ? 16 : 24,
     borderRadius: 12,
-    elevation: 5,
+    elevation: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   groupModal: {
-    width: isSmallDevice ? '95%' : '90%',
+    width: isSmallDevice ? "95%" : "90%",
     maxWidth: 400,
-    height: isSmallDevice ? '85%' : '80%',
+    height: isSmallDevice ? "85%" : "80%",
     borderRadius: 12,
     padding: isSmallDevice ? 12 : 16,
   },
@@ -951,8 +1171,7 @@ const styles = StyleSheet.create({
   input: {
     height: 48,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 16,
     fontSize: isSmallDevice ? 14 : 16,
@@ -961,8 +1180,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
     fontSize: isSmallDevice ? 14 : 16,
   },
@@ -975,8 +1193,6 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginRight: 0,
   },
-
-  // Buttons
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -984,28 +1200,26 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
   },
   actionBtn: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
   },
   buttonText: {
     color: "#fff",
     fontSize: isSmallDevice ? 14 : 16,
-    fontWeight: "600"
+    fontWeight: "600",
   },
-
-  // Search Results
   searchResultContainer: {
     marginTop: 16,
     alignItems: "center",
     padding: isSmallDevice ? 12 : 16,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   searchResultName: {
     fontSize: isSmallDevice ? 16 : 18,
@@ -1015,22 +1229,18 @@ const styles = StyleSheet.create({
   searchResultEmail: {
     fontSize: isSmallDevice ? 14 : 16,
     marginBottom: 12,
-    opacity: 0.8,
   },
   statusText: {
     marginTop: 12,
     fontWeight: "bold",
     fontSize: isSmallDevice ? 14 : 16,
   },
-
-  // Checkbox
   checkboxCircle: {
     marginLeft: "auto",
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#666",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1039,8 +1249,6 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
   },
-
-  // Modal Footer
   modalFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1048,7 +1256,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#ddd',
   },
 });
 
