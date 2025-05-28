@@ -37,6 +37,7 @@ import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
+import * as Location from "expo-location";
 import { format } from "date-fns";
 import { DOMAIN } from "@/src/configs/base_url";
 import { Auth } from "aws-amplify";
@@ -64,17 +65,25 @@ interface DeviceFile {
   uri: string;
   lastModified: number;
 }
+
+interface LocationMessage {
+  latitude: number;
+  longitude: number;
+  address?: string;
+  staticMapUrl?: string;
+}
+
 interface Message {
   id: string;
   conversationId: string | null;
   senderId: string;
-  message: string | FileMessage;
+  message: string | FileMessage | LocationMessage;
   createdAt: string;
   updatedAt: string;
   parentMessage?: Message;
   readed: string[];
   messageType: "group" | "private";
-  contentType: "file" | "emoji" | "text";
+  contentType: "file" | "emoji" | "text" | "location";
   receiverId: string;
   status: "recalled" | "deleted" | "readed" | "sended" | "received";
 }
@@ -259,12 +268,32 @@ const ChatScreen = () => {
 
       const handleNew = ({ message }: { message: Message }) => {
         setConversation((prev) => {
-          const exists = prev.some((m) => m.id === message.id);
-          const updated = exists ? prev : [...prev, message];
-          return updated.sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          const exists = prev.some(
+            (m) =>
+              m.id === message.id || (message.tempId && m.id === message.tempId)
           );
+
+          if (exists && message.tempId) {
+            return prev
+              .map((m) =>
+                m.id === message.tempId ? { ...message, id: message.id } : m
+              )
+              .sort(
+                (a, b) =>
+                  new Date(a.createdAt).getTime() -
+                  new Date(b.createdAt).getTime()
+              );
+          }
+
+          if (!exists) {
+            return [...prev, message].sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime()
+            );
+          }
+
+          return prev;
         });
       };
 
@@ -284,12 +313,50 @@ const ChatScreen = () => {
 
   const sendTextMessage = () => {
     if (!message.trim()) return;
-    getSocket().emit("private-message", {
-      receiverId: userID2,
-      message,
+
+    // Tạo tempId cho tin nhắn
+    const tempId = `temp-${Date.now()}`;
+
+    // Tạo tin nhắn optimistic để hiển thị ngay lập tức
+    const optimisticMessage: Message = {
+      id: tempId,
+      conversationId: null,
+      senderId: userID1,
+      receiverId: userID2 as string,
+      message: message.trim(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      readed: [],
       messageType: "private",
       contentType: "text",
+      status: "sended",
+    };
+
+    // Cập nhật UI ngay lập tức
+    setConversation((prev) => {
+      // Kiểm tra xem tin nhắn đã tồn tại chưa
+      if (prev.some((m) => m.id === tempId)) {
+        return prev;
+      }
+      return [...prev, optimisticMessage].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
     });
+
+    // Gửi tin nhắn qua socket với tempId
+    getSocket().emit("private-message", {
+      receiverId: userID2,
+      message: message.trim(),
+      messageType: "private",
+      contentType: "text",
+      tempId,
+    });
+
+    // Cuộn xuống cuối danh sách tin nhắn
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+    // Xóa nội dung tin nhắn và đóng emoji picker
     setMessage("");
     setShowEmojiPicker(false);
   };
@@ -607,6 +674,169 @@ const ChatScreen = () => {
     }
   };
 
+  // Share location
+  const shareLocation = async () => {
+    // First show confirmation dialog
+    if (Platform.OS === "web") {
+      if (!confirm("Bạn có muốn chia sẻ vị trí của mình không?")) {
+        return; // User declined
+      }
+    } else {
+      // Use Alert for mobile platforms
+      return new Promise((resolve) => {
+        Alert.alert(
+          "Chia sẻ vị trí",
+          "Bạn có muốn chia sẻ vị trí của mình không?",
+          [
+            {
+              text: "Không",
+              style: "cancel",
+              onPress: () => resolve(false),
+            },
+            {
+              text: "Có",
+              onPress: async () => {
+                resolve(true);
+                await shareLocationAfterConfirmation();
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      });
+    }
+
+    // For web, execute directly after confirmation
+    if (Platform.OS === "web") {
+      await shareLocationAfterConfirmation();
+    }
+  };
+
+  // Actual location sharing logic
+  const shareLocationAfterConfirmation = async () => {
+    try {
+      let latitude, longitude;
+
+      if (Platform.OS === "web") {
+        // Use browser's geolocation API for web
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 10000,
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+      } else {
+        // Use Expo Location for native platforms
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Quyền bị từ chối", "Không thể truy cập vị trí.");
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({});
+        latitude = location.coords.latitude;
+        longitude = location.coords.longitude;
+      }
+
+      // Lấy địa chỉ từ tọa độ
+      let address = `Vị trí: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+      // Sử dụng Static Map từ OpenStreetMap thay vì Google Maps
+      let staticMapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${latitude},${longitude}&zoom=15&size=300x150&markers=${latitude},${longitude},red`;
+
+      try {
+        // Sử dụng OpenStreetMap Nominatim API thay vì Google Maps API
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18`;
+        console.log("Calling Nominatim API for geocoding");
+
+        const response = await fetch(nominatimUrl, {
+          headers: {
+            // Quan trọng: Thêm User-Agent để tuân thủ điều khoản sử dụng của Nominatim
+            "User-Agent": "ChatApp/1.0",
+          },
+        });
+
+        if (!response.ok) {
+          console.error(
+            "Nominatim API response not OK:",
+            await response.text()
+          );
+          // Không throw lỗi, sử dụng địa chỉ tọa độ mặc định đã đặt ở trên
+        } else {
+          const data = await response.json();
+          console.log("Nominatim API response:", data);
+
+          if (data && data.display_name) {
+            address = data.display_name;
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi lấy địa chỉ:", err);
+        // Sử dụng địa chỉ tọa độ mặc định đã đặt ở trên
+      }
+
+      // Create temporary location message with tempId
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: Message = {
+        id: tempId,
+        conversationId: null,
+        senderId: userID1,
+        receiverId: userID2 as string,
+        message: { latitude, longitude, address, staticMapUrl },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        readed: [],
+        messageType: "private",
+        contentType: "location",
+        status: "sended",
+      };
+
+      // Update UI immediately with optimistic update
+      setConversation((prev) => {
+        // Kiểm tra xem tin nhắn đã tồn tại chưa
+        if (prev.some((m) => m.id === tempId)) {
+          return prev;
+        }
+        return [...prev, optimistic].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      });
+
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
+
+      // Send via Socket.IO
+      const socket = getSocket();
+      if (!socket) {
+        Alert.alert("Lỗi", "Không kết nối được với server.");
+        return;
+      }
+
+      // Gửi tin nhắn với tempId để có thể cập nhật đúng tin nhắn sau khi server phản hồi
+      socket.emit("private-message", {
+        receiverId: userID2,
+        message: { latitude, longitude, address, staticMapUrl },
+        messageType: "private",
+        contentType: "location",
+        tempId,
+      });
+    } catch (error) {
+      console.error("Lỗi chia sẻ vị trí:", error);
+      if (Platform.OS === "web") {
+        alert(
+          "Không thể chia sẻ vị trí. Vui lòng kiểm tra quyền truy cập vị trí trong trình duyệt."
+        );
+      } else {
+        Alert.alert("Lỗi", "Không thể chia sẻ vị trí.");
+      }
+    }
+  };
+
   const iconColor = theme.colors.primary;
 
   return (
@@ -714,7 +944,7 @@ const ChatScreen = () => {
             const isDeleted = item.status === "deleted";
             const isRecalled = item.status === "recalled";
             const isFile = item.contentType === "file";
-            const isText = item.contentType === "text";
+            const isLocation = item.contentType === "location";
             const messageTime = format(new Date(item.createdAt), "HH:mm");
 
             dateBefore.current = createdAt;
@@ -920,6 +1150,17 @@ const ChatScreen = () => {
           />
           {message.trim() === "" ? (
             <>
+              <TouchableOpacity
+                onPress={shareLocation}
+                style={styles.iconButton}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="location-pin"
+                  size={24}
+                  color={theme.colors.text + "80"}
+                />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={openImagePicker}
                 style={styles.iconButton}
