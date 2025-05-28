@@ -256,6 +256,16 @@ const ChatScreen = () => {
             )
         );
       });
+      //28-5-2025
+      socket.on("message-read", ({ message }: { message: Message }) => {
+        setConversation((prev) =>
+          prev.map((m) =>
+            m.id === message.id
+              ? { ...m, status: message.status, readed: message.readed }
+              : m
+          )
+        );
+      });
 
       const handleNew = ({ message }: { message: Message }) => {
         setConversation((prev) => {
@@ -270,6 +280,8 @@ const ChatScreen = () => {
 
       socket.on("result", handleNew);
       socket.on("private-message", handleNew);
+      //28-5-2025
+      socket.on("message-read", handleNew)
     });
 
     return () => {
@@ -278,6 +290,8 @@ const ChatScreen = () => {
         socketRef.off("recall-message");
         socketRef.off("result");
         socketRef.off("private-message");
+        //28-5-2025
+        socketRef.off("message-read");
       }
     };
   }, []);
@@ -304,6 +318,17 @@ const ChatScreen = () => {
       }
     });
   };
+
+  //28-5-2025
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
+    viewableItems.forEach(viewable => {
+      const item: Message = viewable.item;
+      // Nếu tin nhắn không gửi bởi người dùng hiện tại và trạng thái chưa là "readed"
+      if (item.senderId !== userID1 && item.status !== "readed") {
+        getSocket().emit("read-message", item.id);
+      }
+    });
+  }).current;
 
   const sendSelectedImages = async () => {
     if (tempSelectedImages.length === 0) return;
@@ -669,9 +694,15 @@ const ChatScreen = () => {
         </View>
 
         <FlatList
-          data={conversation}
           ref={flatListRef}
+          //28-5-2025
+          data={conversation}
           keyExtractor={(item) => item.id}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
           renderItem={({ item }) => {
             let showDate = false;
             let stringDate = "";

@@ -164,6 +164,12 @@ const MessageItem = ({
                 { color: isSender ? "#FFF" : theme.colors.text },
               ]}
             >
+              //28-5-2025
+              {isSender && (
+                <Text style={styles.statusText}>
+                  {item.status === "readed" ? "Đã xem" : "Đã gửi"}
+                </Text>
+              )}
               {messageTime}
             </Text>
           </View>
@@ -207,7 +213,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginVertical: 6,
   },
-
+  //28-5-2025
+  statusText: {
+    fontSize: 10,
+    textAlign: "right",
+    marginTop: 2,
+    marginRight: 10,
+  },
   sentWrapper: {
     justifyContent: "flex-end",
   },

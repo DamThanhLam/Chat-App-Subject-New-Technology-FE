@@ -37,6 +37,8 @@ interface Friend {
   status: string;
   name: string;
   avatarUrl?: string;
+  //28-5-2025
+  friendId: string;
 }
 
 interface Group {
@@ -86,6 +88,11 @@ const FriendScreen = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const DEFAULT_AVATAR =
     "https://cdn-icons-png.flaticon.com/512/219/219983.png";
+
+    // --- NEW STATE: cho hành động của nút "..." ---
+    //28-5-2025
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [showOptionsModal, setShowOptionsModal] = useState<boolean>(false);
 
   useEffect(() => {
     const getToken = async () => {
@@ -386,6 +393,33 @@ const FriendScreen = () => {
       }
     });
   };
+  
+  //28-5-2025
+  const handleDeleteFriend = () => {
+    if (selectedFriend) {
+      const socket = getSocket();
+      if (!socket) {
+        console.error("Socket not connected.");
+        return;
+      }
+
+      const payload = {
+        userId: user.id,
+        friendId: selectedFriend.friendId,
+      };
+
+      console.log("Gửi yêu cầu xóa bạn:", payload); // Kiểm tra dữ liệu gửi đi
+
+      socket.emit("delete-friend", payload);
+      setShowOptionsModal(false);
+
+      // Cập nhật danh sách bạn bè tạm thời
+      setFriends((prev) => prev.filter((f) => f.id !== selectedFriend.id));
+      setFilteredFriends((prev) => prev.filter((f) => f.id !== selectedFriend.id));
+    }
+  };
+
+
 
   const renderFriendGroup = () => {
     const grouped = groupByFirstLetter(filteredFriends);
@@ -432,6 +466,17 @@ const FriendScreen = () => {
                       friendName: item.name,
                     },
                   });
+                }}
+              />
+              //28-5-2025
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={24}
+                color={theme.colors.primary}
+                style={{ marginLeft: 10 }}
+                onPress={() => {
+                  setSelectedFriend(item);
+                  setShowOptionsModal(true);
                 }}
               />
             </View>
@@ -820,6 +865,33 @@ const FriendScreen = () => {
           </View>
         </View>
       </Modal>
+      //28-5-2025
+      <Modal visible={showOptionsModal} transparent animationType="fade">
+        <TouchableOpacity
+          activeOpacity={1}
+          style={modalStyles.modalOverlay}
+          onPress={() => setShowOptionsModal(false)}
+        >
+          <View style={[modalStyles.modalContainer, { backgroundColor: theme.colors.card }]}>
+            <TouchableOpacity
+              style={modalStyles.dropdownItem}
+              onPress={handleDeleteFriend}
+            >
+              <Text style={[modalStyles.dropdownText, { color: "#FF4D4D" }]}>
+                Xóa bạn
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={modalStyles.dropdownItem}
+              onPress={() => setShowOptionsModal(false)}
+            >
+              <Text style={[modalStyles.dropdownText, { color: theme.colors.text }]}>
+                Hủy
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       <Modal
         visible={createGroupModalVisible}
         animationType="slide"
@@ -982,6 +1054,33 @@ const FriendScreen = () => {
     </SafeAreaView>
   );
 };
+
+//28-5-2025
+const modalStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: "80%",
+    padding: 20,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    width: "100%",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderColor: "#ddd",
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

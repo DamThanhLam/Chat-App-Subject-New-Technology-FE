@@ -122,7 +122,7 @@ const GroupChatScreen = () => {
   const [isLeader, setIsleader] = useState(false);
   useEffect(() => {
     if (flatListRef.current && conversation.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: false });
+      flatListRef.current.scrollToEnd({ animated: true });
     }
   }, [conversation]);
   // Authentication: get userID and token
@@ -312,6 +312,16 @@ const GroupChatScreen = () => {
         socket?.on("userLeft", handleUserLeft);
         socket?.on("group-deleted", handleGroupDeleted);
         socket?.on("removed-from-group", handleRemovedFromGroup);
+        //28-5-2025
+        socket?.on("message-read", ({ message }) => {
+          setConversation((prev) =>
+            prev.map((m) =>
+              m.id === message.id
+                ? { ...m, status: message.status, readed: message.readed }
+                : m
+            )
+          );
+        });
         socket?.emit("join-group", conversationId);
         socket.on(
           "group-renamed",
@@ -379,6 +389,8 @@ const GroupChatScreen = () => {
         socket.off("reponse-approve-into-group");
         socket.off("response-invite-join-group");
         socket.off("block-chatting");
+        //28-5-2025
+        socket.off("message-read");
       }
     };
   }, [conversationId, userID1]);
@@ -390,6 +402,18 @@ const GroupChatScreen = () => {
     );
     // ... rest of the code
   }, [conversationId]);
+
+  //28-5-2025
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
+    viewableItems.forEach((viewable) => {
+      const msg: Message = viewable.item;
+      if (msg.senderId !== userID1 && msg.status !== "readed") {
+        getSocket().emit("read-message", msg.id);
+      }
+    });
+  }).current;
+
+  const viewabilityConfig = { viewAreaCoveragePercentThreshold: 50 };
 
   const openSettings = useCallback(() => {
     // Tránh mở lại nếu đã mở hoặc các menu khác đang mở
@@ -765,9 +789,13 @@ const GroupChatScreen = () => {
           data={conversation}
           ref={flatListRef}
           keyExtractor={(item) => (item ? item.id : "")}
-          onContentSizeChange={() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }}
+          //28-5-2025
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
           renderItem={({ item }) => {
             let showDate = false;
             let stringDate = "";
