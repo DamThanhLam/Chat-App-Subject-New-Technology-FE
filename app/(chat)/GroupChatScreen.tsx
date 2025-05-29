@@ -44,6 +44,7 @@ import SettingsPanel from "@/components/ui/SettingsPanel";
 import { API_BASE_URL, getAuthHeaders } from "@/src/utils/config";
 import FilePickerModal from "@/components/FilePickerModal";
 import MessageItem from "@/components/MessageItem";
+import * as Location from "expo-location";
 
 interface FileMessage {
   data: string;
@@ -71,7 +72,7 @@ interface Message {
   updatedAt: string;
   readed: string[];
   messageType: "group";
-  contentType: "file" | "emoji" | "text";
+  contentType: "file" | "emoji" | "text" | "location";
   status: "recalled" | "deleted" | "readed" | "sended" | "received";
 }
 interface User {
@@ -85,6 +86,13 @@ interface Conversation {
   groupName?: string;
   permission: any;
   leaderId: string;
+}
+
+interface LocationMessage {
+  latitude: number;
+  longitude: number;
+  address?: string;
+  staticMapUrl?: string; // URL hình ảnh bản đồ tĩnh (tùy chọn)
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -110,6 +118,7 @@ const GroupChatScreen = () => {
   const flatListRef = useRef<FlatList>(null);
   const dateBefore = useRef<Date | null>(null);
   const colorScheme = useColorScheme();
+
   const theme = useMemo(
     () => (colorScheme === "dark" ? DarkTheme : DefaultTheme),
     [colorScheme]
@@ -120,6 +129,7 @@ const GroupChatScreen = () => {
   const [groupName, setGroupName] = useState("Group Chat");
   const [isChatting, setIsChatting] = useState(false);
   const [isLeader, setIsleader] = useState(false);
+
   useEffect(() => {
     if (flatListRef.current && conversation.length > 0) {
       flatListRef.current.scrollToEnd({ animated: true });
@@ -724,6 +734,156 @@ const GroupChatScreen = () => {
       e.target.value = "";
     }
   };
+
+  // Share location
+  const shareLocation = async () => {
+    // First show confirmation dialog
+    if (Platform.OS === "web") {
+      if (!confirm("Bạn có muốn chia sẻ vị trí của mình không?")) {
+        return; // User declined
+      }
+    } else {
+      // Use Alert for mobile platforms
+      return new Promise((resolve) => {
+        Alert.alert(
+          "Chia sẻ vị trí",
+          "Bạn có muốn chia sẻ vị trí của mình không?",
+          [
+            {
+              text: "Không",
+              style: "cancel",
+              onPress: () => resolve(false),
+            },
+            {
+              text: "Có",
+              onPress: async () => {
+                resolve(true);
+                await shareLocationAfterConfirmation();
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      });
+    }
+
+    // For web, execute directly after confirmation
+    if (Platform.OS === "web") {
+      await shareLocationAfterConfirmation();
+    }
+  };
+
+  // Actual location sharing logic
+  const shareLocationAfterConfirmation = async () => {
+    try {
+      let latitude, longitude;
+
+      if (Platform.OS === "web") {
+        // Use browser's geolocation API for web
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 10000,
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+      } else {
+        // Use Expo Location for native platforms
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Quyền bị từ chối", "Không thể truy cập vị trí.");
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({});
+        latitude = location.coords.latitude;
+        longitude = location.coords.longitude;
+      }
+
+      // Lấy địa chỉ từ tọa độ
+      let address = `Vị trí: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+      // Sử dụng Static Map từ OpenStreetMap thay vì Google Maps
+      let staticMapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${latitude},${longitude}&zoom=15&size=300x150&markers=${latitude},${longitude},red`;
+
+      try {
+        // Sử dụng OpenStreetMap Nominatim API thay vì Google Maps API
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18`;
+        console.log("Calling Nominatim API for geocoding");
+
+        const response = await fetch(nominatimUrl, {
+          headers: {
+            // Quan trọng: Thêm User-Agent để tuân thủ điều khoản sử dụng của Nominatim
+            "User-Agent": "ChatApp/1.0",
+          },
+        });
+
+        if (!response.ok) {
+          console.error(
+            "Nominatim API response not OK:",
+            await response.text()
+          );
+          // Không throw lỗi, sử dụng địa chỉ tọa độ mặc định đã đặt ở trên
+        } else {
+          const data = await response.json();
+          console.log("Nominatim API response:", data);
+
+          if (data && data.display_name) {
+            address = data.display_name;
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi lấy địa chỉ:", err);
+        // Sử dụng địa chỉ tọa độ mặc định đã đặt ở trên
+      }
+
+      // Create temporary location message
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: Message = {
+        id: tempId,
+        conversationId,
+        senderId: userID1,
+        message: { latitude, longitude, address, staticMapUrl },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        readed: [],
+        messageType: "group",
+        contentType: "location",
+        status: "sended",
+      };
+
+      // Update UI immediately
+      setConversation((prev) => [...prev, optimistic]);
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
+
+      // Send via Socket.IO
+      const socket = getSocket();
+      if (!socket) {
+        Alert.alert("Lỗi", "Không kết nối được với server.");
+        return;
+      }
+      socket.emit("group-message", {
+        conversationId,
+        message: { latitude, longitude, address, staticMapUrl },
+        messageType: "group",
+        contentType: "location",
+        tempId,
+      });
+    } catch (error) {
+      console.error("Lỗi chia sẻ vị trí:", error);
+      if (Platform.OS === "web") {
+        alert(
+          "Không thể chia sẻ vị trí. Vui lòng kiểm tra quyền truy cập vị trí trong trình duyệt."
+        );
+      } else {
+        Alert.alert("Lỗi", "Không thể chia sẻ vị trí.");
+      }
+    }
+  };
   return (
     <PaperProvider>
       <View
@@ -736,7 +896,7 @@ const GroupChatScreen = () => {
             type="file"
             multiple
             style={{ display: "none" }}
-            onChange={() => { }}
+            onChange={() => {}}
           />
         )}
 
@@ -758,7 +918,9 @@ const GroupChatScreen = () => {
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
               {groupName || "Nhóm chat"}
             </Text>
-            <Text style={[styles.participantsText, { color: theme.colors.text }]}>
+            <Text
+              style={[styles.participantsText, { color: theme.colors.text }]}
+            >
               {groupParticipants.length} thành viên
             </Text>
           </View>
@@ -767,7 +929,11 @@ const GroupChatScreen = () => {
               onPress={() => alert("Call")}
               style={styles.iconSpacing}
             >
-              <FontAwesome name="phone" size={24} color={theme.colors.primary} />
+              <FontAwesome
+                name="phone"
+                size={24}
+                color={theme.colors.primary}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => alert("Video")}
@@ -919,7 +1085,11 @@ const GroupChatScreen = () => {
                   setTempSelectedImages([]);
                 }}
               >
-                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             </View>
 
@@ -968,16 +1138,12 @@ const GroupChatScreen = () => {
           </View>
         )}
 
-
-
-
         {/* Input Area */}
         <View
           style={[
             styles.inputContainer,
             { backgroundColor: theme.colors.card },
           ]}
-
         >
           <TouchableOpacity
             onPress={toggleEmojiPicker}
@@ -1008,6 +1174,13 @@ const GroupChatScreen = () => {
           />
           {message.trim() === "" ? (
             <>
+              <TouchableOpacity
+                onPress={shareLocation}
+                style={styles.iconSpacing}
+                disabled={!(isChatting || isLeader)}
+              >
+                <MaterialIcons name="location-pin" size={24} color="#007bff" />
+              </TouchableOpacity>
               {Platform.OS === "web" && (
                 <input
                   type="file"
@@ -1051,9 +1224,8 @@ const GroupChatScreen = () => {
           onClose={() => setFilePickerVisible(false)}
           onFileSelected={handleFileSelected}
         />
-      
       </View>
-    </PaperProvider >
+    </PaperProvider>
   );
 };
 
@@ -1201,7 +1373,6 @@ const styles = StyleSheet.create({
     color: "#666666",
   },
   inputContainer: {
-    
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
