@@ -330,6 +330,31 @@ const FriendScreen = () => {
     });
   }, []);
 
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Sự kiện này được gửi từ BE khi một yêu cầu kết bạn được chấp nhận
+    const handleFriend= () => {
+      // Gọi lại API để cập nhật danh sách yêu cầu
+      fetchFriends();
+    };
+
+    const handleDeleteFriend= () => {
+      // Gọi lại API để cập nhật danh sách yêu cầu
+      fetchFriends();
+    };
+
+    socket.on("friendRequestAccepted", handleFriend);
+    socket.on("friend-deleted", handleDeleteFriend);
+
+    return () => {
+      socket.off("friendRequestAccepted", handleFriend);
+      socket.off("friend-deleted", handleDeleteFriend);
+    };
+  }, [token, user.id]);
+  
+
   const handleSendFriendRequest = (receiverId: string) => {
     const socket = getSocket();
     if (!socket || !user?.id || !receiverId) {
@@ -357,6 +382,7 @@ const FriendScreen = () => {
           type: "success",
           text1: "Đã gửi lời mời kết bạn",
         });
+        setShowAddFriendModal(false);
       } else {
         Toast.show({
           type: "error",
