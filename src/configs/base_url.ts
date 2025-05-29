@@ -1,1 +1,1 @@
-export const DOMAIN = "http://192.168.1.6";
+export const DOMAIN = "http://192.168.1.102";

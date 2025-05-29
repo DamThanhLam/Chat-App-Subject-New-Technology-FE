@@ -265,7 +265,7 @@ const ChatScreen = () => {
             )
         );
       });
-      //28-5-2025
+      
       socket.on("message-read", ({ message }: { message: Message }) => {
         setConversation((prev) =>
           prev.map((m) =>
@@ -309,7 +309,7 @@ const ChatScreen = () => {
 
       socket.on("result", handleNew);
       socket.on("private-message", handleNew);
-      //28-5-2025
+      
       socket.on("message-read", handleNew)
     });
 
@@ -319,7 +319,7 @@ const ChatScreen = () => {
         socketRef.off("recall-message");
         socketRef.off("result");
         socketRef.off("private-message");
-        //28-5-2025
+        
         socketRef.off("message-read");
       }
     };
@@ -386,7 +386,7 @@ const ChatScreen = () => {
     });
   };
 
-  //28-5-2025
+  
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
     viewableItems.forEach(viewable => {
       const item: Message = viewable.item;
@@ -925,7 +925,7 @@ const ChatScreen = () => {
 
         <FlatList
           ref={flatListRef}
-          //28-5-2025
+          
           data={conversation}
           keyExtractor={(item) => item.id}
           onViewableItemsChanged={onViewableItemsChanged}

@@ -37,7 +37,7 @@ interface Friend {
   status: string;
   name: string;
   avatarUrl?: string;
-  //28-5-2025
+  
   friendId: string;
 }
 
@@ -90,7 +90,7 @@ const FriendScreen = () => {
     "https://cdn-icons-png.flaticon.com/512/219/219983.png";
 
     // --- NEW STATE: cho hành động của nút "..." ---
-    //28-5-2025
+    
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [showOptionsModal, setShowOptionsModal] = useState<boolean>(false);
 
@@ -394,7 +394,7 @@ const FriendScreen = () => {
     });
   };
   
-  //28-5-2025
+  
   const handleDeleteFriend = () => {
     if (selectedFriend) {
       const socket = getSocket();
@@ -468,7 +468,7 @@ const FriendScreen = () => {
                   });
                 }}
               />
-              //28-5-2025
+              
               <Ionicons
                 name="ellipsis-horizontal"
                 size={24}
@@ -865,7 +865,7 @@ const FriendScreen = () => {
           </View>
         </View>
       </Modal>
-      //28-5-2025
+      
       <Modal visible={showOptionsModal} transparent animationType="fade">
         <TouchableOpacity
           activeOpacity={1}
@@ -1055,7 +1055,7 @@ const FriendScreen = () => {
   );
 };
 
-//28-5-2025
+
 const modalStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,

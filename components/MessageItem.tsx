@@ -306,7 +306,7 @@ MessageItemProps) => {
                 { color: isSender ? "#FFF" : theme.colors.text },
               ]}
             >
-              //28-5-2025
+              
               {isSender && (
                 <Text style={styles.statusText}>
                   {item.status === "readed" ? "Đã xem" : "Đã gửi"}
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginVertical: 6,
   },
-  //28-5-2025
+  
   statusText: {
     fontSize: 10,
     textAlign: "right",

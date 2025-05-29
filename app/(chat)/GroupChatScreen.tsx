@@ -322,7 +322,7 @@ const GroupChatScreen = () => {
         socket?.on("userLeft", handleUserLeft);
         socket?.on("group-deleted", handleGroupDeleted);
         socket?.on("removed-from-group", handleRemovedFromGroup);
-        //28-5-2025
+        
         socket?.on("message-read", ({ message }) => {
           setConversation((prev) =>
             prev.map((m) =>
@@ -399,7 +399,7 @@ const GroupChatScreen = () => {
         socket.off("reponse-approve-into-group");
         socket.off("response-invite-join-group");
         socket.off("block-chatting");
-        //28-5-2025
+        
         socket.off("message-read");
       }
     };
@@ -413,7 +413,7 @@ const GroupChatScreen = () => {
     // ... rest of the code
   }, [conversationId]);
 
-  //28-5-2025
+  
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: any[] }) => {
     viewableItems.forEach((viewable) => {
       const msg: Message = viewable.item;
@@ -955,7 +955,7 @@ const GroupChatScreen = () => {
           data={conversation}
           ref={flatListRef}
           keyExtractor={(item) => (item ? item.id : "")}
-          //28-5-2025
+          
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
